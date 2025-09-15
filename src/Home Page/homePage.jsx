@@ -5,6 +5,8 @@ import About from './components/About';
 import FeaturedRooms from './components/FeaturedRooms';
 import FloorPlan from './components/FloorPlan';
 import BookingWidget from './components/BookingWidget';
+import BookingSection from './components/BookingSection';
+import Directions from './components/Directions';
 import Experiences from './components/Experiences';
 import Testimonials from './components/Testimonials';
 import Footer from './components/Footer';
@@ -17,9 +19,9 @@ const HomePage = () => {
       <Hero />
       <About />
       <FeaturedRooms />
-       <BookingWidget />
+      <BookingSection />
       <FloorPlan />
-     
+       <Directions />
       <Experiences />
       <Testimonials />
       <Footer />

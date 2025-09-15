@@ -13,6 +13,15 @@ const Hero = () => {
           <p className="hero-subtitle">Where Syrian mountains meet Mediterranean luxury in beautiful Kasab</p>
           <p className="hero-description">Experience the perfect blend of natural beauty and luxury accommodation in the heart of Kasab's stunning mountain landscape.</p>
         </div>
+
+        <div className="hero-actions">
+          <button className="hero-btn book-now-btn" onClick={() => document.getElementById('booking')?.scrollIntoView({ behavior: 'smooth' })}>
+            Book Now
+          </button>
+          <button className="hero-btn directions-btn" onClick={() => document.getElementById('directions')?.scrollIntoView({ behavior: 'smooth' })}>
+            Directions
+          </button>
+        </div>
       </div>
 
       <div className="scroll-indicator">

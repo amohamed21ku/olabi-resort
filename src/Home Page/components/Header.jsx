@@ -22,12 +22,11 @@ const Header = () => {
 
         <nav className="desktop-nav">
           <ul>
-            <li><a href="#home">Home</a></li>
-            <li><a href="#rooms">Rooms & Suites</a></li>
-            <li><a href="#experiences">Experiences</a></li>
-            <li><a href="#dining">Dining</a></li>
-            <li><a href="#spa">Spa & Wellness</a></li>
-            <li><a href="#contact">Contact</a></li>
+            <li><a href="#home">HomePage</a></li>
+            <li><a href="#about">About Us</a></li>
+            <li><a href="#rooms">Gallery</a></li>
+            <li><a href="#directions">Directions</a></li>
+            <li><a href="#booking">Booking</a></li>
           </ul>
         </nav>
 
@@ -39,7 +38,6 @@ const Header = () => {
               <option value="ar">AR</option>
             </select>
           </div>
-          <button className="booking-btn">Book Now</button>
         </div>
 
         <button
@@ -56,14 +54,12 @@ const Header = () => {
         <div className="mobile-menu">
           <nav>
             <ul>
-              <li><a href="#home">Home</a></li>
-              <li><a href="#rooms">Rooms & Suites</a></li>
-              <li><a href="#experiences">Experiences</a></li>
-              <li><a href="#dining">Dining</a></li>
-              <li><a href="#spa">Spa & Wellness</a></li>
-              <li><a href="#contact">Contact</a></li>
+              <li><a href="#home">HomePage</a></li>
+              <li><a href="#about">About Us</a></li>
+              <li><a href="#rooms">Gallery</a></li>
+              <li><a href="#directions">Directions</a></li>
+              <li><a href="#booking">Booking</a></li>
             </ul>
-            <button className="mobile-booking-btn">Book Now</button>
           </nav>
         </div>
       )}
