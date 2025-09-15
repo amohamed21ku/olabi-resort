@@ -1,0 +1,137 @@
+
+/* Testimonials Section */
+.testimonials-section {
+  padding: var(--section-padding);
+  background: var(--light-gray);
+}
+
+.testimonials-container {
+  max-width: var(--container-max-width);
+  margin: 0 auto;
+  padding: 0 2rem;
+}
+
+.testimonials-carousel {
+  position: relative;
+  margin-bottom: 3rem;
+}
+
+.testimonial-content {
+  max-width: 800px;
+  margin: 0 auto;
+  text-align: center;
+}
+
+.testimonial-card {
+  background: white;
+  padding: 3rem;
+  border-radius: 30px;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.1);
+}
+
+.stars {
+  display: flex;
+  justify-content: center;
+  gap: 0.3rem;
+  margin-bottom: 2rem;
+  color: var(--primary-green);
+}
+
+.testimonial-card blockquote {
+  font-size: 1.2rem;
+  font-style: italic;
+  color: var(--charcoal);
+  margin-bottom: 2rem;
+  line-height: 1.6;
+}
+
+.testimonial-author {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+}
+
+.author-image {
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  overflow: hidden;
+}
+
+.author-image .image-placeholder {
+  width: 100%;
+  height: 100%;
+  background: url('https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?ixlib=rb-4.0.3') center/cover;
+}
+
+.author-info h4 {
+  margin-bottom: 0.3rem;
+  color: var(--deep-teal);
+}
+
+.author-info p {
+  color: var(--medium-gray);
+  font-size: 0.9rem;
+  margin: 0;
+}
+
+.carousel-controls {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2rem;
+  margin-top: 2rem;
+}
+
+.carousel-btn {
+  background: var(--primary-green);
+  color: white;
+  border: none;
+  width: 50px;
+  height: 50px;
+  border-radius: 50%;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: var(--smooth-transition);
+}
+
+.carousel-btn:hover {
+  background: var(--secondary-green);
+  transform: scale(1.1);
+}
+
+.carousel-dots {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: none;
+  background: var(--medium-gray);
+  cursor: pointer;
+  transition: var(--smooth-transition);
+}
+
+.dot.active {
+  background: var(--primary-green);
+  transform: scale(1.2);
+}
+
+.testimonials-stats {
+  display: flex;
+  justify-content: center;
+  gap: 4rem;
+  text-align: center;
+}
+
+.stat-item h3 {
+  color: var(--primary-green);
+  font-size: 2.5rem;
+  margin-bottom: 0.5rem;
+}

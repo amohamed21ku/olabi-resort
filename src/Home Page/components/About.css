@@ -1,3 +1,4 @@
+
 /* About Section */
 .about-section {
   padding: var(--section-padding);
@@ -88,39 +89,210 @@
   opacity: 1;
 }
 
-/* Mobile styles */
-@media (max-width: 768px) {
-  .about-content {
-    grid-template-columns: 1fr;
-    gap: 2rem;
-  }
 
-  .about-stats {
-    justify-content: center;
-  }
+/* Experiences Section */
+.experiences-section {
+  padding: var(--section-padding);
+  background: linear-gradient(135deg, var(--deep-teal) 0%, rgba(44, 91, 92, 0.9) 100%);
+  color: white;
 }
 
-@media (max-width: 480px) {
-  .about-img {
-    width: 100%;
-    height: 200px;
-    object-fit: cover;
-    border-radius: 8px;
-  }
+.experiences-container {
+  max-width: var(--container-max-width);
+  margin: 0 auto;
+  padding: 0 2rem;
+}
 
-  .about-stats {
-    gap: 1rem;
-  }
+.experiences-section .section-header h2 {
+  color: white;
+}
 
-  .about-stats .stat h3 {
-    font-size: 1.5rem;
-  }
+.experiences-section .section-header p {
+  color: rgba(255, 255, 255, 0.8);
+}
 
-  .about-stats .stat p {
-    font-size: 0.8rem;
-  }
+.experiences-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 2rem;
+  margin-bottom: 3rem;
+}
 
-  .about-container {
-    padding: 0 1rem;
-  }
+.experience-card {
+  height: 400px;
+  border-radius: 20px;
+  overflow: hidden;
+  position: relative;
+  cursor: pointer;
+  transition: var(--smooth-transition);
+}
+
+.experience-card:hover {
+  transform: scale(1.02);
+}
+
+.experience-image {
+  width: 100%;
+  height: 100%;
+}
+
+.experience-image .image-placeholder {
+  width: 100%;
+  height: 100%;
+  background: url('https://images.unsplash.com/photo-1540555700478-4be289fbecef?ixlib=rb-4.0.3') center/cover;
+}
+
+.experience-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(to bottom, rgba(0,0,0,0.2) 0%, rgba(0,0,0,0.8) 100%);
+  display: flex;
+  align-items: flex-end;
+  padding: 2rem;
+  color: white;
+  opacity: 0;
+  transition: var(--smooth-transition);
+}
+
+.experience-card:hover .experience-overlay {
+  opacity: 1;
+}
+
+.overlay-content h3 {
+  margin-bottom: 0.5rem;
+}
+
+.overlay-content p {
+  color: rgba(255, 255, 255, 0.9);
+  margin-bottom: 1rem;
+}
+
+.experience-features {
+  list-style: none;
+  margin-bottom: 1rem;
+}
+
+.experience-features li {
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 0.9rem;
+  margin-bottom: 0.3rem;
+}
+
+.experience-btn {
+  background: var(--primary-green);
+  color: white;
+  border: none;
+  padding: 0.6rem 1.2rem;
+  border-radius: 25px;
+  cursor: pointer;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  transition: var(--smooth-transition);
+}
+
+.experience-btn:hover {
+  background: var(--secondary-green);
+}
+
+.experiences-showcase {
+  margin-top: 3rem;
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 2rem;
+}
+
+.showcase-item {
+  border-radius: 20px;
+  overflow: hidden;
+  position: relative;
+  display: flex;
+  align-items: center;
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  padding: 2rem;
+  min-height: 200px;
+}
+
+.showcase-item.large {
+  grid-row: span 2;
+  min-height: 300px;
+}
+
+.showcase-content {
+  flex: 1;
+  z-index: 2;
+}
+
+.showcase-content h3 {
+  color: white;
+  margin-bottom: 1rem;
+  font-size: 1.8rem;
+}
+
+.showcase-content h4 {
+  color: white;
+  margin-bottom: 0.8rem;
+  font-size: 1.4rem;
+}
+
+.showcase-content p {
+  color: rgba(255, 255, 255, 0.9);
+  margin-bottom: 1.5rem;
+}
+
+.showcase-btn {
+  background: var(--primary-green);
+  color: white;
+  border: none;
+  padding: 0.8rem 1.5rem;
+  border-radius: 25px;
+  cursor: pointer;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  transition: var(--smooth-transition);
+}
+
+.showcase-btn:hover {
+  background: var(--secondary-green);
+  transform: translateY(-2px);
+}
+
+.showcase-btn-small {
+  background: transparent;
+  color: white;
+  border: 2px solid white;
+  padding: 0.6rem 1.2rem;
+  border-radius: 20px;
+  cursor: pointer;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  transition: var(--smooth-transition);
+  font-size: 0.9rem;
+}
+
+.showcase-btn-small:hover {
+  background: white;
+  color: var(--deep-teal);
+}
+
+.showcase-image {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 40%;
+  height: 100%;
+  background: url('https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?ixlib=rb-4.0.3') center/cover;
+  z-index: 1;
+  opacity: 0.3;
 }
