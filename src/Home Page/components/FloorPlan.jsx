@@ -17,7 +17,7 @@ const FloorPlan = () => {
           position: { x: 50, y: 50 },
           status: "available",
           type: "1 Bedroom",
-          price: "$180/night",
+          price: "18,000 SYP/night",
           image: "https://images.unsplash.com/photo-1631049307264-da0ec9d70304?ixlib=rb-4.0.3&w=400",
           amenities: ["King Bed", "Mountain View", "Private Balcony", "Mini Bar"],
           size: "45 sqm"
@@ -27,7 +27,7 @@ const FloorPlan = () => {
           position: { x: 250, y: 50 },
           status: "occupied",
           type: "2 Bedroom",
-          price: "$280/night",
+          price: "28,000 SYP/night",
           image: "https://images.unsplash.com/photo-1618773928121-c32242e63f39?ixlib=rb-4.0.3&w=400",
           amenities: ["2 King Beds", "Sea View", "Living Room", "Kitchenette"],
           size: "75 sqm"
@@ -37,7 +37,7 @@ const FloorPlan = () => {
           position: { x: 50, y: 200 },
           status: "available",
           type: "3 Bedroom",
-          price: "$380/night",
+          price: "38,000 SYP/night",
           image: "https://images.unsplash.com/photo-1566665797739-1674de7a421a?ixlib=rb-4.0.3&w=400",
           amenities: ["3 King Beds", "Garden View", "Full Kitchen", "Dining Area"],
           size: "95 sqm"
@@ -47,7 +47,7 @@ const FloorPlan = () => {
           position: { x: 250, y: 200 },
           status: "available",
           type: "4 Bedroom",
-          price: "$480/night",
+          price: "48,000 SYP/night",
           image: "https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?ixlib=rb-4.0.3&w=400",
           amenities: ["4 King Beds", "Panoramic View", "Full Kitchen", "2 Bathrooms"],
           size: "120 sqm"
@@ -62,7 +62,7 @@ const FloorPlan = () => {
           position: { x: 50, y: 50 },
           status: "available",
           type: "Honeymoon Suite",
-          price: "$550/night",
+          price: "55,000 SYP/night",
           image: "https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?ixlib=rb-4.0.3&w=400",
           amenities: ["King Bed", "Jacuzzi", "Romantic Setup", "Champagne Service"],
           size: "60 sqm"
@@ -72,7 +72,7 @@ const FloorPlan = () => {
           position: { x: 250, y: 50 },
           status: "available",
           type: "2 Bedroom",
-          price: "$320/night",
+          price: "32,000 SYP/night",
           image: "https://images.unsplash.com/photo-1618773928121-c32242e63f39?ixlib=rb-4.0.3&w=400",
           amenities: ["2 Queen Beds", "Mountain View", "Living Room", "Mini Bar"],
           size: "80 sqm"
@@ -82,7 +82,7 @@ const FloorPlan = () => {
           position: { x: 50, y: 200 },
           status: "occupied",
           type: "3 Bedroom",
-          price: "$420/night",
+          price: "42,000 SYP/night",
           image: "https://images.unsplash.com/photo-1566665797739-1674de7a421a?ixlib=rb-4.0.3&w=400",
           amenities: ["3 Queen Beds", "Sea View", "Full Kitchen", "Terrace"],
           size: "100 sqm"
@@ -92,7 +92,7 @@ const FloorPlan = () => {
           position: { x: 250, y: 200 },
           status: "available",
           type: "1 Bedroom",
-          price: "$220/night",
+          price: "22,000 SYP/night",
           image: "https://images.unsplash.com/photo-1631049307264-da0ec9d70304?ixlib=rb-4.0.3&w=400",
           amenities: ["Queen Bed", "City View", "Work Desk", "Coffee Machine"],
           size: "50 sqm"
@@ -107,7 +107,7 @@ const FloorPlan = () => {
           position: { x: 50, y: 50 },
           status: "available",
           type: "Honeymoon Suite",
-          price: "$580/night",
+          price: "58,000 SYP/night",
           image: "https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?ixlib=rb-4.0.3&w=400",
           amenities: ["King Bed", "Jacuzzi", "Private Terrace", "Butler Service"],
           size: "70 sqm"
@@ -117,7 +117,7 @@ const FloorPlan = () => {
           position: { x: 250, y: 50 },
           status: "available",
           type: "4 Bedroom",
-          price: "$520/night",
+          price: "52,000 SYP/night",
           image: "https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?ixlib=rb-4.0.3&w=400",
           amenities: ["4 Queen Beds", "Sea View", "Full Kitchen", "Living Room"],
           size: "125 sqm"
@@ -127,7 +127,7 @@ const FloorPlan = () => {
           position: { x: 50, y: 200 },
           status: "available",
           type: "2 Bedroom",
-          price: "$350/night",
+          price: "35,000 SYP/night",
           image: "https://images.unsplash.com/photo-1618773928121-c32242e63f39?ixlib=rb-4.0.3&w=400",
           amenities: ["2 King Beds", "Mountain View", "Balcony", "Room Service"],
           size: "85 sqm"
@@ -137,7 +137,7 @@ const FloorPlan = () => {
           position: { x: 250, y: 200 },
           status: "maintenance",
           type: "1 Bedroom",
-          price: "$200/night",
+          price: "20,000 SYP/night",
           image: "https://images.unsplash.com/photo-1631049307264-da0ec9d70304?ixlib=rb-4.0.3&w=400",
           amenities: ["Queen Bed", "Garden View", "Work Area", "Mini Fridge"],
           size: "45 sqm"
@@ -152,7 +152,7 @@ const FloorPlan = () => {
           position: { x: 50, y: 50 },
           status: "available",
           type: "Honeymoon Suite",
-          price: "$650/night",
+          price: "65,000 SYP/night",
           image: "https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?ixlib=rb-4.0.3&w=400",
           amenities: ["King Bed", "Jacuzzi", "Rooftop Access", "Concierge Service"],
           size: "80 sqm"
@@ -162,7 +162,7 @@ const FloorPlan = () => {
           position: { x: 250, y: 50 },
           status: "available",
           type: "4 Bedroom",
-          price: "$580/night",
+          price: "58,000 SYP/night",
           image: "https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?ixlib=rb-4.0.3&w=400",
           amenities: ["4 King Beds", "Panoramic View", "Full Kitchen", "3 Bathrooms"],
           size: "140 sqm"
@@ -172,7 +172,7 @@ const FloorPlan = () => {
           position: { x: 50, y: 200 },
           status: "available",
           type: "3 Bedroom",
-          price: "$480/night",
+          price: "48,000 SYP/night",
           image: "https://images.unsplash.com/photo-1566665797739-1674de7a421a?ixlib=rb-4.0.3&w=400",
           amenities: ["3 King Beds", "Sea View", "Full Kitchen", "Private Terrace"],
           size: "110 sqm"
@@ -182,7 +182,7 @@ const FloorPlan = () => {
           position: { x: 250, y: 200 },
           status: "available",
           type: "2 Bedroom",
-          price: "$380/night",
+          price: "38,000 SYP/night",
           image: "https://images.unsplash.com/photo-1618773928121-c32242e63f39?ixlib=rb-4.0.3&w=400",
           amenities: ["2 King Beds", "City View", "Living Room", "Premium Service"],
           size: "90 sqm"
@@ -203,9 +203,47 @@ const FloorPlan = () => {
     if (room.status === 'available') {
       setHoveredRoom(room);
       const rect = event.currentTarget.getBoundingClientRect();
+      const containerRect = event.currentTarget.closest('.floor-plan-svg-container').getBoundingClientRect();
+      const viewportWidth = window.innerWidth;
+      const cardWidth = 300; // Width of hover card
+
+      // Determine if room is on left or right side based on SVG coordinates
+      const isLeftSide = room.position.x < 150; // Middle is at 150px in SVG coordinates
+
+      // Calculate optimal position
+      let x, y;
+
+      if (isLeftSide) {
+        // Room is on left side - show card on the right
+        x = rect.right + 10; // 10px gap from room
+        // If card would go off screen, position it to the left instead
+        if (x + cardWidth > viewportWidth - 20) {
+          x = rect.left - cardWidth - 10;
+        }
+      } else {
+        // Room is on right side - show card on the left
+        x = rect.left - cardWidth - 10; // 10px gap from room
+        // If card would go off screen, position it to the right instead
+        if (x < 20) {
+          x = rect.right + 10;
+        }
+      }
+
+      // Center card vertically relative to the room
+      y = rect.top + (rect.height / 2);
+
+      // Ensure card doesn't go off top or bottom of screen
+      const cardHeight = 250; // Approximate height of hover card
+      if (y - (cardHeight / 2) < 20) {
+        y = 20 + (cardHeight / 2);
+      } else if (y + (cardHeight / 2) > window.innerHeight - 20) {
+        y = window.innerHeight - 20 - (cardHeight / 2);
+      }
+
       setHoverPosition({
-        x: rect.left + rect.width / 2,
-        y: rect.top
+        x: x,
+        y: y,
+        isLeftSide: isLeftSide
       });
     }
   };
@@ -309,7 +347,7 @@ const FloorPlan = () => {
                   stroke="var(--charcoal)"
                   strokeWidth="2"
                   rx="8"
-                  className={`room-rect ${room.status === 'available' ? 'clickable' : ''}`}
+                  className={`room-rect {room.status === 'available' ? 'clickable' : ''}`}
                   onClick={() => handleRoomClick(room)}
                   onMouseEnter={(e) => handleRoomHover(room, e)}
                   onMouseLeave={handleRoomLeave}
@@ -345,7 +383,7 @@ const FloorPlan = () => {
         <div className="room-info-panel">
           {selectedRoom ? (
             <div className="selected-room-info">
-              <h3>Room {selectedRoom.id}</h3>
+              <h3>Room ${selectedRoom.id}</h3>
               <div className="room-details">
                 <div className="detail-item">
                   <span className="label">Type:</span>
@@ -361,7 +399,7 @@ const FloorPlan = () => {
                 </div>
                 <div className="detail-item">
                   <span className="label">Status:</span>
-                  <span className={`value status-${selectedRoom.status}`}>
+                  <span className={`value status-{selectedRoom.status}`}>
                     {selectedRoom.status.charAt(0).toUpperCase() + selectedRoom.status.slice(1)}
                   </span>
                 </div>
@@ -409,8 +447,8 @@ const FloorPlan = () => {
           style={{
             position: 'fixed',
             left: `${hoverPosition.x}px`,
-            top: `${hoverPosition.y - 20}px`,
-            transform: 'translate(-50%, -100%)',
+            top: `${hoverPosition.y}px`,
+            transform: 'translate(0, -50%)', // Center vertically
             zIndex: 1000,
             pointerEvents: 'none'
           }}

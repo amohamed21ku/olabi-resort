@@ -5,7 +5,7 @@ const FeaturedRooms = () => {
     {
       id: 1,
       name: 'Mountain View Suite',
-      price: '$450',
+      price: '45,000 SYP',
       period: 'per night',
       image: 'mountain-suite',
       features: ['King Bed', 'Mountain View', 'Private Balcony', 'Spa Bath']
@@ -13,7 +13,7 @@ const FeaturedRooms = () => {
     {
       id: 2,
       name: 'Presidential Villa',
-      price: '$850',
+      price: '85,000 SYP',
       period: 'per night',
       image: 'presidential-villa',
       features: ['3 Bedrooms', 'Private Pool', 'Personal Chef', 'Butler Service']
@@ -21,7 +21,7 @@ const FeaturedRooms = () => {
     {
       id: 3,
       name: 'Garden Apartment',
-      price: '$320',
+      price: '32,000 SYP',
       period: 'per night',
       image: 'garden-apartment',
       features: ['Garden View', 'Kitchenette', 'Living Area', 'Terrace']
@@ -29,7 +29,7 @@ const FeaturedRooms = () => {
     {
       id: 4,
       name: 'Luxury Penthouse',
-      price: '$1200',
+      price: '120,000 SYP',
       period: 'per night',
       image: 'luxury-penthouse',
       features: ['Panoramic Views', 'Private Elevator', 'Rooftop Terrace', 'Jacuzzi']
@@ -48,10 +48,9 @@ const FeaturedRooms = () => {
           {rooms.map((room) => (
             <div key={room.id} className="room-card">
               <div className="room-image">
-                <div className="image-placeholder" data-image={room.image}>
-                  <div className="image-overlay">
-                    <span>{room.name}</span>
-                  </div>
+                <img src="/src/assets/featured-room.png" alt={room.name} className="room-img" />
+                <div className="image-overlay">
+                  <span>{room.name}</span>
                 </div>
                 <div className="room-badge">Featured</div>
               </div>

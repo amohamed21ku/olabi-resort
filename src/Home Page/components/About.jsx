@@ -35,10 +35,9 @@ const About = () => {
             </div>
           </div>
           <div className="about-image">
-            <div className="image-placeholder">
-              <div className="image-overlay">
-                <span>Resort Overview</span>
-              </div>
+            <img src="/src/assets/about-image.png" alt="Olabi Resort Overview" className="about-img" />
+            <div className="image-overlay">
+              <span>Resort Overview</span>
             </div>
           </div>
         </div>

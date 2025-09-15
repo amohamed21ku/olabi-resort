@@ -19,7 +19,7 @@ const RoomPage = () => {
     "101": {
       id: "101",
       type: "1 Bedroom",
-      price: "$180/night",
+      price: "18,000 SYP/night",
       floor: "Ground Floor",
       size: "45 sqm",
       maxGuests: 2,
@@ -45,7 +45,7 @@ const RoomPage = () => {
     "201": {
       id: "201",
       type: "Honeymoon Suite",
-      price: "$550/night",
+      price: "55,000 SYP/night",
       floor: "First Floor",
       size: "60 sqm",
       maxGuests: 2,
