@@ -18,7 +18,7 @@ const Header = () => {
     <header className={`header ${isScrolled ? 'scrolled' : ''}`}>
       <div className="header-container">
         <div className="logo">
-          <img src="/public/static/images/assets/olabi-logo.jpg" alt="Olabi Resort" className="logo-image" />
+          <img src="/static/images/assets/olabi-logo.jpg" alt="Olabi Resort" className="logo-image" />
         </div>
 
         <nav className="desktop-nav">
