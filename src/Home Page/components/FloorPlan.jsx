@@ -203,9 +203,9 @@ const FloorPlan = () => {
     if (room.status === 'available') {
       setHoveredRoom(room);
       const rect = event.currentTarget.getBoundingClientRect();
-      const containerRect = event.currentTarget.closest('.floor-plan-svg-container').getBoundingClientRect();
       const viewportWidth = window.innerWidth;
-      const cardWidth = 300; // Width of hover card
+      const isMobile = viewportWidth <= 768;
+      const cardWidth = isMobile ? 250 : 280; // Smaller card on mobile
 
       // Determine if room is on left or right side based on SVG coordinates
       const isLeftSide = room.position.x < 150; // Middle is at 150px in SVG coordinates
@@ -213,27 +213,33 @@ const FloorPlan = () => {
       // Calculate optimal position
       let x, y;
 
-      if (isLeftSide) {
-        // Room is on left side - show card on the right
-        x = rect.right + 10; // 10px gap from room
-        // If card would go off screen, position it to the left instead
-        if (x + cardWidth > viewportWidth - 20) {
-          x = rect.left - cardWidth - 10;
-        }
+      if (isMobile) {
+        // On mobile, center the card horizontally with margins
+        x = Math.max(10, Math.min(viewportWidth - cardWidth - 10, (viewportWidth - cardWidth) / 2));
+        y = rect.bottom + 10; // Position below the room on mobile
       } else {
-        // Room is on right side - show card on the left
-        x = rect.left - cardWidth - 10; // 10px gap from room
-        // If card would go off screen, position it to the right instead
-        if (x < 20) {
-          x = rect.right + 10;
+        if (isLeftSide) {
+          // Room is on left side - show card on the right
+          x = rect.right + 10; // 10px gap from room
+          // If card would go off screen, position it to the left instead
+          if (x + cardWidth > viewportWidth - 20) {
+            x = rect.left - cardWidth - 10;
+          }
+        } else {
+          // Room is on right side - show card on the left
+          x = rect.left - cardWidth - 10; // 10px gap from room
+          // If card would go off screen, position it to the right instead
+          if (x < 20) {
+            x = rect.right + 10;
+          }
         }
+
+        // Center card vertically relative to the room
+        y = rect.top + (rect.height / 2);
       }
 
-      // Center card vertically relative to the room
-      y = rect.top + (rect.height / 2);
-
-      // Ensure card doesn't go off top or bottom of screen
-      const cardHeight = 250; // Approximate height of hover card
+      // Ensure card doesn't go off screen
+      const cardHeight = isMobile ? 200 : 220;
       if (y - (cardHeight / 2) < 20) {
         y = 20 + (cardHeight / 2);
       } else if (y + (cardHeight / 2) > window.innerHeight - 20) {
@@ -242,7 +248,7 @@ const FloorPlan = () => {
 
       setHoverPosition({
         x: x,
-        y: y,
+        y: y - (isMobile ? cardHeight / 2 : 0), // Adjust for mobile positioning
         isLeftSide: isLeftSide
       });
     }
@@ -250,6 +256,12 @@ const FloorPlan = () => {
 
   const handleRoomLeave = () => {
     setHoveredRoom(null);
+  };
+
+  const handleHoverCardClick = () => {
+    if (hoveredRoom) {
+      navigate(`/room/${hoveredRoom.id}`);
+    }
   };
 
   const handleBookRoom = () => {
@@ -343,7 +355,7 @@ const FloorPlan = () => {
                   y={room.position.y}
                   width="80"
                   height="80"
-                  fill={selectedRoom?.id === room.id ? 'var(--primary-blue)' : getRoomColor(room.status)}
+                  fill={getRoomColor(room.status)}
                   stroke="var(--charcoal)"
                   strokeWidth="2"
                   rx="8"
@@ -380,78 +392,32 @@ const FloorPlan = () => {
           </svg>
         </div>
 
-        <div className="room-info-panel">
-          {selectedRoom ? (
-            <div className="selected-room-info">
-              <h3>Room ${selectedRoom.id}</h3>
-              <div className="room-details">
-                <div className="detail-item">
-                  <span className="label">Type:</span>
-                  <span className="value">{selectedRoom.type}</span>
-                </div>
-                <div className="detail-item">
-                  <span className="label">Price:</span>
-                  <span className="value">{selectedRoom.price}</span>
-                </div>
-                <div className="detail-item">
-                  <span className="label">Floor:</span>
-                  <span className="value">{currentFloor.name}</span>
-                </div>
-                <div className="detail-item">
-                  <span className="label">Status:</span>
-                  <span className={`value status-{selectedRoom.status}`}>
-                    {selectedRoom.status.charAt(0).toUpperCase() + selectedRoom.status.slice(1)}
-                  </span>
-                </div>
-              </div>
-              <button className="book-selected-room" onClick={handleBookRoom}>
-                Book This Room
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                  <path d="M5 12h14M12 5l7 7-7 7"/>
-                </svg>
-              </button>
-            </div>
-          ) : (
-            <div className="no-room-selected">
-              <h3>Select a Room</h3>
-              <p>Click on any available room (green) to see details and book.</p>
-
-              <div className="legend">
-                <h4>Legend:</h4>
-                <div className="legend-item">
-                  <div className="legend-color available"></div>
-                  <span>Available</span>
-                </div>
-                <div className="legend-item">
-                  <div className="legend-color occupied"></div>
-                  <span>Occupied</span>
-                </div>
-                <div className="legend-item">
-                  <div className="legend-color maintenance"></div>
-                  <span>Maintenance</span>
-                </div>
-                <div className="legend-item">
-                  <div className="legend-color selected"></div>
-                  <span>Selected</span>
-                </div>
-              </div>
-            </div>
-          )}
+        <div className="availability-indicators">
+          <div className="legend-item">
+            <div className="legend-color available"></div>
+            <span>Available</span>
+          </div>
+          <div className="legend-item">
+            <div className="legend-color occupied"></div>
+            <span>Occupied</span>
+          </div>
         </div>
       </div>
 
       {/* Hover Card */}
       {hoveredRoom && (
         <div
-          className="room-hover-card"
+          className="room-hover-card clickable"
           style={{
             position: 'fixed',
             left: `${hoverPosition.x}px`,
             top: `${hoverPosition.y}px`,
-            transform: 'translate(0, -50%)', // Center vertically
+            transform: window.innerWidth <= 768 ? 'translate(0, 0)' : 'translate(0, -50%)',
             zIndex: 1000,
-            pointerEvents: 'none'
+            pointerEvents: 'auto',
+            cursor: 'pointer'
           }}
+          onClick={handleHoverCardClick}
         >
           <div className="hover-card-content">
             <img src={hoveredRoom.image} alt={hoveredRoom.type} className="hover-card-image" />
@@ -468,6 +434,7 @@ const FloorPlan = () => {
                   <span className="more-amenities">+{hoveredRoom.amenities.length - 2} more</span>
                 )}
               </div>
+              <div className="click-to-view">Click to view room</div>
             </div>
           </div>
         </div>

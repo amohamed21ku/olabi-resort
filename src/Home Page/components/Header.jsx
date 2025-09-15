@@ -18,10 +18,6 @@ const Header = () => {
       <div className="header-container">
         <div className="logo">
           <img src="/src/assets/olabi-logo.jpg" alt="Olabi Resort" className="logo-image" />
-          <div className="logo-text">
-            <h1>Olabi Resort</h1>
-            <p className="logo-subtitle">Kasab, Syria</p>
-          </div>
         </div>
 
         <nav className="desktop-nav">
