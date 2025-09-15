@@ -6,6 +6,8 @@ const FloorPlan = () => {
   const [selectedFloor, setSelectedFloor] = useState(1);
   const [hoveredRoom, setHoveredRoom] = useState(null);
   const [hoverPosition, setHoverPosition] = useState({ x: 0, y: 0 });
+  const [cardPersisted, setCardPersisted] = useState(false);
+  const [initialScrollY, setInitialScrollY] = useState(0);
   const navigate = useNavigate();
 
   const floors = {
@@ -194,18 +196,47 @@ const FloorPlan = () => {
   const currentFloor = floors[selectedFloor];
 
   const handleRoomClick = (room) => {
+    const isMobile = window.innerWidth <= 768;
+
     if (room.status === 'available') {
-      navigate(`/room/${room.id}`);
+      if (isMobile) {
+        // On mobile, first click shows the card, second click (on card) goes to room
+        if (hoveredRoom && hoveredRoom.id === room.id) {
+          // Card is already shown, this click should close it
+          setHoveredRoom(null);
+          setCardPersisted(false);
+        } else {
+          // Show the card with fixed positioning for mobile
+          setHoveredRoom(room);
+          setInitialScrollY(window.scrollY); // Record initial scroll position
+          const viewportWidth = window.innerWidth;
+          const cardWidth = 240;
+          const x = Math.max(10, Math.min(viewportWidth - cardWidth - 10, (viewportWidth - cardWidth) / 2));
+          const y = window.innerHeight / 2 - 90; // Center vertically on screen
+
+          setHoverPosition({
+            x: x,
+            y: y,
+            isLeftSide: room.position.x < 150,
+            fixed: true
+          });
+          setCardPersisted(true);
+        }
+      } else {
+        // On desktop, direct navigation
+        navigate(`/room/${room.id}`);
+      }
     }
   };
 
   const handleRoomHover = (room, event) => {
     if (room.status === 'available') {
       setHoveredRoom(room);
+      setInitialScrollY(window.scrollY); // Record initial scroll position
       const rect = event.currentTarget.getBoundingClientRect();
       const viewportWidth = window.innerWidth;
       const isMobile = viewportWidth <= 768;
-      const cardWidth = isMobile ? 250 : 280; // Smaller card on mobile
+      const cardWidth = isMobile ? 240 : 260; // Smaller cards overall
 
       // Determine if room is on left or right side based on SVG coordinates
       const isLeftSide = room.position.x < 150; // Middle is at 150px in SVG coordinates
@@ -239,7 +270,7 @@ const FloorPlan = () => {
       }
 
       // Ensure card doesn't go off screen
-      const cardHeight = isMobile ? 200 : 220;
+      const cardHeight = isMobile ? 180 : 200; // Smaller card heights
       if (y - (cardHeight / 2) < 20) {
         y = 20 + (cardHeight / 2);
       } else if (y + (cardHeight / 2) > window.innerHeight - 20) {
@@ -249,13 +280,21 @@ const FloorPlan = () => {
       setHoverPosition({
         x: x,
         y: y - (isMobile ? cardHeight / 2 : 0), // Adjust for mobile positioning
-        isLeftSide: isLeftSide
+        isLeftSide: isLeftSide,
+        fixed: true // Mark position as fixed
       });
     }
   };
 
   const handleRoomLeave = () => {
-    setHoveredRoom(null);
+    const isMobile = window.innerWidth <= 768;
+    // On desktop, persist the card after hover ends
+    // On mobile, only hide if not manually persisted
+    if (!isMobile) {
+      setCardPersisted(true);
+    } else if (!cardPersisted) {
+      setHoveredRoom(null);
+    }
   };
 
   const handleHoverCardClick = () => {
@@ -263,6 +302,44 @@ const FloorPlan = () => {
       navigate(`/room/${hoveredRoom.id}`);
     }
   };
+
+  const handleCardClose = () => {
+    setHoveredRoom(null);
+    setCardPersisted(false);
+  };
+
+  // Close card when clicking outside or scrolling
+  const handleOutsideClick = (e) => {
+    if (hoveredRoom && !e.target.closest('.room-hover-card') && !e.target.closest('.room-rect')) {
+      setHoveredRoom(null);
+      setCardPersisted(false);
+    }
+  };
+
+  const handleScroll = () => {
+    if (hoveredRoom) {
+      const currentScrollY = window.scrollY;
+      const scrollThreshold = 30; // pixels
+
+      // Only hide card if user scrolled more than threshold
+      if (Math.abs(currentScrollY - initialScrollY) > scrollThreshold) {
+        setHoveredRoom(null);
+        setCardPersisted(false);
+      }
+    }
+  };
+
+  React.useEffect(() => {
+    if (hoveredRoom) {
+      document.addEventListener('click', handleOutsideClick);
+      window.addEventListener('scroll', handleScroll, { passive: true });
+
+      return () => {
+        document.removeEventListener('click', handleOutsideClick);
+        window.removeEventListener('scroll', handleScroll);
+      };
+    }
+  }, [hoveredRoom]);
 
   const handleBookRoom = () => {
     if (selectedRoom) {
@@ -300,7 +377,7 @@ const FloorPlan = () => {
 
       <div className="floor-plan-main">
         <div className="floor-plan-svg-container">
-          <svg width="400" height="300" viewBox="0 0 400 300" className="floor-plan-svg">
+          <svg width="500" height="375" viewBox="0 0 400 300" className="floor-plan-svg">
             {/* Building outline */}
             <rect x="20" y="20" width="360" height="260"
                   fill="none"
@@ -359,10 +436,16 @@ const FloorPlan = () => {
                   stroke="var(--charcoal)"
                   strokeWidth="2"
                   rx="8"
-                  className={`room-rect {room.status === 'available' ? 'clickable' : ''}`}
+                  className={`room-rect ${room.status === 'available' ? 'clickable' : ''}`}
                   onClick={() => handleRoomClick(room)}
-                  onMouseEnter={(e) => handleRoomHover(room, e)}
-                  onMouseLeave={handleRoomLeave}
+                  onMouseEnter={(e) => {
+                    const isMobile = window.innerWidth <= 768;
+                    if (!isMobile) handleRoomHover(room, e);
+                  }}
+                  onMouseLeave={() => {
+                    const isMobile = window.innerWidth <= 768;
+                    if (!isMobile) handleRoomLeave();
+                  }}
                   style={{ cursor: room.status === 'available' ? 'pointer' : 'not-allowed' }}
                 />
                 <text x={room.position.x + 40} y={room.position.y + 30}
@@ -413,7 +496,7 @@ const FloorPlan = () => {
             left: `${hoverPosition.x}px`,
             top: `${hoverPosition.y}px`,
             transform: window.innerWidth <= 768 ? 'translate(0, 0)' : 'translate(0, -50%)',
-            zIndex: 1000,
+            zIndex: 9999,
             pointerEvents: 'auto',
             cursor: 'pointer'
           }}

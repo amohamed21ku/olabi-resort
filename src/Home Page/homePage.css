@@ -1213,6 +1213,18 @@ p {
   border: 2px solid rgba(76, 175, 80, 0.1);
 }
 
+/* Desktop: Larger floor plan image */
+@media (min-width: 769px) {
+  .floor-plan-svg-container {
+    padding: 3rem;
+    max-width: 700px;
+  }
+
+  .floor-plan-svg {
+    max-width: 600px;
+  }
+}
+
 .floor-plan-svg {
   width: 100%;
   height: auto;
@@ -1363,13 +1375,14 @@ p {
 /* Room Hover Card Styles */
 .room-hover-card {
   background: white;
-  border-radius: 15px;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.2);
+  border-radius: 12px;
+  box-shadow: 0 15px 40px rgba(0, 0, 0, 0.15);
   border: 2px solid rgba(76, 175, 80, 0.2);
   overflow: hidden;
-  width: 280px;
+  width: 260px;
   animation: fadeInUp 0.3s ease-out;
   transition: var(--smooth-transition);
+  z-index: 9999;
 }
 
 .room-hover-card:hover {
@@ -1395,18 +1408,18 @@ p {
 
 .hover-card-image {
   width: 100%;
-  height: 160px;
+  height: 120px;
   object-fit: cover;
 }
 
 .hover-card-info {
-  padding: 1rem;
+  padding: 0.8rem;
 }
 
 .hover-card-info h4 {
   color: var(--deep-teal);
-  margin-bottom: 0.5rem;
-  font-size: 1.2rem;
+  margin-bottom: 0.4rem;
+  font-size: 1.1rem;
 }
 
 .room-type {
@@ -1418,14 +1431,14 @@ p {
 .room-price {
   color: var(--charcoal);
   font-weight: 700;
-  font-size: 1.1rem;
+  font-size: 1rem;
   margin-bottom: 0.3rem;
 }
 
 .room-size {
   color: var(--medium-gray);
-  font-size: 0.9rem;
-  margin-bottom: 0.8rem;
+  font-size: 0.85rem;
+  margin-bottom: 0.6rem;
 }
 
 .amenities-preview {
@@ -1437,9 +1450,9 @@ p {
 .amenity-tag {
   background: var(--light-gray);
   color: var(--charcoal);
-  padding: 0.2rem 0.5rem;
-  border-radius: 12px;
-  font-size: 0.8rem;
+  padding: 0.15rem 0.4rem;
+  border-radius: 10px;
+  font-size: 0.75rem;
 }
 
 .more-amenities {
@@ -1450,11 +1463,11 @@ p {
 
 .click-to-view {
   text-align: center;
-  font-size: 0.8rem;
+  font-size: 0.75rem;
   color: var(--primary-green);
   font-weight: 600;
-  padding: 0.5rem;
-  margin-top: 0.5rem;
+  padding: 0.4rem;
+  margin-top: 0.4rem;
   border-top: 1px solid var(--light-gray);
 }
 
@@ -1773,8 +1786,24 @@ p {
   }
 
   .room-hover-card {
-    width: 250px;
+    width: 240px;
     font-size: 0.8rem;
+  }
+
+  .hover-card-image {
+    height: 100px;
+  }
+
+  .hover-card-info {
+    padding: 0.7rem;
+  }
+
+  .hover-card-info h4 {
+    font-size: 1rem;
+  }
+
+  .room-price {
+    font-size: 0.9rem;
   }
 
   .hover-card-image {
