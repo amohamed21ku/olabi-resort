@@ -1,4 +1,5 @@
 import React from 'react';
+import './FeaturedRooms.css';
 
 const FeaturedRooms = () => {
   const rooms = [
@@ -48,7 +49,7 @@ const FeaturedRooms = () => {
           {rooms.map((room) => (
             <div key={room.id} className="room-card">
               <div className="room-image">
-                <img src="/src/assets/featured-room.png" alt={room.name} className="room-img" />
+                <img src="/public/static/images/assets/featured-room.png" alt={room.name} className="room-img" />
                 <div className="image-overlay">
                   <span>{room.name}</span>
                 </div>
