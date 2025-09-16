@@ -36,10 +36,7 @@ const RoomPage = () => {
       ],
       description: "Experience comfort and luxury in our beautifully appointed 1 bedroom suite. Featuring a king-size bed, private balcony with stunning mountain views, and modern amenities to ensure a memorable stay in Kasab.",
       features: [
-        { icon: "🛏️", title: "King Size Bed", description: "Luxurious king-size bed with premium linens" },
-        { icon: "🌄", title: "Mountain View", description: "Breathtaking views of Kasab mountains" },
-        { icon: "🏖️", title: "Private Balcony", description: "Your own private outdoor space" },
-        { icon: "🍸", title: "Mini Bar", description: "Complimentary refreshments and snacks" }
+
       ]
     },
     "201": {
@@ -62,10 +59,7 @@ const RoomPage = () => {
       ],
       description: "Create unforgettable memories in our romantic Honeymoon Suite. Designed for couples, this suite features a private jacuzzi, romantic ambiance, and exclusive services to make your stay truly special.",
       features: [
-        { icon: "💕", title: "Romantic Setup", description: "Rose petals and candles for special moments" },
-        { icon: "🛁", title: "Private Jacuzzi", description: "Relax together in your private spa" },
-        { icon: "🥂", title: "Champagne Service", description: "Complimentary champagne on arrival" },
-        { icon: "🌹", title: "Couple's Massage", description: "In-room couple's massage service available" }
+
       ]
     }
     // Add more room data as needed
@@ -151,20 +145,7 @@ const RoomPage = () => {
                 </div>
               </div>
 
-              <div className="room-amenities">
-                <h3>Amenities</h3>
-                <div className="amenities-grid">
-                  {room.amenities.map((amenity, index) => (
-                    <div key={index} className="amenity-item">
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                        <path d="M9 12l2 2 4-4"/>
-                        <circle cx="12" cy="12" r="9"/>
-                      </svg>
-                      <span>{amenity}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
+ 
             </div>
           </div>
 

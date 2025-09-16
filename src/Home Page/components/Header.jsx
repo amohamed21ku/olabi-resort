@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
+import { useLanguage } from '../../hooks/useLanguage';
 import './Header.css';
 
 const Header = () => {
   const [isScrolled, setIsScrolled] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const { language, setLanguage, t } = useLanguage();
 
   useEffect(() => {
     const handleScroll = () => {
@@ -23,20 +25,19 @@ const Header = () => {
 
         <nav className="desktop-nav">
           <ul>
-            <li><a href="#home">HomePage</a></li>
-            <li><a href="#about">About Us</a></li>
-            <li><a href="#rooms">Gallery</a></li>
-            <li><a href="#directions">Directions</a></li>
-            <li><a href="#booking">Booking</a></li>
+            <li><a href="#home">{t('home')}</a></li>
+            <li><a href="#about">{t('about')}</a></li>
+            <li><a href="#rooms">{t('gallery')}</a></li>
+            <li><a href="#directions">{t('directions')}</a></li>
+            <li><a href="#booking">{t('booking')}</a></li>
           </ul>
         </nav>
 
         <div className="header-actions">
           <div className="language-switcher">
-            <select>
+            <select value={language} onChange={(e) => setLanguage(e.target.value)}>
               <option value="en">EN</option>
-              <option value="fr">FR</option>
-              <option value="ar">AR</option>
+              <option value="ar">العربية</option>
             </select>
           </div>
         </div>
@@ -55,11 +56,11 @@ const Header = () => {
         <div className="mobile-menu">
           <nav>
             <ul>
-              <li><a href="#home">HomePage</a></li>
-              <li><a href="#about">About Us</a></li>
-              <li><a href="#rooms">Gallery</a></li>
-              <li><a href="#directions">Directions</a></li>
-              <li><a href="#booking">Booking</a></li>
+              <li><a href="#home">{t('home')}</a></li>
+              <li><a href="#about">{t('about')}</a></li>
+              <li><a href="#rooms">{t('gallery')}</a></li>
+              <li><a href="#directions">{t('directions')}</a></li>
+              <li><a href="#booking">{t('booking')}</a></li>
             </ul>
           </nav>
         </div>

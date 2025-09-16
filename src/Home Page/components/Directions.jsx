@@ -56,14 +56,14 @@ const Directions = () => {
                   <span className="step-number">1</span>
                   <div className="step-content">
                     <h4>Take Coastal Highway North</h4>
-                    <p>Drive north along the Mediterranean coast</p>
+                    <p>Drive north along the koshk of 3amo Hassan</p>
                   </div>
                 </div>
                 <div className="route-step">
                   <span className="step-number">2</span>
                   <div className="step-content">
-                    <h4>Turn inland at Kasab junction</h4>
-                    <p>Follow mountain road towards Kasab village</p>
+                    <h4>Turn to Kasab exit</h4>
+                    <p>Follow mountain road towards Kasab </p>
                   </div>
                 </div>
                 <div className="route-step">
@@ -97,7 +97,7 @@ const Directions = () => {
                   </svg>
                 </div>
                 <div className="video-info">
-                  <h4>Scenic Drive to Olabi Resort</h4>
+                  <h4>Drive to Olabi Resort</h4>
                   <p>Watch our guided tour through the beautiful mountain roads of Kasab</p>
                 </div>
               </div>
@@ -105,24 +105,7 @@ const Directions = () => {
           </div>
         </div>
 
-        <div className="additional-info">
-          <div className="info-card">
-            <h4>📍 GPS Coordinates</h4>
-            <p>35.9167° N, 35.9833° E</p>
-          </div>
-          <div className="info-card">
-            <h4>🚗 Parking</h4>
-            <p>Free valet parking available</p>
-          </div>
-          <div className="info-card">
-            <h4>✈️ Airport Transfer</h4>
-            <p>Private transfer service available from Lattakia Airport</p>
-          </div>
-          <div className="info-card">
-            <h4>📞 Need Help?</h4>
-            <p>Call us: +963 41 123-4567</p>
-          </div>
-        </div>
+
       </div>
     </section>
   );

@@ -1,11 +1,13 @@
 import React from 'react';
 import './FeaturedRooms.css';
 
+
 const FeaturedRooms = () => {
+  
   const rooms = [
     {
       id: 1,
-      name: 'Mountain View Suite',
+      name: 'Mountain View Room',
       price: '45,000 SYP',
       period: 'per night',
       image: 'mountain-suite',
@@ -13,7 +15,7 @@ const FeaturedRooms = () => {
     },
     {
       id: 2,
-      name: 'Presidential Villa',
+      name: 'HoneyMoon Room',
       price: '85,000 SYP',
       period: 'per night',
       image: 'presidential-villa',
@@ -21,7 +23,7 @@ const FeaturedRooms = () => {
     },
     {
       id: 3,
-      name: 'Garden Apartment',
+      name: 'Some Other Room',
       price: '32,000 SYP',
       period: 'per night',
       image: 'garden-apartment',
@@ -29,7 +31,7 @@ const FeaturedRooms = () => {
     },
     {
       id: 4,
-      name: 'Luxury Penthouse',
+      name: 'My room',
       price: '120,000 SYP',
       period: 'per night',
       image: 'luxury-penthouse',
@@ -42,7 +44,7 @@ const FeaturedRooms = () => {
       <div className="rooms-container">
         <div className="section-header">
           <h2>Featured Accommodations</h2>
-          <p>Discover our carefully curated selection of luxury suites and villas</p>
+          <p>Vallah I don't know what to write here but something nice maybe</p>
         </div>
 
         <div className="rooms-grid">
@@ -59,9 +61,12 @@ const FeaturedRooms = () => {
               <div className="room-content">
                 <h3>{room.name}</h3>
                 <ul className="room-features">
-                  {room.features.map((feature, index) => (
+                  {room.features.slice(0, 3).map((feature, index) => (
                     <li key={index}>{feature}</li>
                   ))}
+                  {room.features.length > 3 && (
+                    <li className="more-features">+{room.features.length - 3} more</li>
+                  )}
                 </ul>
 
                 <div className="room-footer">

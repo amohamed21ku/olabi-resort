@@ -1,42 +1,289 @@
+/* Modern Luxury Resort Design System */
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400&family=Inter:wght@300;400;500;600;700&family=Crimson+Text:ital,wght@0,400;0,600;1,400&family=Noto+Sans+Arabic:wght@300;400;500;600;700&family=Cairo:wght@300;400;500;600;700&family=Amiri:ital,wght@0,400;0,700;1,400;1,700&display=swap');
+
+:root {
+  /* Luxury Resort Color Palette */
+  --primary-teal: #1E5F74;
+  --secondary-teal: #2E8B9B;
+  --accent-teal: #5DADE2;
+  --deep-teal: #154D5C;
+
+  --primary-green: #1B4332;
+  --secondary-green: #2D5016;
+  --accent-green: #40916C;
+  --sage-green: #95D5B2;
+  --mint-green: #B7E4C7;
+
+  --luxury-blue: #2E5BBA;
+  --deep-blue: #1E3A8A;
+  --sky-blue: #87CEEB;
+  --powder-blue: #B0E0E6;
+
+  --warm-sand: #F5E6D3;
+  --cream: #F5F5DC;
+  --ivory: #FFFFF0;
+  --pearl: #F8F6F0;
+
+  --charcoal: #2C2C2C;
+  --slate: #4A5568;
+  --soft-gray: #718096;
+  --light-gray: #E2E8F0;
+  --pure-white: #FFFFFF;
+
+  /* Gradient Definitions */
+  --gradient-teal: linear-gradient(135deg, var(--deep-teal) 0%, var(--primary-teal) 50%, var(--secondary-teal) 100%);
+  --gradient-green: linear-gradient(135deg, var(--primary-green) 0%, var(--accent-green) 50%, var(--sage-green) 100%);
+  --gradient-luxury: linear-gradient(135deg, var(--primary-teal) 0%, var(--luxury-blue) 50%, var(--primary-green) 100%);
+  --gradient-subtle: linear-gradient(135deg, var(--pearl) 0%, var(--ivory) 50%, var(--warm-sand) 100%);
+
+  /* Typography */
+  --font-luxury: 'Playfair Display', 'Amiri', serif;
+  --font-primary: 'Inter', 'Noto Sans Arabic', sans-serif;
+  --font-accent: 'Crimson Text', 'Cairo', serif;
+  --font-arabic-primary: 'Noto Sans Arabic', 'Cairo', sans-serif;
+  --font-arabic-luxury: 'Amiri', 'Playfair Display', serif;
+  --font-arabic-accent: 'Cairo', 'Crimson Text', sans-serif;
+
+  /* Shadows & Effects */
+  --shadow-soft: 0 4px 20px rgba(0, 0, 0, 0.08);
+  --shadow-medium: 0 8px 30px rgba(0, 0, 0, 0.12);
+  --shadow-strong: 0 15px 50px rgba(0, 0, 0, 0.15);
+  --shadow-luxury: 0 20px 60px rgba(30, 95, 116, 0.25);
+  --shadow-green: 0 10px 40px rgba(27, 67, 50, 0.15);
+  --shadow-teal: 0 15px 50px rgba(46, 139, 155, 0.2);
+
+  /* Glass Effects */
+  --glass-bg: rgba(255, 255, 255, 0.1);
+  --glass-border: rgba(255, 255, 255, 0.2);
+  --glass-blur: blur(20px);
+
+  /* Transitions */
+  --transition-fast: 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-smooth: 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-luxury: 0.6s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  --transition-bounce: 0.5s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+
+  /* Layout */
+  --container-max-width: 1200px;
+  --border-radius: 12px;
+  --border-radius-large: 24px;
+}
+
+/* Global Styles */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+  font-size: 16px;
+}
+
+body {
+  font-family: var(--font-primary);
+  line-height: 1.6;
+  color: var(--charcoal);
+  background: var(--gradient-subtle);
+  overflow-x: hidden;
+}
+
 #root {
   width: 100%;
   min-height: 100vh;
-  margin: 0;
-  padding: 0;
+  position: relative;
 }
 
-.logo {
-  height: 6em;
-  padding: 1.5em;
-  will-change: filter;
-  transition: filter 300ms;
-}
-.logo:hover {
-  filter: drop-shadow(0 0 2em #646cffaa);
-}
-.logo.react:hover {
-  filter: drop-shadow(0 0 2em #61dafbaa);
-}
-
-@keyframes logo-spin {
+/* Luxury Animations */
+@keyframes fadeInUp {
   from {
-    transform: rotate(0deg);
+    opacity: 0;
+    transform: translateY(30px);
   }
   to {
-    transform: rotate(360deg);
+    opacity: 1;
+    transform: translateY(0);
   }
 }
 
-@media (prefers-reduced-motion: no-preference) {
-  a:nth-of-type(2) .logo {
-    animation: logo-spin infinite 20s linear;
+@keyframes fadeInLeft {
+  from {
+    opacity: 0;
+    transform: translateX(-30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
   }
 }
 
-.card {
-  padding: 2em;
+@keyframes fadeInRight {
+  from {
+    opacity: 0;
+    transform: translateX(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
 }
 
-.read-the-docs {
-  color: #888;
+@keyframes scaleIn {
+  from {
+    opacity: 0;
+    transform: scale(0.8);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes bounce {
+  0%, 20%, 50%, 80%, 100% {
+    transform: translateY(0);
+  }
+  40% {
+    transform: translateY(-10px);
+  }
+  60% {
+    transform: translateY(-5px);
+  }
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: -200px 0;
+  }
+  100% {
+    background-position: calc(200px + 100%) 0;
+  }
+}
+
+@keyframes float {
+  0%, 100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+@keyframes glow {
+  0%, 100% {
+    box-shadow: 0 0 20px rgba(30, 95, 116, 0.3);
+  }
+  50% {
+    box-shadow: 0 0 40px rgba(30, 95, 116, 0.6);
+  }
+}
+
+/* RTL Support */
+.app.rtl {
+  direction: rtl;
+}
+
+.app.ltr {
+  direction: ltr;
+}
+
+/* Arabic Font Support */
+[lang="ar"], [dir="rtl"] {
+  font-family: var(--font-arabic-primary);
+  direction: rtl;
+  text-align: right;
+}
+
+[lang="ar"] h1, [lang="ar"] h2, [lang="ar"] h3, [dir="rtl"] h1, [dir="rtl"] h2, [dir="rtl"] h3 {
+  font-family: var(--font-arabic-luxury);
+}
+
+[lang="ar"] .accent, [dir="rtl"] .accent {
+  font-family: var(--font-arabic-accent);
+}
+
+/* Improved Arabic text rendering */
+[lang="ar"], [dir="rtl"] {
+  line-height: 1.8;
+  letter-spacing: 0.02em;
+}
+
+[lang="ar"] h1, [lang="ar"] h2, [lang="ar"] h3, [lang="ar"] h4, [lang="ar"] h5, [lang="ar"] h6,
+[dir="rtl"] h1, [dir="rtl"] h2, [dir="rtl"] h3, [dir="rtl"] h4, [dir="rtl"] h5, [dir="rtl"] h6 {
+  line-height: 1.4;
+  letter-spacing: 0.01em;
+}
+
+/* Utility Classes */
+.fade-in {
+  animation: fadeInUp 0.8s var(--transition-smooth) forwards;
+}
+
+.fade-in-left {
+  animation: fadeInLeft 0.8s var(--transition-smooth) forwards;
+}
+
+.fade-in-right {
+  animation: fadeInRight 0.8s var(--transition-smooth) forwards;
+}
+
+.scale-in {
+  animation: scaleIn 0.6s var(--transition-bounce) forwards;
+}
+
+.glass-effect {
+  background: var(--glass-bg);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-border);
+}
+
+.luxury-shadow {
+  box-shadow: var(--shadow-luxury);
+}
+
+.hover-lift {
+  transition: transform var(--transition-smooth), box-shadow var(--transition-smooth);
+}
+
+.hover-lift:hover {
+  transform: translateY(-5px);
+  box-shadow: var(--shadow-strong);
+}
+
+/* Scrollbar Styling */
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--light-gray);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--gradient-teal);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--deep-teal);
+}
+
+/* Focus States */
+*:focus-visible {
+  outline: 2px solid var(--primary-teal);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* Selection Styling */
+::selection {
+  background: var(--primary-teal);
+  color: var(--pure-white);
+}
+
+::-moz-selection {
+  background: var(--primary-teal);
+  color: var(--pure-white);
 }

@@ -4,7 +4,6 @@ import Hero from './components/Hero';
 import About from './components/About';
 import FeaturedRooms from './components/FeaturedRooms';
 import FloorPlan from './components/FloorPlan';
-import BookingWidget from './components/BookingWidget';
 import BookingSection from './components/BookingSection';
 import Directions from './components/Directions';
 import Experiences from './components/Experiences';
@@ -22,8 +21,8 @@ const HomePage = () => {
       <BookingSection />
       <FloorPlan />
        <Directions />
-      <Experiences />
-      <Testimonials />
+      {/* <Experiences /> */}
+      {/* <Testimonials /> */}
       <Footer />
     </div>
   );

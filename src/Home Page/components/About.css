@@ -1,69 +1,168 @@
 
-/* About Section */
+/* About Section - Luxury Design */
 .about-section {
-  padding: var(--section-padding);
-  background: linear-gradient(135deg, var(--cream) 0%, var(--beige) 100%);
+  padding: 6rem 0;
+  background: var(--gradient-subtle);
+  position: relative;
+  overflow: hidden;
+}
+
+.about-section::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: radial-gradient(circle at 20% 80%, rgba(30, 95, 116, 0.1) 0%, transparent 50%),
+              radial-gradient(circle at 80% 20%, rgba(27, 67, 50, 0.1) 0%, transparent 50%);
+  pointer-events: none;
 }
 
 .about-container {
   max-width: var(--container-max-width);
   margin: 0 auto;
   padding: 0 2rem;
+  position: relative;
+  z-index: 1;
 }
 
 .about-content {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 4rem;
+  gap: 5rem;
   align-items: center;
 }
 
+.about-text {
+  opacity: 1;
+  animation: fadeInLeft 1s var(--transition-luxury) 0.3s forwards;
+}
+
 .about-text h2 {
-  color: var(--deep-teal);
+  font-family: var(--font-luxury);
+  font-size: clamp(2.5rem, 4vw, 3.5rem);
+  background: var(--gradient-luxury);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
   margin-bottom: 2rem;
+  font-weight: 700;
+  line-height: 1.2;
 }
 
 .about-text .lead {
-  font-size: 1.2rem;
-  color: var(--charcoal);
+  font-family: var(--font-accent);
+  font-size: clamp(1.2rem, 2vw, 1.4rem);
+  color: var(--deep-teal);
   margin-bottom: 1.5rem;
-  font-weight: 400;
+  font-weight: 600;
+  font-style: italic;
+  line-height: 1.6;
 }
 
-.about-stats {
-  display: flex;
-  gap: 2rem;
-  margin-top: 2rem;
+.about-text p {
+  color: var(--slate);
+  font-size: 1.1rem;
+  line-height: 1.8;
+  margin-bottom: 2rem;
 }
 
-.stat {
-  text-align: center;
-}
 
-.stat h3 {
-  color: var(--primary-green);
-  font-size: 2rem;
-  margin-bottom: 0.5rem;
-}
+
+
+
+
+
+
 
 .about-image {
   position: relative;
-  height: 400px;
-  border-radius: 20px;
+  height: 500px;
+  border-radius: var(--border-radius-large);
   overflow: hidden;
+  opacity: 1;
+  animation: fadeInRight 1s var(--transition-luxury) 0.6s forwards;
+  box-shadow: var(--shadow-luxury);
 }
 
-.about-img {
+.carousel-container {
+  position: relative;
   width: 100%;
   height: 100%;
-  object-fit: contain;
+}
+
+.carousel-image {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
   object-position: center;
+  transition: opacity 0.8s ease-in-out;
+  opacity: 0;
+}
+
+.carousel-image.active {
+  opacity: 1;
+}
+
+.carousel-indicators {
+  position: absolute;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 6px;
+  z-index: 5;
+}
+
+.indicator {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  border: 1px solid white;
+  background: transparent;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.indicator.active {
+  background: white;
+  transform: scale(1.2);
+}
+
+.indicator:hover {
+  background: rgba(255, 255, 255, 0.7);
+}
+
+.about-image::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: var(--gradient-teal);
+  opacity: 0;
+  transition: opacity var(--transition-luxury);
+  z-index: 2;
+  mix-blend-mode: overlay;
+}
+
+.about-image:hover::before {
+  opacity: 0.2;
+}
+
+.about-image:hover .carousel-image.active {
+  transform: scale(1.05);
 }
 
 .image-placeholder {
   width: 100%;
   height: 100%;
-  background: url('https://images.unsplash.com/photo-1571896349842-33c89424de2d?ixlib=rb-4.0.3') center/contain;
+  background: url('https://images.unsplash.com/photo-1571896349842-33c89424de2d?ixlib=rb-4.0.3') center/cover;
   background-repeat: no-repeat;
   position: relative;
 }
@@ -74,19 +173,42 @@
   left: 0;
   width: 100%;
   height: 100%;
-  background: rgba(44, 91, 92, 0.3);
+  background: linear-gradient(
+    135deg,
+    rgba(27, 67, 50, 0.8) 0%,
+    rgba(30, 95, 116, 0.8) 100%
+  );
   display: flex;
   align-items: center;
   justify-content: center;
-  color: white;
-  font-size: 1.2rem;
-  font-weight: 600;
+  color: var(--pure-white);
+  font-family: var(--font-luxury);
+  font-size: 1.5rem;
+  font-weight: 700;
   opacity: 0;
-  transition: var(--smooth-transition);
+  transition: all var(--transition-luxury);
+  z-index: 3;
 }
 
-.image-placeholder:hover .image-overlay {
+.about-image:hover .image-overlay {
   opacity: 1;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .about-content {
+    grid-template-columns: 1fr;
+    gap: 3rem;
+    text-align: center;
+  }
+
+
+
+
+
+  .about-image {
+    height: 300px;
+  }
 }
 
 

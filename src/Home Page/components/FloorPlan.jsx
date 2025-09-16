@@ -21,7 +21,7 @@ const FloorPlan = () => {
           status: "available",
           type: "1 Bedroom",
           price: "18,000 SYP/night",
-          image: "https://images.unsplash.com/photo-1631049307264-da0ec9d70304?ixlib=rb-4.0.3&w=400",
+          image: "/static/images/assets/featured-room.png",
           amenities: ["King Bed", "Mountain View", "Private Balcony", "Mini Bar"],
           size: "45 sqm"
         },
@@ -31,7 +31,7 @@ const FloorPlan = () => {
           status: "occupied",
           type: "2 Bedroom",
           price: "28,000 SYP/night",
-          image: "https://images.unsplash.com/photo-1618773928121-c32242e63f39?ixlib=rb-4.0.3&w=400",
+          image: "/static/images/assets/featured-room.png",
           amenities: ["2 King Beds", "Sea View", "Living Room", "Kitchenette"],
           size: "75 sqm"
         },
@@ -41,7 +41,7 @@ const FloorPlan = () => {
           status: "available",
           type: "3 Bedroom",
           price: "38,000 SYP/night",
-          image: "https://images.unsplash.com/photo-1566665797739-1674de7a421a?ixlib=rb-4.0.3&w=400",
+          image: "/static/images/assets/featured-room.png",
           amenities: ["3 King Beds", "Garden View", "Full Kitchen", "Dining Area"],
           size: "95 sqm"
         },
@@ -51,7 +51,7 @@ const FloorPlan = () => {
           status: "available",
           type: "4 Bedroom",
           price: "48,000 SYP/night",
-          image: "https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?ixlib=rb-4.0.3&w=400",
+          image: "/static/images/assets/featured-room.png",
           amenities: ["4 King Beds", "Panoramic View", "Full Kitchen", "2 Bathrooms"],
           size: "120 sqm"
         }
@@ -66,7 +66,7 @@ const FloorPlan = () => {
           status: "available",
           type: "Honeymoon Suite",
           price: "55,000 SYP/night",
-          image: "https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?ixlib=rb-4.0.3&w=400",
+          image: "/static/images/assets/featured-room.png",
           amenities: ["King Bed", "Jacuzzi", "Romantic Setup", "Champagne Service"],
           size: "60 sqm"
         },
@@ -76,7 +76,7 @@ const FloorPlan = () => {
           status: "available",
           type: "2 Bedroom",
           price: "32,000 SYP/night",
-          image: "https://images.unsplash.com/photo-1618773928121-c32242e63f39?ixlib=rb-4.0.3&w=400",
+          image: "/static/images/assets/featured-room.png",
           amenities: ["2 Queen Beds", "Mountain View", "Living Room", "Mini Bar"],
           size: "80 sqm"
         },
@@ -86,7 +86,7 @@ const FloorPlan = () => {
           status: "occupied",
           type: "3 Bedroom",
           price: "42,000 SYP/night",
-          image: "https://images.unsplash.com/photo-1566665797739-1674de7a421a?ixlib=rb-4.0.3&w=400",
+          image: "/static/images/assets/featured-room.png",
           amenities: ["3 Queen Beds", "Sea View", "Full Kitchen", "Terrace"],
           size: "100 sqm"
         },
@@ -96,7 +96,7 @@ const FloorPlan = () => {
           status: "available",
           type: "1 Bedroom",
           price: "22,000 SYP/night",
-          image: "https://images.unsplash.com/photo-1631049307264-da0ec9d70304?ixlib=rb-4.0.3&w=400",
+          image: "/static/images/assets/featured-room.png",
           amenities: ["Queen Bed", "City View", "Work Desk", "Coffee Machine"],
           size: "50 sqm"
         }
@@ -111,7 +111,7 @@ const FloorPlan = () => {
           status: "available",
           type: "Honeymoon Suite",
           price: "58,000 SYP/night",
-          image: "https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?ixlib=rb-4.0.3&w=400",
+          image: "/static/images/assets/featured-room.png",
           amenities: ["King Bed", "Jacuzzi", "Private Terrace", "Butler Service"],
           size: "70 sqm"
         },
@@ -121,7 +121,7 @@ const FloorPlan = () => {
           status: "available",
           type: "4 Bedroom",
           price: "52,000 SYP/night",
-          image: "https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?ixlib=rb-4.0.3&w=400",
+          image: "/static/images/assets/featured-room.png",
           amenities: ["4 Queen Beds", "Sea View", "Full Kitchen", "Living Room"],
           size: "125 sqm"
         },
@@ -131,7 +131,7 @@ const FloorPlan = () => {
           status: "available",
           type: "2 Bedroom",
           price: "35,000 SYP/night",
-          image: "https://images.unsplash.com/photo-1618773928121-c32242e63f39?ixlib=rb-4.0.3&w=400",
+          image: "/static/images/assets/featured-room.png",
           amenities: ["2 King Beds", "Mountain View", "Balcony", "Room Service"],
           size: "85 sqm"
         },
@@ -141,7 +141,7 @@ const FloorPlan = () => {
           status: "maintenance",
           type: "1 Bedroom",
           price: "20,000 SYP/night",
-          image: "https://images.unsplash.com/photo-1631049307264-da0ec9d70304?ixlib=rb-4.0.3&w=400",
+          image: "/static/images/assets/featured-room.png",
           amenities: ["Queen Bed", "Garden View", "Work Area", "Mini Fridge"],
           size: "45 sqm"
         }
@@ -156,7 +156,7 @@ const FloorPlan = () => {
           status: "available",
           type: "Honeymoon Suite",
           price: "65,000 SYP/night",
-          image: "https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?ixlib=rb-4.0.3&w=400",
+          image: "/static/images/assets/featured-room.png",
           amenities: ["King Bed", "Jacuzzi", "Rooftop Access", "Concierge Service"],
           size: "80 sqm"
         },
@@ -166,7 +166,7 @@ const FloorPlan = () => {
           status: "available",
           type: "4 Bedroom",
           price: "58,000 SYP/night",
-          image: "https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?ixlib=rb-4.0.3&w=400",
+          image: "/static/images/assets/featured-room.png",
           amenities: ["4 King Beds", "Panoramic View", "Full Kitchen", "3 Bathrooms"],
           size: "140 sqm"
         },
@@ -176,7 +176,7 @@ const FloorPlan = () => {
           status: "available",
           type: "3 Bedroom",
           price: "48,000 SYP/night",
-          image: "https://images.unsplash.com/photo-1566665797739-1674de7a421a?ixlib=rb-4.0.3&w=400",
+          image: "/static/images/assets/featured-room.png",
           amenities: ["3 King Beds", "Sea View", "Full Kitchen", "Private Terrace"],
           size: "110 sqm"
         },
@@ -186,7 +186,7 @@ const FloorPlan = () => {
           status: "available",
           type: "2 Bedroom",
           price: "38,000 SYP/night",
-          image: "https://images.unsplash.com/photo-1618773928121-c32242e63f39?ixlib=rb-4.0.3&w=400",
+          image: "/static/images/assets/featured-room.png",
           amenities: ["2 King Beds", "City View", "Living Room", "Premium Service"],
           size: "90 sqm"
         }
