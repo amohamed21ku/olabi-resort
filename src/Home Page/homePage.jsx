@@ -3,7 +3,7 @@ import Header from './components/Header';
 import Hero from './components/Hero';
 import About from './components/About';
 import FeaturedRooms from './components/FeaturedRooms';
-import FloorPlan from './components/FloorPlan';
+import FloorPlanNew from './components/FloorPlanNew';
 import BookingSection from './components/BookingSection';
 import Directions from './components/Directions';
 import Experiences from './components/Experiences';
@@ -19,7 +19,7 @@ const HomePage = () => {
       <About />
       <FeaturedRooms />
       <BookingSection />
-      <FloorPlan />
+      <FloorPlanNew />
        <Directions />
       {/* <Experiences /> */}
       {/* <Testimonials /> */}

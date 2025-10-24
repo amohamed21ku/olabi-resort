@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useLanguage } from '../../hooks/useLanguage';
 import './About.css';
+import Carousel from '/src/Custom_Components/Carousel.jsx'
 
 const About = () => {
   const { t } = useLanguage();
@@ -38,16 +39,18 @@ const About = () => {
        
           </div>
           <div className="about-image">
-            <div className="carousel-container">
-              {images.map((image, index) => (
-                <img
-                  key={index}
-                  src={image}
-                  alt={`Olabi Resort Image ${index + 1}`}
-                  className={`about-img carousel-image ${index === currentImageIndex ? 'active' : ''}`}
-                />
-              ))}
-            </div>
+      import Carousel from './Carousel'
+
+<div style={{ height: '600px', position: 'relative' }}>
+  <Carousel
+    baseWidth={300}
+    autoplay={true}
+    autoplayDelay={3000}
+    pauseOnHover={true}
+    loop={true}
+    round={false}
+  />
+</div>
             <div className="carousel-indicators">
               {images.map((_, index) => (
                 <button

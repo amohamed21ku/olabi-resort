@@ -2,39 +2,37 @@
 @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400&family=Inter:wght@300;400;500;600;700&family=Crimson+Text:ital,wght@0,400;0,600;1,400&family=Noto+Sans+Arabic:wght@300;400;500;600;700&family=Cairo:wght@300;400;500;600;700&family=Amiri:ital,wght@0,400;0,700;1,400;1,700&display=swap');
 
 :root {
-  /* Luxury Resort Color Palette */
+  /* Unified Luxury Resort Color Palette */
+  /* Primary - Deep Ocean Teal */
   --primary-teal: #1E5F74;
   --secondary-teal: #2E8B9B;
   --accent-teal: #5DADE2;
   --deep-teal: #154D5C;
 
-  --primary-green: #1B4332;
-  --secondary-green: #2D5016;
-  --accent-green: #40916C;
+  /* Accent - Natural Green (cohesive with teal) */
+  --primary-green: #2D6A4F;
+  --secondary-green: #40916C;
   --sage-green: #95D5B2;
   --mint-green: #B7E4C7;
 
-  --luxury-blue: #2E5BBA;
-  --deep-blue: #1E3A8A;
-  --sky-blue: #87CEEB;
-  --powder-blue: #B0E0E6;
-
+  /* Neutral - Warm & Soft */
   --warm-sand: #F5E6D3;
-  --cream: #F5F5DC;
+  --cream: #FAF8F3;
   --ivory: #FFFFF0;
   --pearl: #F8F6F0;
 
+  /* Text & Contrast */
   --charcoal: #2C2C2C;
   --slate: #4A5568;
   --soft-gray: #718096;
   --light-gray: #E2E8F0;
   --pure-white: #FFFFFF;
 
-  /* Gradient Definitions */
+  /* Gradients - Harmonious */
   --gradient-teal: linear-gradient(135deg, var(--deep-teal) 0%, var(--primary-teal) 50%, var(--secondary-teal) 100%);
-  --gradient-green: linear-gradient(135deg, var(--primary-green) 0%, var(--accent-green) 50%, var(--sage-green) 100%);
-  --gradient-luxury: linear-gradient(135deg, var(--primary-teal) 0%, var(--luxury-blue) 50%, var(--primary-green) 100%);
-  --gradient-subtle: linear-gradient(135deg, var(--pearl) 0%, var(--ivory) 50%, var(--warm-sand) 100%);
+  --gradient-green: linear-gradient(135deg, var(--primary-green) 0%, var(--secondary-green) 50%, var(--sage-green) 100%);
+  --gradient-luxury: linear-gradient(135deg, var(--primary-teal) 0%, var(--accent-teal) 50%, var(--sage-green) 100%);
+  --gradient-subtle: linear-gradient(135deg, var(--pearl) 0%, var(--cream) 50%, var(--warm-sand) 100%);
 
   /* Typography */
   --font-luxury: 'Playfair Display', 'Amiri', serif;
@@ -45,12 +43,12 @@
   --font-arabic-accent: 'Cairo', 'Crimson Text', sans-serif;
 
   /* Shadows & Effects */
-  --shadow-soft: 0 4px 20px rgba(0, 0, 0, 0.08);
-  --shadow-medium: 0 8px 30px rgba(0, 0, 0, 0.12);
-  --shadow-strong: 0 15px 50px rgba(0, 0, 0, 0.15);
+  --shadow-soft: 0 4px 20px rgba(30, 95, 116, 0.08);
+  --shadow-medium: 0 8px 30px rgba(30, 95, 116, 0.12);
+  --shadow-strong: 0 15px 50px rgba(30, 95, 116, 0.18);
   --shadow-luxury: 0 20px 60px rgba(30, 95, 116, 0.25);
-  --shadow-green: 0 10px 40px rgba(27, 67, 50, 0.15);
-  --shadow-teal: 0 15px 50px rgba(46, 139, 155, 0.2);
+  --shadow-green: 0 10px 40px rgba(45, 106, 79, 0.2);
+  --shadow-teal: 0 15px 50px rgba(46, 139, 155, 0.25);
 
   /* Glass Effects */
   --glass-bg: rgba(255, 255, 255, 0.1);
@@ -272,18 +270,18 @@ body {
 
 /* Focus States */
 *:focus-visible {
-  outline: 2px solid var(--primary-teal);
+  outline: 2px solid var(--accent-teal);
   outline-offset: 2px;
   border-radius: 4px;
 }
 
 /* Selection Styling */
 ::selection {
-  background: var(--primary-teal);
+  background: var(--accent-teal);
   color: var(--pure-white);
 }
 
 ::-moz-selection {
-  background: var(--primary-teal);
+  background: var(--accent-teal);
   color: var(--pure-white);
 }

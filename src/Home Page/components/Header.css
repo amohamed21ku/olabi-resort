@@ -38,12 +38,12 @@
   object-fit: contain;
   border-radius: var(--border-radius);
   transition: all var(--transition-luxury);
-  filter: drop-shadow(0 4px 20px rgba(30, 95, 116, 0.2));
+  filter: drop-shadow(0 4px 20px rgba(30, 95, 116, 0.25));
 }
 
 .logo-image:hover {
   transform: scale(1.05);
-  filter: drop-shadow(0 8px 30px rgba(30, 95, 116, 0.3));
+  filter: drop-shadow(0 8px 30px rgba(30, 95, 116, 0.4));
 }
 
 .logo-text {
@@ -66,7 +66,7 @@
 
 .logo-subtitle {
   font-size: 0.8rem;
-  color: var(--deep-teal);
+  color: var(--primary-teal);
   margin: 0;
   font-weight: 400;
   font-style: italic;
@@ -112,7 +112,7 @@
   left: 50%;
   width: 0;
   height: 3px;
-  background: var(--gradient-teal);
+  background: var(--gradient-green);
   transition: all var(--transition-luxury);
   border-radius: 2px;
   transform: translateX(-50%);
@@ -138,7 +138,7 @@
 }
 
 .language-switcher select {
-  background: rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.15);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
   border: 2px solid var(--primary-teal);
@@ -155,24 +155,26 @@
   background: var(--gradient-teal);
   color: var(--pure-white);
   transform: translateY(-2px);
-  box-shadow: var(--shadow-luxury);
+  box-shadow: var(--shadow-teal);
 }
 
 .booking-btn {
-  background: linear-gradient(135deg, var(--primary-green), var(--secondary-green));
-  color: white;
+  background: var(--gradient-green);
+  color: var(--pure-white);
   border: none;
   padding: 0.75rem 1.5rem;
   border-radius: 50px;
-  font-weight: 600;
+  font-weight: 700;
   cursor: pointer;
   transition: var(--smooth-transition);
-  box-shadow: 0 4px 15px rgba(76, 175, 80, 0.3);
+  box-shadow: var(--shadow-green);
 }
 
 .booking-btn:hover {
   transform: translateY(-2px);
-  box-shadow: 0 8px 25px rgba(76, 175, 80, 0.4);
+  box-shadow: 0 8px 25px rgba(45, 106, 79, 0.4);
+  background: var(--gradient-teal);
+  color: var(--pure-white);
 }
 
 .mobile-menu-toggle {
@@ -265,8 +267,8 @@
   }
 
   .mobile-menu a:hover {
-    background: rgba(76, 175, 80, 0.1);
-    color: var(--primary-green);
+    background: rgba(30, 95, 116, 0.1);
+    color: var(--primary-teal);
   }
 }
 

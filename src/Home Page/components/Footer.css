@@ -1,7 +1,7 @@
 
 /* Footer */
 .footer {
-  background: linear-gradient(135deg, var(--charcoal) 0%, rgba(54, 69, 79, 0.95) 100%);
+  background: linear-gradient(135deg, var(--charcoal) 0%, var(--slate) 50%, var(--deep-ocean) 100%);
   color: white;
   padding: 4rem 0 2rem;
 }
@@ -22,7 +22,7 @@
 .footer-section h2,
 .footer-section h3 {
   margin-bottom: 1rem;
-  color: var(--primary-green);
+  color: var(--luxury-gold);
 }
 
 .footer-section p {
@@ -49,8 +49,10 @@
 }
 
 .social-link:hover {
-  background: var(--primary-green);
+  background: var(--gradient-gold);
+  color: var(--charcoal);
   transform: translateY(-3px);
+  box-shadow: var(--shadow-gold);
 }
 
 .footer-section ul {
@@ -68,7 +70,7 @@
 }
 
 .footer-section ul li a:hover {
-  color: var(--primary-green);
+  color: var(--luxury-gold);
 }
 
 .contact-info {
@@ -84,7 +86,7 @@
 }
 
 .contact-item svg {
-  color: var(--primary-green);
+  color: var(--luxury-gold);
   margin-top: 0.2rem;
   flex-shrink: 0;
 }
@@ -109,17 +111,20 @@
 }
 
 .newsletter-form button {
-  background: var(--primary-green);
+  background: var(--gradient-gold);
   border: none;
   padding: 0.8rem 1rem;
   border-radius: 0 25px 25px 0;
-  color: white;
+  color: var(--charcoal);
   cursor: pointer;
   transition: var(--smooth-transition);
+  font-weight: 700;
 }
 
 .newsletter-form button:hover {
-  background: var(--secondary-green);
+  background: var(--luxury-gold);
+  box-shadow: var(--shadow-gold);
+  transform: scale(1.05);
 }
 
 .footer-bottom {
@@ -147,5 +152,5 @@
 }
 
 .footer-bottom-links a:hover {
-  color: var(--primary-green);
+  color: var(--luxury-gold);
 }

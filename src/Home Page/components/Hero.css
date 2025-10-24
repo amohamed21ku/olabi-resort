@@ -35,10 +35,10 @@
   width: 100%;
   height: 100%;
   background: linear-gradient(135deg,
-              rgba(46, 125, 50, 0.15) 0%,
-              rgba(27, 94, 32, 0.1) 30%,
-              rgba(139, 195, 74, 0.05) 70%,
-              rgba(255, 248, 225, 0.2) 100%);
+              rgba(15, 76, 92, 0.15) 0%,
+              rgba(93, 156, 173, 0.1) 30%,
+              rgba(212, 175, 55, 0.08) 70%,
+              rgba(247, 244, 239, 0.2) 100%);
   z-index: -1;
 }
 
@@ -63,11 +63,10 @@
   font-family: 'Playfair Display', 'Georgia', serif;
   font-size: clamp(0rem, 10vw, 2rem);
   background: linear-gradient(135deg,
-              #aad5ac 0%,
-              #388E3C 25%,
-              #4CAF50 50%,
-              #66BB6A 75%,
-              #81C784 100%);
+              #0F4C5C 0%,
+              #5D9CAD 35%,
+              #D4AF37 65%,
+              #B8860B 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -111,10 +110,9 @@
   margin-bottom: 1.5rem;
   font-weight: 500;
   background: linear-gradient(135deg,
-              #5D4037 0%,
-              #6D4C41 30%,
-              #8D6E63 60%,
-              #A1887F 100%);
+              #52616B 0%,
+              #0F4C5C 40%,
+              #5D9CAD 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -124,14 +122,14 @@
 .booking-widget {
   background: linear-gradient(135deg,
               rgba(255, 255, 255, 0.95) 0%,
-              rgba(248, 249, 250, 0.9) 100%);
+              rgba(247, 244, 239, 0.9) 100%);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
-  border: 2px solid rgba(76, 175, 80, 0.3);
+  border: 2px solid rgba(212, 175, 55, 0.3);
   border-radius: 20px;
   padding: 2rem;
-  box-shadow: 0 12px 40px rgba(76, 175, 80, 0.2),
-              0 4px 16px rgba(33, 150, 243, 0.1);
+  box-shadow: 0 12px 40px rgba(15, 76, 92, 0.2),
+              0 4px 16px rgba(212, 175, 55, 0.15);
   margin-top: 3rem;
 }
 
@@ -157,14 +155,14 @@
 
 .form-group input,
 .form-group select {
-  background: rgba(255, 255, 255, 0.9);
-  border: 2px solid rgba(76, 175, 80, 0.5);
+  background: rgba(255, 255, 255, 0.95);
+  border: 2px solid rgba(93, 156, 173, 0.4);
   color: var(--charcoal);
   padding: 0.75rem;
   border-radius: 12px;
   backdrop-filter: blur(10px);
   font-size: 0.9rem;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 2px 10px rgba(15, 76, 92, 0.1);
 }
 
 .form-group input::placeholder {
@@ -237,41 +235,33 @@
 }
 
 .book-now-btn {
-  background: linear-gradient(135deg,
-              #2E7D32 0%,
-              #388E3C 25%,
-              #4CAF50 50%,
-              #66BB6A 100%);
-  color: white;
-  box-shadow: 0 4px 15px rgba(46, 125, 50, 0.4);
-  border: 2px solid rgba(255, 255, 255, 0.2);
+  background: var(--gradient-gold);
+  color: var(--charcoal);
+  box-shadow: var(--shadow-gold);
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  font-weight: 700;
 }
 
 .book-now-btn:hover {
   transform: translateY(-2px);
-  box-shadow: 0 8px 25px rgba(46, 125, 50, 0.5);
-  background: linear-gradient(135deg,
-              #1B5E20 0%,
-              #2E7D32 25%,
-              #388E3C 50%,
-              #4CAF50 100%);
+  box-shadow: 0 8px 25px rgba(212, 175, 55, 0.5);
+  background: var(--gradient-ocean);
+  color: var(--pure-white);
+  border-color: rgba(255, 255, 255, 0.5);
 }
 
 .directions-btn {
-  background: linear-gradient(135deg,
-              rgba(121, 85, 72, 0.1) 0%,
-              rgba(141, 110, 99, 0.1) 100%);
-  color: #5D4037;
-  border: 2px solid #8D6E63;
-  backdrop-filter: blur(5px);
+  background: rgba(255, 255, 255, 0.2);
+  color: var(--primary-ocean);
+  border: 2px solid var(--secondary-ocean);
+  backdrop-filter: blur(10px);
+  font-weight: 600;
 }
 
 .directions-btn:hover {
-  background: linear-gradient(135deg,
-              #5D4037 0%,
-              #6D4C41 50%,
-              #8D6E63 100%);
-  color: white;
+  background: var(--gradient-ocean);
+  color: var(--pure-white);
   transform: translateY(-2px);
-  box-shadow: 0 4px 15px rgba(93, 64, 55, 0.3);
+  box-shadow: var(--shadow-ocean);
+  border-color: rgba(255, 255, 255, 0.3);
 }

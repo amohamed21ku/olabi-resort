@@ -18,7 +18,7 @@
 }
 
 .section-header h2 {
-  color: var(--deep-teal);
+  color: var(--primary-ocean);
   margin-bottom: 1rem;
 }
 
@@ -69,12 +69,12 @@
   position: absolute;
   top: 1rem;
   right: 1rem;
-  background: var(--primary-green);
-  color: white;
+  background: var(--gradient-gold);
+  color: var(--charcoal);
   padding: 0.5rem 1rem;
   border-radius: 20px;
   font-size: 0.8rem;
-  font-weight: 600;
+  font-weight: 700;
 }
 
 .room-content {
@@ -86,7 +86,7 @@
 }
 
 .room-content h3 {
-  color: var(--deep-teal);
+  color: var(--primary-ocean);
   margin-bottom: 1rem;
 }
 
@@ -109,7 +109,7 @@
 }
 
 .room-features .more-features {
-  background: var(--primary-green);
+  background: var(--primary-ocean);
   color: white;
   font-weight: 600;
 }
@@ -128,7 +128,7 @@
 .room-price .price {
   font-size: 1.5rem;
   font-weight: 700;
-  color: var(--primary-green);
+  color: var(--luxury-gold);
   display: block;
 }
 
@@ -138,23 +138,27 @@
 }
 
 .book-room-btn {
-  background: linear-gradient(135deg, var(--primary-green), var(--nature-green));
+  background: var(--gradient-ocean);
   color: white;
   border: none;
   padding: 0.6rem 1.2rem;
   border-radius: 25px;
   cursor: pointer;
-  font-weight: 600;
+  font-weight: 700;
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 0.5rem;
   transition: var(--smooth-transition);
   width: 100%;
+  box-shadow: var(--shadow-ocean);
 }
 
 .book-room-btn:hover {
-  transform: scale(1.05);
+  transform: translateY(-2px);
+  background: var(--gradient-gold);
+  color: var(--charcoal);
+  box-shadow: var(--shadow-gold);
 }
 
 .rooms-cta {
@@ -163,12 +167,12 @@
 
 .view-all-rooms {
   background: transparent;
-  color: var(--deep-teal);
-  border: 2px solid var(--deep-teal);
+  color: var(--primary-ocean);
+  border: 2px solid var(--primary-ocean);
   padding: 1rem 2rem;
   border-radius: 50px;
   cursor: pointer;
-  font-weight: 600;
+  font-weight: 700;
   display: inline-flex;
   align-items: center;
   gap: 0.5rem;
@@ -176,8 +180,10 @@
 }
 
 .view-all-rooms:hover {
-  background: var(--deep-teal);
+  background: var(--gradient-ocean);
   color: white;
+  border-color: transparent;
+  box-shadow: var(--shadow-ocean);
 }
 
 /* Tablet Styles (768px and below) */
