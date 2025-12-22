@@ -4,7 +4,9 @@
       "Bash(mkdir:*)",
       "Bash(npm install:*)",
       "Bash(npm run dev:*)",
-      "Bash(touch:*)"
+      "Bash(touch:*)",
+      "Bash(npx tailwindcss init:*)",
+      "Bash(cat:*)"
     ],
     "deny": [],
     "ask": []

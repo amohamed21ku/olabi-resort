@@ -7,7 +7,7 @@ import FloorPlanNew from './components/FloorPlanNew';
 import BookingSection from './components/BookingSection';
 import Directions from './components/Directions';
 import Experiences from './components/Experiences';
-import Testimonials from './components/Testimonials';
+import KasabShowcase from './components/KasabShowcase';
 import Footer from './components/Footer';
 import './homePage.css';
 
@@ -17,10 +17,11 @@ const HomePage = () => {
       <Header />
       <Hero />
       <About />
+      {/* <KasabShowcase /> */}
       <FeaturedRooms />
       <BookingSection />
       <FloorPlanNew />
-       <Directions />
+      <Directions />
       {/* <Experiences /> */}
       {/* <Testimonials /> */}
       <Footer />
