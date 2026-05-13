@@ -5,6 +5,7 @@ import { t } from '../translations'
 import { rooms } from '../data/rooms'
 import SearchBar from '../components/SearchBar'
 import RoomCard from '../components/RoomCard'
+import DirectionsMap from '../components/DirectionsMap'
 import { FiPhone, FiMail, FiMapPin, FiChevronDown, FiSearch } from 'react-icons/fi'
 
 export default function HomePage() {
@@ -258,11 +259,16 @@ export default function HomePage() {
       {/* ─── Directions ─── */}
       <section id="directions" className="section" style={{ background: 'var(--cream)' }}>
         <div className="container">
-          <div style={{ textAlign: 'center', marginBottom: '48px' }}>
+          <div style={{ textAlign: 'center', marginBottom: '40px' }}>
             <p className="section-label">{tr('dir_label')}</p>
             <h2 className="section-title" style={{ margin: '0 auto' }}>
               {tr('dir_title')}
             </h2>
+          </div>
+
+          {/* Animated map — click opens Google Maps directions from Latakia */}
+          <div style={{ marginBottom: '40px' }}>
+            <DirectionsMap />
           </div>
 
           <div style={{
