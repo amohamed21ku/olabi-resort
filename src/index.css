@@ -513,9 +513,8 @@ input, select, textarea { font-family: inherit; }
     grid-template-columns: 1fr;
     gap: 24px;
   }
-  /* Move booking card above gallery on mobile */
+  /* Booking card comes after gallery/details naturally (DOM order) */
   .room-booking-card {
-    order: -1;
     position: static !important;
   }
   /* Compact booking card padding on mobile */
@@ -544,6 +543,50 @@ input, select, textarea { font-family: inherit; }
 @media (max-width: 767px) {
   .room-detail-top {
     padding-top: 24px !important;
+  }
+}
+
+/* Booking page — responsive 2-col → 1-col */
+.booking-page-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 320px;
+  gap: 40px;
+  align-items: start;
+  max-width: 960px;
+  margin: 0 auto;
+}
+
+@media (max-width: 767px) {
+  .booking-page-grid {
+    grid-template-columns: 1fr;
+    gap: 20px;
+  }
+  /* Hide sidebar on mobile — summary is shown inline in the steps */
+  .booking-sidebar {
+    display: none !important;
+  }
+  /* Room preview card — stack image above text on mobile */
+  .booking-room-preview {
+    flex-direction: column !important;
+  }
+  .booking-room-img {
+    width: 100% !important;
+    height: 180px !important;
+  }
+}
+
+/* Confirmation page — compact padding on mobile */
+@media (max-width: 767px) {
+  .confirm-header {
+    padding: 32px 20px !important;
+  }
+  .confirm-body {
+    padding: 24px 16px !important;
+  }
+  .confirm-id-row {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    gap: 8px !important;
   }
 }
 

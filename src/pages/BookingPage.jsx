@@ -142,7 +142,7 @@ export default function BookingPage() {
                     transition: 'all 0.3s',
                   }}>
                     {done ? <FiCheck size={13} /> : <span>{num}</span>}
-                    <span className="hidden sm:inline">{label}</span>
+                    <span className="hide-mobile">{label}</span>
                   </div>
                   {i < steps.length - 1 && (
                     <div style={{ width: 24, height: 1, background: 'var(--sand)', margin: '0 2px' }} />
@@ -157,16 +157,28 @@ export default function BookingPage() {
       </div>
 
       <div className="container" style={{ paddingTop: '40px' }}>
-        <div style={{
-          display: 'grid',
-          gridTemplateColumns: 'minmax(0, 1fr) 320px',
-          gap: '40px',
-          alignItems: 'start',
-          maxWidth: '960px',
-          margin: '0 auto',
-        }}>
+        <div className="booking-page-grid">
           {/* Main content */}
           <div>
+            {/* Mobile-only price banner (sidebar is hidden on mobile) */}
+            <div className="hide-desktop" style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              background: 'var(--white)',
+              border: '1px solid var(--border)',
+              borderRadius: 'var(--radius-md)',
+              padding: '14px 16px',
+              marginBottom: '20px',
+            }}>
+              <span style={{ fontSize: '14px', color: 'var(--muted)', fontFamily: isRTL ? 'var(--font-ar)' : undefined }}>
+                {isRTL ? room.nameAr : room.nameEn}
+              </span>
+              <span style={{ fontSize: '18px', fontWeight: 800, color: 'var(--terracotta)' }}>
+                ${totalPrice} <span style={{ fontSize: '12px', fontWeight: 400, color: 'var(--muted)' }}>/ {nights} {tr('detail_nights')}</span>
+              </span>
+            </div>
+
             <h1 style={{
               fontSize: '26px',
               fontWeight: 700,
@@ -181,7 +193,7 @@ export default function BookingPage() {
             {step === 1 && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
                 {/* Room preview */}
-                <div style={{
+                <div className="booking-room-preview" style={{
                   background: 'var(--white)',
                   borderRadius: 'var(--radius-lg)',
                   overflow: 'hidden',
@@ -189,7 +201,7 @@ export default function BookingPage() {
                   display: 'flex',
                   gap: '0',
                 }}>
-                  <div style={{ width: '180px', flexShrink: 0 }}>
+                  <div className="booking-room-img" style={{ width: '180px', flexShrink: 0 }}>
                     <img src={room.image} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                   </div>
                   <div style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
@@ -401,8 +413,8 @@ export default function BookingPage() {
             )}
           </div>
 
-          {/* Sticky summary sidebar */}
-          <div style={{ position: 'sticky', top: 'calc(var(--header-h) + 24px)' }}>
+          {/* Sticky summary sidebar — hidden on mobile */}
+          <div className="booking-sidebar" style={{ position: 'sticky', top: 'calc(var(--header-h) + 24px)' }}>
             <div style={{
               background: 'var(--white)',
               borderRadius: 'var(--radius-lg)',

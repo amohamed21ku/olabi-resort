@@ -54,7 +54,7 @@ export default function ConfirmationPage() {
           textAlign: 'center',
         }}>
           {/* Success header */}
-          <div style={{
+          <div className="confirm-header" style={{
             background: 'linear-gradient(135deg, var(--olive) 0%, var(--olive-dark) 100%)',
             padding: '48px 40px',
             display: 'flex',
@@ -88,9 +88,9 @@ export default function ConfirmationPage() {
           </div>
 
           {/* Booking details */}
-          <div style={{ padding: '32px 40px' }}>
+          <div className="confirm-body" style={{ padding: '32px 40px' }}>
             {/* Booking ID */}
-            <div style={{
+            <div className="confirm-id-row" style={{
               background: 'var(--linen)',
               borderRadius: 'var(--radius-md)',
               padding: '16px 20px',
