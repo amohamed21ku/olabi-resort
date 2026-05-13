@@ -128,6 +128,24 @@ input, select, textarea { font-family: inherit; }
   box-shadow: 0 0 0 3px rgba(61,90,58,0.1);
 }
 .form-input::placeholder { color: var(--muted); }
+.search-bar-form {
+  grid-template-columns: 1fr;
+}
+
+.search-bar-submit {
+  width: 100%;
+}
+
+@media (min-width: 768px) {
+  .search-bar-form {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) auto;
+  }
+
+  .search-bar-submit {
+    width: auto;
+    align-self: end;
+  }
+}
 
 /* ─── Section Layout ────────────────────────────────── */
 .section    { padding: 88px 0; }

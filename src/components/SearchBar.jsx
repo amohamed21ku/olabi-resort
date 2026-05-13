@@ -48,7 +48,7 @@ export default function SearchBar({ onDark = false, initialValues = {} }) {
   }
 
   return (
-    <form onSubmit={handleSearch} style={{
+    <form onSubmit={handleSearch} className="search-bar-form" style={{
       background: '#ffffff',
       border: 'none',
       borderRadius: '16px',
@@ -57,7 +57,7 @@ export default function SearchBar({ onDark = false, initialValues = {} }) {
         ? '0 24px 80px rgba(0,0,0,0.30), 0 4px 16px rgba(0,0,0,0.12)'
         : 'var(--shadow-md)',
       display: 'grid',
-      gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))',
+      gridTemplateColumns: '1fr',
       gap: onDark ? '20px' : '16px',
       alignItems: 'end',
     }}>
@@ -119,7 +119,7 @@ export default function SearchBar({ onDark = false, initialValues = {} }) {
       </div>
 
       {/* Search button */}
-      <button type="submit" className="btn btn-primary" style={{
+      <button type="submit" className="btn btn-primary search-bar-submit" style={{
         gap: '8px',
         justifyContent: 'center',
         background: 'var(--terracotta)',
