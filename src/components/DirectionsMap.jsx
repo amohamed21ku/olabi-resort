@@ -1,299 +1,252 @@
 import { useEffect, useRef, useState } from 'react'
 import { useLanguage } from '../App'
 
-const DIR_URL = 'https://www.google.com/maps/dir/Latakia,+Syria/35.925035,35.9854387'
-const ROAD = 'M 150,370 C 145,318 148,278 158,248 C 168,218 190,194 215,174 C 240,154 278,138 310,124 C 342,110 380,97 415,87 C 450,77 492,71 530,77'
-const PATH_LEN = 720
+const MAP_URL = 'https://www.google.com/maps/place/%D9%85%D8%AC%D9%85%D8%B9+%D8%A7%D9%84%D8%B9%D9%84%D8%A8%D9%8A%E2%80%AD/@35.9225571,35.9804744,913m/data=!3m2!1e3!4b1!4m6!3m5!1s0x1524290f89b86211:0x4f11b431c197dc0e!8m2!3d35.9225528!4d35.9830493!16s%2Fg%2F11srr8wmc3?entry=ttu&g_ep=EgoyMDI2MDUxMC4wIKXMDSoASAFQAw%3D%3D'
+const ROAD = 'M 126,364 C 142,316 166,282 202,252 C 238,222 282,204 330,178 C 378,152 414,118 458,94 C 490,76 526,70 574,78'
+const PATH_LEN = 670
+
+const PINS = [
+  [126, 364, '#2e83b9'],
+  [574, 78, '#c84c2c'],
+]
 
 const TREES = [
-  [458,258],[474,244],[491,261],[507,246],[524,263],
-  [540,250],[557,265],[574,254],[591,268],
+  [448, 268], [468, 252], [490, 270], [510, 246],
+  [532, 266], [552, 252], [574, 272], [594, 256],
 ]
 
-const STARS = [
-  [92,22],[150,13],[222,38],[312,17],[388,29],
-  [452,9],[512,23],[578,39],[642,15],[667,34],
-]
+const textByDir = {
+  ar: {
+    title: '\u0627\u0641\u062a\u062d \u0641\u064a \u062e\u0631\u0627\u0626\u0637 \u062c\u0648\u062c\u0644',
+    aria: '\u062e\u0631\u064a\u0637\u0629 \u0627\u0644\u0648\u0635\u0648\u0644 \u0625\u0644\u0649 \u0645\u0646\u062a\u062c\u0639 \u0627\u0644\u0639\u0644\u0628\u064a',
+    origin: '\u0627\u0644\u0644\u0627\u0630\u0642\u064a\u0629',
+    destination: '\u0645\u0646\u062a\u062c\u0639 \u0627\u0644\u0639\u0644\u0628\u064a',
+    place: '\u0643\u0633\u0628 \u00b7 \u0633\u0648\u0631\u064a\u0627',
+    distance: '\u062d\u0648\u0627\u0644\u064a 60 \u0643\u0645',
+    duration: '1.5 \u0633\u0627\u0639\u0629',
+    sea: '\u0627\u0644\u0628\u062d\u0631 \u0627\u0644\u0645\u062a\u0648\u0633\u0637',
+  },
+  en: {
+    title: 'Open in Google Maps',
+    aria: 'Map to Olabi Resort',
+    origin: 'Latakia',
+    destination: 'Olabi Resort',
+    place: 'Kasab · Syria',
+    distance: 'About 60 km',
+    duration: '1.5 hours',
+    sea: 'Mediterranean Sea',
+  },
+}
 
 export default function DirectionsMap() {
   const { isRTL } = useLanguage()
-  const [go, setGo] = useState(false)
+  const [animate, setAnimate] = useState(false)
   const ref = useRef(null)
+  const copy = isRTL ? textByDir.ar : textByDir.en
 
   useEffect(() => {
-    const obs = new IntersectionObserver(
-      ([e]) => { if (e.isIntersecting) setGo(true) },
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) setAnimate(true)
+      },
       { threshold: 0.25 }
     )
-    if (ref.current) obs.observe(ref.current)
-    return () => obs.disconnect()
+
+    if (ref.current) observer.observe(ref.current)
+    return () => observer.disconnect()
   }, [])
 
   return (
-    <div
+    <a
       ref={ref}
-      onClick={() => window.open(DIR_URL, '_blank')}
-      role="button"
-      tabIndex={0}
-      onKeyDown={e => e.key === 'Enter' && window.open(DIR_URL, '_blank')}
-      title={isRTL ? 'افتح في خرائط جوجل' : 'Open in Google Maps'}
+      href={MAP_URL}
+      target="_blank"
+      rel="noreferrer"
+      title={copy.title}
       style={{
+        display: 'block',
         borderRadius: 'var(--radius-lg)',
         overflow: 'hidden',
         cursor: 'pointer',
-        boxShadow: '0 8px 40px rgba(0,0,0,0.35)',
+        color: 'inherit',
+        boxShadow: '0 14px 48px rgba(20, 32, 22, 0.28)',
         transition: 'box-shadow 0.3s, transform 0.3s',
         userSelect: 'none',
       }}
       onMouseEnter={e => {
-        e.currentTarget.style.boxShadow = '0 14px 55px rgba(0,0,0,0.48)'
+        e.currentTarget.style.boxShadow = '0 18px 60px rgba(20, 32, 22, 0.36)'
         e.currentTarget.style.transform = 'translateY(-2px)'
       }}
       onMouseLeave={e => {
-        e.currentTarget.style.boxShadow = '0 8px 40px rgba(0,0,0,0.35)'
+        e.currentTarget.style.boxShadow = '0 14px 48px rgba(20, 32, 22, 0.28)'
         e.currentTarget.style.transform = 'translateY(0)'
       }}
     >
       <style>{`
-        @keyframes dmPulse {
-          0%   { transform: scale(0.3); opacity: 0.85; }
-          100% { transform: scale(2); opacity: 0; }
+        @keyframes mapPulse {
+          0% { transform: scale(0.45); opacity: 0.55; }
+          100% { transform: scale(2.2); opacity: 0; }
         }
-        @keyframes dmBounce {
-          0%, 100% { transform: translateY(0px); }
-          50%       { transform: translateY(-6px); }
+        @keyframes mapFloat {
+          0%, 100% { transform: translateY(0); }
+          50% { transform: translateY(-7px); }
         }
-        @keyframes dmSway {
-          0%, 100% { transform: rotate(-1.3deg); }
-          50%       { transform: rotate(1.3deg); }
+        @keyframes mapDash {
+          from { stroke-dashoffset: 28; }
+          to { stroke-dashoffset: 0; }
         }
-        .dm-ring {
+        .direction-pin-ring {
           transform-box: fill-box;
           transform-origin: center;
         }
-        .dm-pin-bounce {
-          animation: dmBounce 2.8s ease-in-out infinite;
+        .direction-dash {
+          animation: mapDash 1.8s linear infinite;
         }
-        .dm-tree {
-          transform-box: fill-box;
-          transform-origin: bottom center;
+        .direction-destination {
+          animation: mapFloat 2.8s ease-in-out infinite;
         }
       `}</style>
 
       <svg
-        viewBox="0 0 700 440"
-        style={{ width: '100%', display: 'block' }}
+        viewBox="0 0 700 430"
+        style={{ width: '100%', display: 'block', background: '#eef0e7' }}
         xmlns="http://www.w3.org/2000/svg"
-        aria-label={isRTL ? 'خريطة الوصول إلى منتجع العلبي' : 'Map to Olabi Resort'}
+        aria-label={copy.aria}
       >
         <defs>
-          <linearGradient id="dmSky" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%"   stopColor="#07100a" />
-            <stop offset="100%" stopColor="#101e12" />
+          <linearGradient id="mapLand" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0%" stopColor="#f5efe2" />
+            <stop offset="54%" stopColor="#dfe9d6" />
+            <stop offset="100%" stopColor="#b8d2b5" />
           </linearGradient>
-          <linearGradient id="dmSea" x1="1" y1="0" x2="0" y2="0">
-            <stop offset="0%"   stopColor="#0d2a48" />
-            <stop offset="100%" stopColor="#040e18" />
+          <linearGradient id="mapSea" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0%" stopColor="#b8d6df" />
+            <stop offset="100%" stopColor="#6ea2bf" />
           </linearGradient>
-          <linearGradient id="dmRoad" gradientUnits="userSpaceOnUse"
-            x1="150" y1="370" x2="530" y2="77">
-            <stop offset="0%"   stopColor="#5ab0e0" />
-            <stop offset="100%" stopColor="#e06438" />
+          <linearGradient id="routeStroke" x1="126" y1="364" x2="574" y2="78" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stopColor="#2e83b9" />
+            <stop offset="100%" stopColor="#c84c2c" />
           </linearGradient>
-          <filter id="dmGlw" x="-40%" y="-40%" width="180%" height="180%">
-            <feGaussianBlur in="SourceGraphic" stdDeviation="3.5" result="b" />
-            <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+          <filter id="softShadow" x="-30%" y="-30%" width="160%" height="160%">
+            <feDropShadow dx="0" dy="9" stdDeviation="9" floodColor="#1a271b" floodOpacity="0.25" />
           </filter>
-          <filter id="dmHalo" x="-80%" y="-80%" width="260%" height="260%">
-            <feGaussianBlur in="SourceGraphic" stdDeviation="7" result="b" />
-            <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
-          </filter>
-          <clipPath id="dmClip">
-            <rect width="700" height="440" rx="16" />
+          <clipPath id="mapClip">
+            <rect width="700" height="430" rx="18" />
           </clipPath>
         </defs>
 
-        <g clipPath="url(#dmClip)">
-          {/* Sky */}
-          <rect width="700" height="440" fill="url(#dmSky)" />
+        <g clipPath="url(#mapClip)">
+          <rect width="700" height="430" fill="url(#mapLand)" />
 
-          {/* Stars */}
-          {STARS.map(([x, y], i) => (
-            <circle key={i} cx={x} cy={y} r={i % 3 === 0 ? 1.2 : 0.8}
-              fill="#fff" opacity={0.2 + (i % 4) * 0.08} />
-          ))}
+          <path
+            d="M0,0 L152,0 C126,54 134,104 118,158 C98,226 74,266 82,342 C86,382 96,410 106,430 L0,430 Z"
+            fill="url(#mapSea)"
+          />
+          <path
+            d="M152,0 C126,54 134,104 118,158 C98,226 74,266 82,342 C86,382 96,410 106,430"
+            fill="none"
+            stroke="#4e87a0"
+            strokeDasharray="6 7"
+            strokeWidth="2"
+            opacity="0.58"
+          />
 
-          {/* Mountains — deep */}
-          <polygon points="265,440 365,140 465,440" fill="#0c1e0d" />
-          <polygon points="345,440 445,108 545,440" fill="#0e2110" />
-          <polygon points="432,440 522,84 612,440"  fill="#102412" />
-          <polygon points="514,440 604,68 694,440"  fill="#122714" />
+          <g opacity="0.26">
+            {Array.from({ length: 10 }).map((_, i) => (
+              <line key={`v-${i}`} x1={86 + i * 70} y1="0" x2={46 + i * 70} y2="430" stroke="#ffffff" strokeWidth="1" />
+            ))}
+            {Array.from({ length: 7 }).map((_, i) => (
+              <line key={`h-${i}`} x1="0" y1={44 + i * 58} x2="700" y2={18 + i * 58} stroke="#ffffff" strokeWidth="1" />
+            ))}
+          </g>
 
-          {/* Mountains — mid */}
-          <polygon points="200,440 298,200 396,440" fill="#122510" />
-          <polygon points="286,440 378,176 470,440" fill="#152912" />
-          <polygon points="368,440 455,160 542,440" fill="#182d15" />
-          <polygon points="448,440 530,148 612,440" fill="#1b3118" />
+          <path d="M186,430 C218,360 252,324 320,302 C386,280 436,230 470,176 C502,124 546,80 660,48 L700,34 L700,430 Z" fill="#c7deb9" opacity="0.7" />
+          <path d="M236,430 C270,370 316,342 374,318 C444,290 492,238 520,174 C548,110 586,72 700,54 L700,430 Z" fill="#a8c99f" opacity="0.48" />
+          <path d="M188,164 C234,154 264,136 304,126 C348,114 374,118 416,96" fill="none" stroke="#d9c18f" strokeWidth="9" strokeLinecap="round" opacity="0.42" />
+          <path d="M254,348 C314,330 364,334 420,300 C482,264 524,220 620,212" fill="none" stroke="#d9c18f" strokeWidth="8" strokeLinecap="round" opacity="0.35" />
 
-          {/* Mountains — fore */}
-          <polygon points="318,440 388,246 458,440" fill="#1e361f" />
-          <polygon points="398,440 466,228 534,440" fill="#203b21" />
-          <polygon points="478,440 542,212 606,440" fill="#234024" />
-
-          {/* Ground */}
-          <path d="M 130,440 C 185,416 250,410 320,406 C 390,402 455,398 530,395 C 605,392 660,391 700,390 L 700,440 Z"
-            fill="#1c3320" />
-
-          {/* Sea */}
-          <path d="M 0,0 L 0,440 L 138,440 C 130,408 125,370 127,322 C 129,274 140,234 136,184 C 132,134 115,86 100,38 L 76,0 Z"
-            fill="url(#dmSea)" />
-
-          {/* Coastline */}
-          <path d="M 76,0 C 100,38 115,86 136,184 C 140,234 129,274 127,322 C 125,370 130,408 138,440"
-            stroke="#1a4d80" strokeWidth="1.5" fill="none" strokeDasharray="4 4" opacity="0.5" />
-
-          {/* Sea shimmer */}
-          {[[18,162,60],[28,202,52],[16,242,66],[26,282,56],[20,322,64],[28,362,55]].map(([x,y,w],i) => (
-            <line key={i} x1={x} y1={y} x2={x+w} y2={y}
-              stroke="#4088b0" strokeWidth="0.8" opacity="0.2" />
-          ))}
-
-          {/* Mediterranean label */}
-          <text x="60" y="315" fill="rgba(65,125,185,0.38)" fontSize="7.5"
-            textAnchor="middle" fontFamily="Georgia,serif" letterSpacing="1.5"
-            transform="rotate(-75,60,315)">
-            MEDITERRANEAN SEA
+          <text x="56" y="300" fill="#2f6d88" fontSize="12" textAnchor="middle" fontFamily="system-ui,sans-serif" opacity="0.5" transform="rotate(-75,56,300)">
+            {copy.sea}
           </text>
 
-          {/* Pine trees near resort */}
           {TREES.map(([x, y], i) => (
-            <g key={i} className="dm-tree" style={{
-              animationName: 'dmSway',
-              animationDuration: `${2.8 + i * 0.15}s`,
-              animationTimingFunction: 'ease-in-out',
-              animationIterationCount: 'infinite',
-              animationDirection: 'alternate',
-              animationDelay: `${i * 0.22}s`,
-            }}>
-              <rect x={x-2.5} y={y+9} width="5" height="8" rx="1" fill="#3a2010" />
-              <polygon points={`${x},${y-5} ${x-13},${y+10} ${x+13},${y+10}`} fill="#153c17" />
-              <polygon points={`${x},${y-13} ${x-10},${y+1} ${x+10},${y+1}`}  fill="#1a4a1c" />
-              <polygon points={`${x},${y-20} ${x-7},${y-7} ${x+7},${y-7}`}    fill="#205524" />
+            <g key={i} opacity="0.92">
+              <rect x={x - 2} y={y + 9} width="4" height="8" rx="1" fill="#76542f" />
+              <path d={`M${x},${y - 12} L${x - 13},${y + 10} L${x + 13},${y + 10} Z`} fill={i % 2 ? '#406f3f' : '#315e35'} />
+              <path d={`M${x},${y - 22} L${x - 9},${y - 2} L${x + 9},${y - 2} Z`} fill={i % 2 ? '#4f804a' : '#3d713f'} />
             </g>
           ))}
 
-          {/* Road — shadow */}
-          <path d={ROAD} stroke="#000" strokeWidth="7" fill="none"
-            strokeLinecap="round" opacity="0.28" />
-          {/* Road — base */}
-          <path d={ROAD} stroke="#180e06" strokeWidth="5" fill="none" strokeLinecap="round" />
-          {/* Road — animated gradient */}
+          <path d={ROAD} fill="none" stroke="#ffffff" strokeWidth="13" strokeLinecap="round" opacity="0.92" filter="url(#softShadow)" />
+          <path d={ROAD} fill="none" stroke="#314b30" strokeWidth="7" strokeLinecap="round" opacity="0.72" />
           <path
             d={ROAD}
             fill="none"
+            stroke="url(#routeStroke)"
+            strokeWidth="5"
             strokeLinecap="round"
-            filter="url(#dmGlw)"
             style={{
-              stroke: 'url(#dmRoad)',
-              strokeWidth: 3.5,
               strokeDasharray: PATH_LEN,
-              strokeDashoffset: go ? 0 : PATH_LEN,
-              transition: 'stroke-dashoffset 2.8s cubic-bezier(0.4,0,0.2,1) 0.5s',
+              strokeDashoffset: animate ? 0 : PATH_LEN,
+              transition: 'stroke-dashoffset 2.2s cubic-bezier(0.4,0,0.2,1) 0.35s',
             }}
           />
-          {/* Road — center dashes */}
-          <path
-            d={ROAD}
-            fill="none"
-            strokeLinecap="butt"
-            style={{
-              stroke: 'rgba(255,228,130,0.48)',
-              strokeWidth: 1.2,
-              strokeDasharray: '10 10',
-              strokeDashoffset: go ? 0 : PATH_LEN,
-              transition: 'stroke-dashoffset 2.8s cubic-bezier(0.4,0,0.2,1) 0.5s',
-            }}
-          />
+          <path d={ROAD} fill="none" stroke="rgba(255,255,255,0.62)" strokeWidth="1.4" strokeLinecap="round" strokeDasharray="12 16" className="direction-dash" />
 
-          {/* Distance badge */}
-          <g style={{ opacity: go ? 1 : 0, transition: 'opacity 0.7s ease 3.4s' }}>
-            <rect x="292" y="194" width="106" height="42" rx="8"
-              fill="rgba(4,10,4,0.88)" />
-            <rect x="292" y="194" width="106" height="42" rx="8"
-              stroke="rgba(200,120,50,0.4)" strokeWidth="1" fill="none" />
-            <text x="345" y="212" fill="#e8c560" fontSize="12.5"
-              textAnchor="middle" fontWeight="700" fontFamily="system-ui,sans-serif">
-              ~90 كم
+          <g style={{ opacity: animate ? 1 : 0, transition: 'opacity 0.5s ease 2.3s' }}>
+            <rect x="286" y="196" width="128" height="56" rx="12" fill="rgba(255,255,255,0.94)" filter="url(#softShadow)" />
+            <text x="350" y="218" fill="#2d4429" fontSize="15" textAnchor="middle" fontWeight="800" fontFamily="system-ui,sans-serif">
+              {copy.distance}
             </text>
-            <text x="345" y="228" fill="rgba(255,255,255,0.6)" fontSize="9.5"
-              textAnchor="middle" fontFamily="system-ui,sans-serif">
-              1.5 – 2 ساعة
+            <text x="350" y="238" fill="#6a6d58" fontSize="12" textAnchor="middle" fontWeight="600" fontFamily="system-ui,sans-serif">
+              {copy.duration}
             </text>
           </g>
 
-          {/* Latakia — pulse rings */}
-          <circle cx="150" cy="370" r="22" fill="none" stroke="#4a90c0" strokeWidth="1.5"
-            className="dm-ring"
-            style={{ animation: go ? 'dmPulse 2.4s ease-out 0.5s infinite' : 'none' }} />
-          <circle cx="150" cy="370" r="15" fill="none" stroke="#4a90c0" strokeWidth="1"
-            className="dm-ring"
-            style={{ animation: go ? 'dmPulse 2.4s ease-out 1.1s infinite' : 'none' }} />
-          {/* Latakia — dot */}
-          <circle cx="150" cy="370" r="9" fill="#0b2638" stroke="#5aaad8" strokeWidth="2.5" />
-          <circle cx="150" cy="370" r="4" fill="#7abce0" />
-          {/* Latakia — label */}
-          <rect x="106" y="342" width="88" height="22" rx="5" fill="rgba(3,10,20,0.9)" />
-          <text x="150" y="357.5" fill="#fff" fontSize="11" textAnchor="middle"
-            fontWeight="600" fontFamily="system-ui,sans-serif">
-            اللاذقية
-          </text>
+          {PINS.map(([x, y, color], i) => (
+            <g key={i}>
+              <circle
+                cx={x}
+                cy={y}
+                r="22"
+                fill="none"
+                stroke={color}
+                strokeWidth="2"
+                className="direction-pin-ring"
+                style={{ animation: animate ? `mapPulse 2.6s ease-out ${i * 0.8}s infinite` : 'none' }}
+              />
+              <circle cx={x} cy={y} r="10" fill="#ffffff" stroke={color} strokeWidth="4" />
+              <circle cx={x} cy={y} r="4" fill={color} />
+            </g>
+          ))}
 
-          {/* Olabi — pulse rings (outside bounce) */}
-          <circle cx="530" cy="80" r="32" fill="none" stroke="#d85c38" strokeWidth="1.5"
-            className="dm-ring"
-            style={{ animation: go ? 'dmPulse 2.4s ease-out 3.4s infinite' : 'none' }} />
-          <circle cx="530" cy="80" r="21" fill="none" stroke="#d85c38" strokeWidth="1"
-            className="dm-ring"
-            style={{ animation: go ? 'dmPulse 2.4s ease-out 4.0s infinite' : 'none' }} />
-
-          {/* Olabi — bouncing pin */}
-          <g className="dm-pin-bounce" filter="url(#dmHalo)">
-            <path
-              d="M 530,46 C 515,46 505,58 505,71 C 505,90 530,112 530,112 C 530,112 555,90 555,71 C 555,58 545,46 530,46 Z"
-              fill="#c84c2c"
-            />
-            <path
-              d="M 530,46 C 515,46 505,58 505,71 C 505,90 530,112 530,112 C 530,112 555,90 555,71 C 555,58 545,46 530,46 Z"
-              stroke="rgba(255,255,255,0.22)" strokeWidth="1.5" fill="none"
-            />
-            <circle cx="530" cy="70" r="9" fill="#fff" />
-            <circle cx="530" cy="70" r="4" fill="#c84c2c" />
+          <g className="direction-destination" filter="url(#softShadow)">
+            <path d="M574,34 C558,34 546,47 546,63 C546,84 574,110 574,110 C574,110 602,84 602,63 C602,47 590,34 574,34 Z" fill="#c84c2c" />
+            <circle cx="574" cy="62" r="10" fill="#ffffff" />
+            <circle cx="574" cy="62" r="4" fill="#c84c2c" />
           </g>
 
-          {/* Olabi — label */}
-          <rect x="480" y="116" width="100" height="40" rx="6" fill="rgba(3,10,3,0.92)" />
-          <rect x="480" y="116" width="100" height="40" rx="6"
-            stroke="rgba(200,76,44,0.38)" strokeWidth="1" fill="none" />
-          <text x="530" y="132" fill="#fff" fontSize="11.5" textAnchor="middle"
-            fontWeight="700" fontFamily="system-ui,sans-serif">
-            منتجع العلبي
-          </text>
-          <text x="530" y="148" fill="rgba(215,155,135,0.88)" fontSize="9"
-            textAnchor="middle" fontFamily="system-ui,sans-serif">
-            كسب · 1200م
+          <rect x="78" y="324" width="96" height="28" rx="8" fill="rgba(255,255,255,0.94)" />
+          <text x="126" y="343" fill="#254b65" fontSize="13" textAnchor="middle" fontWeight="700" fontFamily="system-ui,sans-serif">
+            {copy.origin}
           </text>
 
-          {/* Bottom CTA */}
-          <g style={{ opacity: go ? 1 : 0, transition: 'opacity 0.7s ease 4.2s' }}>
-            <rect x="250" y="403" width="200" height="30" rx="15"
-              fill="rgba(200,76,44,0.92)" />
-            <text x="350" y="422.5" fill="#fff" fontSize="11.5" textAnchor="middle"
-              fontWeight="600" fontFamily="system-ui,sans-serif">
-              {isRTL ? 'افتح في خرائط جوجل' : 'Open in Google Maps'}
+          <rect x="494" y="116" width="160" height="58" rx="12" fill="rgba(255,255,255,0.96)" filter="url(#softShadow)" />
+          <text x="574" y="139" fill="#243824" fontSize="14" textAnchor="middle" fontWeight="800" fontFamily="system-ui,sans-serif">
+            {copy.destination}
+          </text>
+          <text x="574" y="158" fill="#7a7860" fontSize="11" textAnchor="middle" fontWeight="600" fontFamily="system-ui,sans-serif">
+            {copy.place}
+          </text>
+
+          <g style={{ opacity: animate ? 1 : 0, transition: 'opacity 0.5s ease 2.8s' }}>
+            <rect x="254" y="386" width="192" height="30" rx="15" fill="#3d5a3a" />
+            <text x="350" y="406" fill="#ffffff" fontSize="12" textAnchor="middle" fontWeight="700" fontFamily="system-ui,sans-serif">
+              {copy.title}
             </text>
           </g>
         </g>
       </svg>
-    </div>
+    </a>
   )
 }

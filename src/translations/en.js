@@ -116,7 +116,7 @@ export const en = {
   dir_from_dam:   'From Damascus',
   dir_from_lat:   'From Latakia',
   dir_hours_dam:  '5–6 hours',
-  dir_hours_lat:  '1.5–2 hours',
+  dir_hours_lat:  '60 km - about 1.5 hours',
   dir_address:    'Kasab, Latakia Governorate, Syria',
   dir_phone:      '+963 41 XXX XXXX',
   dir_email:      'info@olabiresort.com',

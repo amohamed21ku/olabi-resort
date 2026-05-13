@@ -6,7 +6,7 @@ import { rooms } from '../data/rooms'
 import SearchBar from '../components/SearchBar'
 import RoomCard from '../components/RoomCard'
 import DirectionsMap from '../components/DirectionsMap'
-import { FiPhone, FiMail, FiMapPin, FiChevronDown, FiSearch } from 'react-icons/fi'
+import { FiPhone, FiMail, FiMapPin, FiChevronDown, FiSearch, FiNavigation } from 'react-icons/fi'
 
 export default function HomePage() {
   const { language, isRTL } = useLanguage()
@@ -266,7 +266,7 @@ export default function HomePage() {
             </h2>
           </div>
 
-          {/* Animated map — click opens Google Maps directions from Latakia */}
+          {/* Animated map - click opens Google Maps */}
           <div style={{ marginBottom: '40px' }}>
             <DirectionsMap />
           </div>
@@ -279,18 +279,31 @@ export default function HomePage() {
             margin: '0 auto',
           }}>
             {[
-              { title: tr('dir_from_dam'), time: tr('dir_hours_dam'), icon: '🚗', color: 'var(--terracotta)' },
-              { title: tr('dir_from_lat'), time: tr('dir_hours_lat'), icon: '🚗', color: 'var(--olive)' },
-            ].map(({ title, time, icon, color }) => (
+              { title: tr('dir_from_lat'), time: tr('dir_hours_lat'), color: 'var(--terracotta)' },
+              { title: tr('dir_from_dam'), time: tr('dir_hours_dam'), color: 'var(--olive)' },
+            ].map(({ title, time, color }) => (
               <div key={title} style={{
                 background: 'var(--white)',
                 borderRadius: 'var(--radius-lg)',
-                padding: '32px',
-                boxShadow: 'var(--shadow-sm)',
-                textAlign: 'center',
-                borderTop: `4px solid ${color}`,
+                padding: '28px',
+                boxShadow: '0 10px 30px rgba(35, 48, 31, 0.08)',
+                textAlign: isRTL ? 'right' : 'left',
+                border: '1px solid rgba(221, 208, 184, 0.72)',
+                borderTop: `5px solid ${color}`,
               }}>
-                <div style={{ fontSize: '36px', marginBottom: '12px' }}>{icon}</div>
+                <div style={{
+                  width: '44px',
+                  height: '44px',
+                  borderRadius: '12px',
+                  background: 'var(--olive-light)',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color,
+                  marginBottom: '18px',
+                }}>
+                  <FiNavigation size={22} />
+                </div>
                 <h3 style={{
                   fontSize: '18px', fontWeight: 700,
                   color: 'var(--ink)', marginBottom: '8px',
@@ -298,7 +311,7 @@ export default function HomePage() {
                 }}>
                   {title}
                 </h3>
-                <p style={{ fontSize: '15px', color, fontWeight: 600 }}>{time}</p>
+                <p style={{ fontSize: '15px', color: 'var(--charcoal)', fontWeight: 700, lineHeight: 1.55 }}>{time}</p>
               </div>
             ))}
           </div>
