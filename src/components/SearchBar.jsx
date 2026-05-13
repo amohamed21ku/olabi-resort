@@ -8,6 +8,11 @@ export default function SearchBar({ onDark = false, initialValues = {} }) {
   const { language } = useLanguage()
   const navigate = useNavigate()
   const tr = (key) => t(language, key)
+  const fieldStyle = {
+    display: 'flex',
+    flexDirection: 'column',
+    minWidth: 0,
+  }
 
   const today = new Date().toISOString().split('T')[0]
   const tomorrow = new Date(Date.now() + 86400000).toISOString().split('T')[0]
@@ -56,13 +61,13 @@ export default function SearchBar({ onDark = false, initialValues = {} }) {
       boxShadow: onDark
         ? '0 24px 80px rgba(0,0,0,0.30), 0 4px 16px rgba(0,0,0,0.12)'
         : 'var(--shadow-md)',
-      display: 'grid',
-      gridTemplateColumns: '1fr',
+      display: 'flex',
       gap: onDark ? '20px' : '16px',
-      alignItems: 'end',
+      alignItems: 'flex-end',
+      flexWrap: 'wrap',
     }}>
       {/* Check-in */}
-      <div>
+      <div className="search-bar-field" style={fieldStyle}>
         <label style={labelStyle}>
           <FiCalendar size={11} />
           {tr('search_checkIn')}
@@ -84,7 +89,7 @@ export default function SearchBar({ onDark = false, initialValues = {} }) {
       </div>
 
       {/* Check-out */}
-      <div>
+      <div className="search-bar-field" style={fieldStyle}>
         <label style={labelStyle}>
           <FiCalendar size={11} />
           {tr('search_checkOut')}
@@ -100,7 +105,7 @@ export default function SearchBar({ onDark = false, initialValues = {} }) {
       </div>
 
       {/* Guests */}
-      <div>
+      <div className="search-bar-field" style={fieldStyle}>
         <label style={labelStyle}>
           <FiUsers size={11} />
           {tr('search_guests')}
@@ -129,6 +134,7 @@ export default function SearchBar({ onDark = false, initialValues = {} }) {
         fontWeight: 700,
         letterSpacing: '0.3px',
         transition: 'transform 0.15s, box-shadow 0.2s, background 0.2s',
+        minHeight: '52px',
       }}>
         <FiSearch size={16} />
         {tr('search_btn')}

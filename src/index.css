@@ -129,21 +129,30 @@ input, select, textarea { font-family: inherit; }
 }
 .form-input::placeholder { color: var(--muted); }
 .search-bar-form {
-  grid-template-columns: 1fr;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+}
+
+.search-bar-field {
+  flex: 1 1 220px;
+  min-width: 0;
 }
 
 .search-bar-submit {
   width: 100%;
+  flex: 1 1 100%;
 }
 
 @media (min-width: 768px) {
-  .search-bar-form {
-    grid-template-columns: repeat(3, minmax(0, 1fr)) auto;
+  .search-bar-field {
+    flex: 1 1 0;
   }
 
   .search-bar-submit {
     width: auto;
-    align-self: end;
+    flex: 0 0 auto;
+    align-self: flex-end;
   }
 }
 
