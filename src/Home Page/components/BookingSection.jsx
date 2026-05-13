@@ -1,174 +1,243 @@
 import React, { useState } from 'react';
+import { useLanguage } from '../../hooks/useLanguage';
 
 const BookingSection = () => {
-  const [checkInDate, setCheckInDate] = useState('');
-  const [checkOutDate, setCheckOutDate] = useState('');
-  const [guests, setGuests] = useState('1');
-  const [rooms, setRooms] = useState('1');
+  const { language } = useLanguage();
+  const isAr = language === 'ar';
+
+  const [checkIn, setCheckIn] = useState('');
+  const [checkOut, setCheckOut] = useState('');
+  const [guests, setGuests] = useState('2');
+  const [roomType, setRoomType] = useState('1');
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    console.log('Booking submitted:', { checkInDate, checkOutDate, guests, rooms });
+    console.log('Booking:', { checkIn, checkOut, guests, roomType });
   };
 
   return (
-    <section className="py-20 lg:py-24 relative overflow-hidden" id="booking"
+    <section
+      id="booking"
+      className="section relative overflow-hidden"
       style={{
-        background: 'linear-gradient(135deg, var(--deep-ocean) 0%, var(--primary-ocean) 50%, var(--slate) 100%)'
-      }}>
+        background:
+          'linear-gradient(180deg, var(--paper) 0%, var(--shell) 60%, var(--linen) 100%)',
+      }}
+    >
+      <WaveTop fill="var(--paper)" />
 
-      {/* Decorative Background */}
-      <div className="absolute inset-0 pointer-events-none">
-        <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-[var(--luxury-gold)]/10 rounded-full blur-3xl" />
-        <div className="absolute bottom-1/4 right-1/4 w-80 h-80 bg-white/5 rounded-full blur-3xl" />
-      </div>
+      <span className="side-numeral hidden lg:block">— 04 · {isAr ? 'احجز' : 'Reserve'}</span>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
-        {/* Section Header */}
-        <div className="text-center mb-10 lg:mb-12 animate-fade-in-up">
-          <h2 className="text-3xl sm:text-4xl lg:text-5xl font-luxury font-bold mb-4"
-            style={{
-              background: 'linear-gradient(135deg, var(--champagne) 0%, var(--luxury-gold) 50%, var(--soft-gold) 100%)',
-              WebkitBackgroundClip: 'text',
-              WebkitTextFillColor: 'transparent',
-              backgroundClip: 'text',
-              filter: 'drop-shadow(2px 2px 6px rgba(0, 0, 0, 0.5))'
-            }}>
-            Book Your Stay
-          </h2>
-          <p className="text-lg text-[var(--cream)] font-medium"
-            style={{ textShadow: '2px 2px 6px rgba(0, 0, 0, 0.7)' }}>
-            Reserve your perfect getaway at Olabi Resort
-          </p>
+      <div className="container-resort relative">
+        {/* Header */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-end mb-12">
+          <div className="lg:col-span-7">
+            <p className="eyebrow mb-5">
+              {isAr ? 'بطاقة الحجز' : 'Reservation card'}
+            </p>
+            <h2
+              className="text-balance"
+              style={
+                isAr
+                  ? {
+                      fontFamily: 'var(--font-display-ar)',
+                      fontWeight: 600,
+                      fontSize: 'clamp(2.4rem, 5vw, 4.2rem)',
+                      lineHeight: 1.2,
+                      color: 'var(--ink)',
+                    }
+                  : {
+                      fontFamily: 'var(--font-display)',
+                      fontVariationSettings: "'SOFT' 80, 'opsz' 144",
+                      fontWeight: 400,
+                      fontSize: 'clamp(2.5rem, 5.5vw, 4.5rem)',
+                      lineHeight: 1.02,
+                      letterSpacing: '-0.025em',
+                      color: 'var(--ink)',
+                    }
+              }
+            >
+              {isAr ? (
+                <>اِجمع <em style={{ color: 'var(--terracotta)' }}>تواريخك</em>،<br />ودَع الباقي علينا.</>
+              ) : (
+                <>Pick your <em style={{ color: 'var(--terracotta)' }}>dates</em>,<br />we’ll keep the doors open.</>
+              )}
+            </h2>
+          </div>
+          <div className="lg:col-span-5">
+            <p
+              className="text-[var(--ink-soft)] max-w-md"
+              style={{ fontSize: '1.05rem', lineHeight: 1.7 }}
+            >
+              {isAr
+                ? 'فريقنا الصغير يردّ على كلّ حجزٍ شخصيًّا — لا قوائم انتظار طويلة، فقط ضيافة.'
+                : 'Our small team replies to every booking personally — no waiting lists, just hospitality.'}
+            </p>
+          </div>
         </div>
 
-        {/* Booking Widget */}
-        <div className="backdrop-blur-xl rounded-2xl p-6 sm:p-8 lg:p-10 animate-scale-in"
+        {/* Postcard booking card */}
+        <div
+          className="relative bg-[var(--paper)] p-6 sm:p-10 lg:p-12 animate-fade-in-up"
           style={{
-            background: 'rgba(255, 255, 255, 0.15)',
-            border: '2px solid rgba(212, 175, 55, 0.4)',
-            boxShadow: '0 25px 70px rgba(0, 0, 0, 0.3)'
-          }}>
+            border: '1px solid var(--hairline-strong)',
+            boxShadow: 'var(--shadow-lift)',
+          }}
+        >
+          {/* Postage stamp corner */}
+          <div
+            className="absolute top-5 right-5 hidden md:flex flex-col items-center justify-center w-[78px] h-[92px] border-2 border-dashed text-center"
+            style={{ borderColor: 'var(--terracotta-soft)', color: 'var(--terracotta-deep)' }}
+          >
+            <span
+              className="text-[1rem] leading-none"
+              style={{ fontFamily: 'var(--font-display)', fontWeight: 460 }}
+            >
+              ✶
+            </span>
+            <span className="text-[9px] tracking-[0.18em] uppercase mt-1.5">
+              {isAr ? 'منذ' : 'Est'}
+            </span>
+            <span className="text-[14px] mt-0.5" style={{ fontFamily: 'var(--font-display)' }}>
+              1985
+            </span>
+            <span className="text-[9px] tracking-[0.18em] uppercase mt-1.5">
+              Kasab
+            </span>
+          </div>
 
-          <form onSubmit={handleSubmit}>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 lg:gap-6">
-              {/* Check-in Date */}
-              <div className="flex flex-col">
-                <label htmlFor="checkin" className="text-white text-sm font-semibold mb-2 tracking-wide"
-                  style={{ textShadow: '1px 1px 2px rgba(0, 0, 0, 0.7)' }}>
-                  Check-in Date
-                </label>
-                <input
-                  type="date"
-                  id="checkin"
-                  value={checkInDate}
-                  onChange={(e) => setCheckInDate(e.target.value)}
-                  required
-                  className="w-full px-4 py-3.5 rounded-xl text-base font-medium bg-white/95 text-[var(--charcoal)] border-2 border-[var(--light-ocean)]/40 focus:border-[var(--luxury-gold)] focus:ring-4 focus:ring-[var(--luxury-gold)]/20 outline-none transition-all duration-300"
-                  style={{ boxShadow: '0 4px 15px rgba(0, 0, 0, 0.1)' }}
-                />
-              </div>
+          {/* Form */}
+          <form onSubmit={handleSubmit} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-x-8 gap-y-6 lg:items-end">
+            <div className="field-resort">
+              <label htmlFor="checkin">{isAr ? 'تاريخ الوصول' : 'Check-in'}</label>
+              <input
+                id="checkin"
+                type="date"
+                value={checkIn}
+                onChange={(e) => setCheckIn(e.target.value)}
+                required
+              />
+            </div>
 
-              {/* Check-out Date */}
-              <div className="flex flex-col">
-                <label htmlFor="checkout" className="text-white text-sm font-semibold mb-2 tracking-wide"
-                  style={{ textShadow: '1px 1px 2px rgba(0, 0, 0, 0.7)' }}>
-                  Check-out Date
-                </label>
-                <input
-                  type="date"
-                  id="checkout"
-                  value={checkOutDate}
-                  onChange={(e) => setCheckOutDate(e.target.value)}
-                  required
-                  className="w-full px-4 py-3.5 rounded-xl text-base font-medium bg-white/95 text-[var(--charcoal)] border-2 border-[var(--light-ocean)]/40 focus:border-[var(--luxury-gold)] focus:ring-4 focus:ring-[var(--luxury-gold)]/20 outline-none transition-all duration-300"
-                  style={{ boxShadow: '0 4px 15px rgba(0, 0, 0, 0.1)' }}
-                />
-              </div>
+            <div className="field-resort">
+              <label htmlFor="checkout">{isAr ? 'تاريخ المغادرة' : 'Check-out'}</label>
+              <input
+                id="checkout"
+                type="date"
+                value={checkOut}
+                onChange={(e) => setCheckOut(e.target.value)}
+                required
+              />
+            </div>
 
-              {/* Guests */}
-              <div className="flex flex-col">
-                <label htmlFor="guests" className="text-white text-sm font-semibold mb-2 tracking-wide"
-                  style={{ textShadow: '1px 1px 2px rgba(0, 0, 0, 0.7)' }}>
-                  Guests
-                </label>
-                <select
-                  id="guests"
-                  value={guests}
-                  onChange={(e) => setGuests(e.target.value)}
-                  className="w-full px-4 py-3.5 rounded-xl text-base font-medium bg-white/95 text-[var(--charcoal)] border-2 border-[var(--light-ocean)]/40 focus:border-[var(--luxury-gold)] focus:ring-4 focus:ring-[var(--luxury-gold)]/20 outline-none transition-all duration-300 cursor-pointer"
-                  style={{ boxShadow: '0 4px 15px rgba(0, 0, 0, 0.1)' }}
-                >
-                  <option value="1">1 Guest</option>
-                  <option value="2">2 Guests</option>
-                  <option value="3">3 Guests</option>
-                  <option value="4">4 Guests</option>
-                  <option value="5">5+ Guests</option>
-                </select>
-              </div>
+            <div className="field-resort">
+              <label htmlFor="guests">{isAr ? 'الضيوف' : 'Guests'}</label>
+              <select
+                id="guests"
+                value={guests}
+                onChange={(e) => setGuests(e.target.value)}
+              >
+                <option value="1">1 {isAr ? 'ضيف' : 'guest'}</option>
+                <option value="2">2 {isAr ? 'ضيوف' : 'guests'}</option>
+                <option value="3">3 {isAr ? 'ضيوف' : 'guests'}</option>
+                <option value="4">4 {isAr ? 'ضيوف' : 'guests'}</option>
+                <option value="5">5+ {isAr ? 'ضيوف' : 'guests'}</option>
+              </select>
+            </div>
 
-              {/* Rooms */}
-              <div className="flex flex-col">
-                <label htmlFor="rooms" className="text-white text-sm font-semibold mb-2 tracking-wide"
-                  style={{ textShadow: '1px 1px 2px rgba(0, 0, 0, 0.7)' }}>
-                  Rooms
-                </label>
-                <select
-                  id="rooms"
-                  value={rooms}
-                  onChange={(e) => setRooms(e.target.value)}
-                  className="w-full px-4 py-3.5 rounded-xl text-base font-medium bg-white/95 text-[var(--charcoal)] border-2 border-[var(--light-ocean)]/40 focus:border-[var(--luxury-gold)] focus:ring-4 focus:ring-[var(--luxury-gold)]/20 outline-none transition-all duration-300 cursor-pointer"
-                  style={{ boxShadow: '0 4px 15px rgba(0, 0, 0, 0.1)' }}
-                >
-                  <option value="1">1 Room</option>
-                  <option value="2">2 Rooms</option>
-                  <option value="3">3 Rooms</option>
-                  <option value="4">4+ Rooms</option>
-                </select>
-              </div>
+            <div className="field-resort">
+              <label htmlFor="roomtype">{isAr ? 'نوع الغرفة' : 'Room type'}</label>
+              <select
+                id="roomtype"
+                value={roomType}
+                onChange={(e) => setRoomType(e.target.value)}
+              >
+                <option value="1">{isAr ? 'غرفة بسيطة' : 'Standard room'}</option>
+                <option value="2">{isAr ? 'غرفتان' : '2-bedroom'}</option>
+                <option value="3">{isAr ? 'جناح شهر العسل' : 'Honeymoon suite'}</option>
+                <option value="4">{isAr ? 'جناح السطح' : 'Penthouse suite'}</option>
+              </select>
+            </div>
 
-              {/* Submit Button */}
-              <div className="flex flex-col justify-end sm:col-span-2 lg:col-span-1">
-                <button
-                  type="submit"
-                  className="group relative w-full px-6 py-3.5 rounded-xl font-bold text-[var(--charcoal)] uppercase tracking-wider text-sm flex items-center justify-center gap-3 overflow-hidden transition-all duration-500 hover:-translate-y-1 hover:scale-105"
-                  style={{
-                    background: 'var(--gradient-gold)',
-                    boxShadow: 'var(--shadow-gold)'
-                  }}
-                >
-                  <span className="relative z-10 transition-colors duration-300 group-hover:text-white">
-                    Search
-                  </span>
-                  <svg className="relative z-10 w-5 h-5 transition-colors duration-300 group-hover:text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                    <circle cx="11" cy="11" r="8" />
-                    <path d="M21 21l-4.35-4.35" />
-                  </svg>
-                  <div className="absolute inset-0 bg-gradient-to-r from-[var(--primary-ocean)] to-[var(--secondary-ocean)] opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-                </button>
-              </div>
+            <div className="lg:col-span-1 sm:col-span-2">
+              <button type="submit" className="btn-clay w-full">
+                {isAr ? 'ابحث عن إقامة' : 'Find a stay'}
+                <SearchIcon />
+              </button>
             </div>
           </form>
+
+          {/* Reassurances */}
+          <ul className="mt-10 pt-8 border-t border-[var(--hairline)] flex flex-wrap items-center gap-x-8 gap-y-3 text-[var(--ink-soft)] text-sm">
+            {[
+              isAr ? 'إلغاء مجاني حتى ٤٨ ساعة' : 'Free cancellation up to 48h',
+              isAr ? 'أفضل سعر مضمون' : 'Best price guaranteed',
+              isAr ? 'تأكيد فوري بالبريد' : 'Instant email confirmation',
+            ].map((txt) => (
+              <li key={txt} className="flex items-center gap-2.5">
+                <span
+                  className="grid place-items-center w-5 h-5 rounded-full"
+                  style={{ background: 'var(--olive-pale)', color: 'var(--olive-deep)' }}
+                >
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round">
+                    <path d="M5 12l5 5L20 7" />
+                  </svg>
+                </span>
+                {txt}
+              </li>
+            ))}
+          </ul>
         </div>
 
-        {/* Features */}
-        <div className="mt-8 flex flex-wrap justify-center gap-6 lg:gap-10">
-          {[
-            { icon: '✓', text: 'Best Price Guarantee' },
-            { icon: '✓', text: 'Free Cancellation' },
-            { icon: '✓', text: 'Instant Confirmation' }
-          ].map((feature, index) => (
-            <div key={index} className="flex items-center gap-2 text-white/90 text-sm">
-              <span className="w-5 h-5 rounded-full bg-[var(--luxury-gold)] flex items-center justify-center text-xs text-[var(--charcoal)] font-bold">
-                {feature.icon}
-              </span>
-              <span>{feature.text}</span>
-            </div>
-          ))}
-        </div>
+        {/* Decorative — small olive branch SVG bottom right */}
+        <OliveBranch className="absolute bottom-8 right-4 lg:right-12 w-[90px] h-[90px] text-[var(--olive)] opacity-50" />
       </div>
     </section>
   );
 };
+
+const SearchIcon = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+    <circle cx="11" cy="11" r="7" />
+    <path d="M20 20l-3.5-3.5" />
+  </svg>
+);
+
+const OliveBranch = ({ className }) => (
+  <svg viewBox="0 0 100 100" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" className={className} aria-hidden>
+    <path d="M10 90 C 30 60, 50 50, 90 15" />
+    {[20, 35, 50, 65, 78].map((p, i) => {
+      const x = 10 + (90 - 10) * (p / 100) + (i % 2 ? 5 : -5);
+      const y = 90 - (90 - 15) * (p / 100) + (i % 2 ? -5 : 5);
+      return (
+        <ellipse
+          key={i}
+          cx={x}
+          cy={y}
+          rx="5"
+          ry="2.5"
+          transform={`rotate(${-50 + i * 15} ${x} ${y})`}
+          fill="currentColor"
+          opacity="0.55"
+        />
+      );
+    })}
+  </svg>
+);
+
+const WaveTop = ({ fill = 'var(--paper)' }) => (
+  <svg
+    viewBox="0 0 1440 60"
+    preserveAspectRatio="none"
+    className="absolute top-0 left-0 w-full h-[40px] -translate-y-px"
+    style={{ color: fill }}
+    aria-hidden
+  >
+    <path
+      d="M0,30 C240,5 480,5 720,30 C960,55 1200,55 1440,30 L1440,60 L0,60 Z"
+      fill="currentColor"
+    />
+  </svg>
+);
 
 export default BookingSection;

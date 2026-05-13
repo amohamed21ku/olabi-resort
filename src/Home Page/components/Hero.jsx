@@ -1,164 +1,445 @@
-import React from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useLanguage } from '../../hooks/useLanguage';
-import heroVideo from '/static/images/assets/hero-bg.MP4';
-import olabiLogo from '/static/images/assets/olabi-resort.png';
+
+const HERO_VIDEO = '/static/images/assets/hero-bg.MP4';
+const HERO_LOGO  = '/static/images/assets/olabi-logo.jpg';
 
 const Hero = () => {
-  const { t, language } = useLanguage();
+  const { language } = useLanguage();
+  const isAr = language === 'ar';
+  const videoRef = useRef(null);
 
-  const scrollToSection = (sectionId) => {
-    const element = document.getElementById(sectionId);
-    if (element) {
-      element.scrollIntoView({
-        behavior: 'smooth',
-        block: 'start'
-      });
+  const [scrolled, setScrolled] = useState(false);
+  const [vidLoaded, setVidLoaded] = useState(false);
+
+  /* scroll tracker */
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 80);
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => window.removeEventListener('scroll', onScroll);
+  }, []);
+
+  /* force-play the video (bypasses autoplay policy on some browsers) */
+  useEffect(() => {
+    const v = videoRef.current;
+    if (!v) return;
+    v.muted = true;
+    const tryPlay = () => {
+      v.play().catch(() => {});
+      setVidLoaded(true);
+    };
+    if (v.readyState >= 2) {
+      tryPlay();
+    } else {
+      v.addEventListener('canplay', tryPlay, { once: true });
     }
-  };
+    return () => v.removeEventListener('canplay', tryPlay);
+  }, []);
+
+  const scrollTo = (id) =>
+    document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+  const headline = isAr
+    ? { pre: 'البحرُ والجبلُ', mid: 'في', highlight: 'حضنٍ', post: 'واحد.' }
+    : { pre: 'The sea and the mountain,', mid: '', highlight: 'one', post: 'embrace.' };
+
+  const subline = isAr
+    ? 'منتجعٌ عائليٌّ في مرتفعات كسب — نسمةُ صنوبر، هدوءٌ طويل، ومائدةٌ كأنّها بيتك.'
+    : 'A family resort in the heights of Kasab — pine on the breeze, slow afternoons, and a table that feels like home.';
+
+  const overline = isAr
+    ? 'منتجع العلبي · كسب — الساحل السوري'
+    : 'Olabi Resort · Kasab — Syrian Coast';
 
   return (
-    <section className="relative h-screen flex items-center justify-center overflow-hidden" id="home">
-      {/* Video Background */}
+    <section
+      id="home"
+      className="relative min-h-[100svh] w-full overflow-hidden flex items-center justify-center"
+    >
+      {/* ─── KEYFRAMES (scoped to hero) ─────────────────── */}
+      <style>{`
+        @keyframes heroLogoReveal {
+          0%   { opacity: 0; transform: translateY(-18px) scale(0.96); }
+          100% { opacity: 1; transform: translateY(0)     scale(1); }
+        }
+        @keyframes logoPulseGlow {
+          0%, 100% { box-shadow: 0 8px 40px rgba(0,0,0,0.35), 0 0 0   rgba(224,208,181,0); }
+          50%       { box-shadow: 0 8px 40px rgba(0,0,0,0.35), 0 0 60px rgba(224,208,181,0.35); }
+        }
+        @keyframes sparkleRise {
+          0%   { transform: translateY(0)     scale(1);   opacity: 0;   }
+          8%   { opacity: 1; }
+          90%  { opacity: 0.7; }
+          100% { transform: translateY(-98vh) scale(0.4); opacity: 0;   }
+        }
+        @keyframes ctaPulseRing {
+          0%   { transform: scale(1);   opacity: 0.55; }
+          100% { transform: scale(1.9); opacity: 0;    }
+        }
+        @keyframes shimmerSweep {
+          0%   { transform: translateX(-120%); }
+          60%  { transform: translateX(240%);  }
+          100% { transform: translateX(240%);  }
+        }
+        @keyframes badgeDot {
+          0%, 100% { opacity: 1;   transform: scale(1);   }
+          50%       { opacity: 0.5; transform: scale(0.85); }
+        }
+      `}</style>
+
+      {/* ─── VIDEO BACKGROUND ───────────────────────────── */}
       <div className="absolute inset-0 z-0">
+        {/* fallback colour while video loads */}
+        <div className="absolute inset-0 bg-[#0a2331]" />
+
         <video
-          className="absolute inset-0 w-full h-full object-cover object-center opacity-40"
+          ref={videoRef}
+          src={HERO_VIDEO}
+          className="absolute inset-0 w-full h-full object-cover animate-ken-burn"
           autoPlay
           muted
           loop
           playsInline
-        >
-          <source src={heroVideo} type="video/mp4" />
-        </video>
-        {/* Dark Overlay for better content visibility */}
-        <div className="absolute inset-0 bg-black/40" />
-        {/* Gradient Overlay */}
-        <div className="absolute inset-0 bg-gradient-to-br from-[var(--deep-ocean)]/60 via-[var(--primary-ocean)]/40 to-[var(--luxury-gold)]/30" />
-        <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-black/20" />
+          preload="auto"
+          poster="/static/images/assets/hero-bg.png"
+        />
+
+        {/* cinematic darkening gradient */}
+        <div
+          className="absolute inset-0"
+          style={{
+            background:
+              'linear-gradient(180deg, rgba(10,35,49,0.82) 0%, rgba(10,35,49,0.48) 25%, rgba(10,35,49,0.30) 48%, rgba(10,35,49,0.60) 75%, rgba(10,35,49,0.94) 100%)',
+          }}
+        />
+        {/* radial vignette */}
+        <div
+          className="absolute inset-0"
+          style={{
+            background:
+              'radial-gradient(78% 60% at 50% 55%, transparent 0%, rgba(10,35,49,0.32) 65%, rgba(10,35,49,0.72) 100%)',
+          }}
+        />
+        {/* warm aegean tint */}
+        <div
+          className="absolute inset-0 mix-blend-soft-light"
+          style={{
+            background:
+              'radial-gradient(55% 80% at 18% 30%, rgba(207,224,231,0.55) 0%, transparent 70%), radial-gradient(40% 60% at 85% 80%, rgba(232,184,58,0.22) 0%, transparent 70%)',
+          }}
+        />
+        {/* subtle film grain */}
+        <div
+          className="absolute inset-0 opacity-30 pointer-events-none mix-blend-overlay"
+          style={{
+            backgroundImage:
+              "url(\"data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='260' height='260'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.78' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 0.09 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>\")",
+          }}
+        />
       </div>
 
-      {/* Hero Content */}
-      <div className="relative z-10 text-center px-4 sm:px-6 lg:px-8 max-w-5xl mx-auto animate-fade-in-up">
-        {/* Logo */}
-        <div className="flex items-center justify-center mb-4">
-          <img
-            src={olabiLogo}
-            alt="Olabi Resort"
-            className="h-45 sm:h-40 lg:h-45 w-auto "
+      {/* ─── RISING SPARKLE PARTICLES ───────────────────── */}
+      <div className="absolute inset-0 z-[5] pointer-events-none overflow-hidden">
+        {[
+          { left: '9%',  delay: '0s',    dur: '13s', size: 2.5 },
+          { left: '24%', delay: '4.5s',  dur: '17s', size: 2   },
+          { left: '47%', delay: '8s',    dur: '11s', size: 3.5 },
+          { left: '68%', delay: '2s',    dur: '15s', size: 2   },
+          { left: '83%', delay: '11s',   dur: '14s', size: 3   },
+          { left: '58%', delay: '6s',    dur: '19s', size: 2   },
+        ].map((p, i) => (
+          <div
+            key={i}
             style={{
-              filter: 'drop-shadow(2px 4px 10px rgba(0, 0, 0, 0.3))'
+              position: 'absolute',
+              left: p.left,
+              bottom: '5%',
+              width: p.size,
+              height: p.size,
+              borderRadius: '50%',
+              background: 'rgba(224,208,181,0.95)',
+              boxShadow: `0 0 ${p.size * 3}px rgba(224,208,181,0.9)`,
+              animation: `sparkleRise ${p.dur} ease-in ${p.delay} infinite`,
             }}
           />
+        ))}
+      </div>
+
+      {/* ─── INSET FRAME LINES ──────────────────────────── */}
+      <div className="absolute inset-x-6 lg:inset-x-12 top-[130px] lg:top-[150px] h-px bg-white/12 z-10 pointer-events-none" />
+      <div className="absolute inset-x-6 lg:inset-x-12 bottom-6 h-px bg-white/12 z-10 pointer-events-none" />
+
+      {/* ─── TOP META STRIP ─────────────────────────────── */}
+      <div className="absolute top-[140px] lg:top-[160px] inset-x-0 z-20 pointer-events-none">
+        <div
+          className="container-resort flex items-center justify-between text-white/65 text-[10px] tracking-[0.4em] uppercase"
+          style={isAr ? { fontFamily: 'var(--font-sans-ar)', textTransform: 'none', letterSpacing: '0.14em', fontWeight: 500 } : {}}
+        >
+          <span>{isAr ? '— ٠١ / مرحبًا' : '— 01 / Arrive'}</span>
+          <span className="hidden md:inline">✶ {isAr ? 'منذ ١٩٨٥' : 'Est. 1985'}</span>
+          <span className="hidden md:inline" dir="ltr" style={{ fontFamily: 'var(--font-sans)' }}>
+            35.92° N · 35.91° E
+          </span>
+        </div>
+      </div>
+
+      {/* ─── FLOATING SIDE BADGE ────────────────────────── */}
+      <aside
+        className={`hidden lg:flex absolute z-20 flex-col items-center gap-3 ${isAr ? 'left-10' : 'right-10'} top-1/2 -translate-y-1/2 text-white/75`}
+      >
+        <SunEmblem className="w-14 h-14 text-[var(--lemon-soft)] animate-spin-slow" />
+        <span className="text-[9px] tracking-[0.38em] uppercase rotate-[-90deg] origin-center mt-12 whitespace-nowrap opacity-70">
+          {isAr ? 'صيف · ٢٠٢٦' : 'Summer · 2026'}
+        </span>
+      </aside>
+
+      {/* ─── CENTER CONTENT ─────────────────────────────── */}
+      <div className="relative z-10 container-resort pt-44 pb-32 text-center">
+
+        {/* LOGO CARD — hero centrepiece */}
+        <div className="flex justify-center mb-8" style={{ animation: 'heroLogoReveal 1s cubic-bezier(0.22,1,0.36,1) 0.1s both' }}>
+          <div className="relative group">
+            {/* glow halo behind card */}
+            <div
+              className="absolute -inset-6 rounded-3xl pointer-events-none"
+              style={{
+                background: 'radial-gradient(ellipse, rgba(224,208,181,0.25) 0%, transparent 70%)',
+                filter: 'blur(18px)',
+              }}
+            />
+            {/* logo card */}
+            <div
+              className="relative bg-white rounded-2xl px-8 py-4 border border-white/60 transition-transform duration-500 group-hover:scale-[1.04]"
+              style={{ animation: 'logoPulseGlow 4s ease-in-out 1.2s infinite' }}
+            >
+              <img
+                src={HERO_LOGO}
+                alt="Olabi Resort Kasab"
+                className="h-20 lg:h-28 w-auto object-contain select-none"
+                draggable="false"
+              />
+            </div>
+          </div>
         </div>
 
-        {/* Kasab Badge */}
-        <span className="inline-block px-6 py-2 rounded-full text-sm font-semibold mb-4 tracking-wider uppercase"
-          style={{
-            background: 'linear-gradient(135deg, var(--luxury-gold), #f4d03f)',
-            color: 'var(--charcoal)',
-            letterSpacing: '0.1em'
-          }}
-        >
-          {language === 'ar' ? 'اكتشف الجنة المخفية' : 'Discover Hidden Paradise'}
-        </span>
+        {/* SEASON OPEN BADGE */}
+        <div className="flex justify-center mb-6 animate-fade-in-up delay-100">
+          <div
+            className="inline-flex items-center gap-2 rounded-full px-4 py-1.5 border border-white/20"
+            style={{ background: 'rgba(255,255,255,0.08)', backdropFilter: 'blur(8px)' }}
+          >
+            <span
+              className="w-2 h-2 rounded-full bg-green-400"
+              style={{ animation: 'badgeDot 1.8s ease-in-out infinite' }}
+            />
+            <span
+              className="text-white/90 text-[11px] tracking-[0.3em] uppercase"
+              style={isAr ? { fontFamily: 'var(--font-sans-ar)', textTransform: 'none', letterSpacing: '0.18em', fontWeight: 600 } : {}}
+            >
+              {isAr ? 'الموسم ٢٠٢٦ · مفتوح الآن' : 'Season 2026 · Now Open'}
+            </span>
+          </div>
+        </div>
 
-        {/* Main Title - Kasab */}
-        <h1 className="text-4xl sm:text-5xl lg:text-7xl font-bold mb-4 font-serif"
-          style={{
-            color: 'white',
-            textShadow: '2px 4px 20px rgba(0, 0, 0, 0.5)'
-          }}
+        {/* EYEBROW */}
+        <p className="inline-flex items-center gap-3 text-white/65 text-[10px] tracking-[0.42em] uppercase animate-fade-in-up delay-200">
+          <span className="block w-8 h-px bg-white/45" />
+          {overline}
+          <span className="block w-8 h-px bg-white/45" />
+        </p>
+
+        {/* HEADLINE */}
+        <h1
+          className="text-white mx-auto mt-6 max-w-[18ch] text-balance animate-fade-in-up delay-300"
+          style={
+            isAr
+              ? {
+                  fontFamily: 'var(--font-display-ar)',
+                  fontWeight: 600,
+                  fontSize: 'clamp(2.6rem, 7.8vw, 6.5rem)',
+                  lineHeight: 1.12,
+                  textShadow: '0 4px 30px rgba(10,35,49,0.6)',
+                }
+              : {
+                  fontFamily: 'var(--font-display)',
+                  fontVariationSettings: "'SOFT' 70, 'opsz' 144",
+                  fontWeight: 380,
+                  fontSize: 'clamp(3rem, 8.8vw, 7.5rem)',
+                  lineHeight: 0.98,
+                  letterSpacing: '-0.025em',
+                  textShadow: '0 4px 30px rgba(10,35,49,0.6)',
+                }
+          }
         >
-          {language === 'ar' ? 'صيف و كيف بلا مكيف' : ''}
+          {headline.pre}{' '}
+          {headline.mid && <>{headline.mid} </>}
+          <span
+            style={
+              isAr
+                ? { fontFamily: 'var(--font-accent-ar)', fontWeight: 700, color: 'var(--sand)' }
+                : {
+                    fontFamily: 'var(--font-italic)',
+                    fontStyle: 'italic',
+                    fontVariationSettings: "'SOFT' 100, 'opsz' 144",
+                    color: 'var(--sand)',
+                    fontWeight: 360,
+                  }
+            }
+          >
+            {headline.highlight}
+          </span>{' '}
+          {headline.post}
         </h1>
 
-        {/* Subtitle */}
-        <p className="text-lg sm:text-xl lg:text-2xl font-medium mb-6 font-sans"
+        {/* SUBLINE */}
+        <p
+          className="text-white/80 mt-7 mx-auto max-w-[56ch] text-pretty animate-fade-in-up delay-500"
           style={{
-            background: 'linear-gradient(135deg, var(--champagne) 0%, var(--luxury-gold) 50%, var(--soft-gold) 100%)',
-            WebkitBackgroundClip: 'text',
-            WebkitTextFillColor: 'transparent',
-            backgroundClip: 'text',
-            filter: 'drop-shadow(2px 2px 4px rgba(0, 0, 0, 0.5))'
+            fontSize: 'clamp(1rem, 1.3vw, 1.15rem)',
+            lineHeight: isAr ? 1.95 : 1.68,
+            textShadow: '0 2px 12px rgba(10,35,49,0.4)',
           }}
         >
-          {language === 'ar'
-            ? ' أهلاً وسهلاً بكم في منتجع العلبي العائلي في كسب'
- 
-            : 'Where majestic mountains meet turquoise waters in a breathtaking spectacle'}
+          {subline}
         </p>
 
-  <p className="text-lg sm:text-xl lg:text-2xl font-medium mb-6 font-sans"
-          style={{
-            background: 'linear-gradient(135deg, var(--champagne) 0%, var(--luxury-gold) 50%, var(--soft-gold) 100%)',
-            WebkitBackgroundClip: 'text',
-            WebkitTextFillColor: 'transparent',
-            backgroundClip: 'text',
-            filter: 'drop-shadow(2px 2px 4px rgba(0, 0, 0, 0.5))'
-          }}
-        >
-          {language === 'ar'
-            ? '  المكان الذي يجمع بين جمال الجبال، نقاء الهواء، وراحة الإقامة العائلية. '
+        {/* CTAs */}
+        <div className="mt-10 flex flex-wrap items-center justify-center gap-4 animate-fade-in-up delay-700">
+          {/* Primary — pulsing ring + shimmer */}
+          <div className="relative">
+            {/* pulse ring */}
+            <span
+              className="absolute inset-0 rounded-full pointer-events-none"
+              style={{
+                background: 'var(--terracotta)',
+                animation: 'ctaPulseRing 2.6s cubic-bezier(0.4,0,0.6,1) 2s infinite',
+              }}
+            />
+            <button
+              onClick={() => scrollTo('booking')}
+              className="btn-clay px-8 py-4 relative"
+            >
+              {/* shimmer sweep */}
+              <span
+                className="absolute inset-0 pointer-events-none rounded-full"
+                style={{
+                  background: 'linear-gradient(105deg, transparent 38%, rgba(255,255,255,0.30) 50%, transparent 62%)',
+                  animation: 'shimmerSweep 3.4s ease-in-out 1.8s infinite',
+                }}
+              />
+              {isAr ? 'احجز إقامتك' : 'Reserve your stay'}
+              <ArrowSmall flip={isAr} />
+            </button>
+          </div>
 
-            : 'Where majestic mountains meet turquoise waters in a breathtaking spectacle'}
-        </p>
-
-
-        {/* Action Buttons */}
-        <div className="flex flex-row items-center justify-center gap-4 flex-wrap">
-          <button
-            onClick={() => scrollToSection('booking')}
-            aria-label={t('bookNow')}
-            className="group relative px-10 py-4 rounded-full font-bold text-[var(--charcoal)] overflow-hidden transition-all duration-500 hover:-translate-y-1 hover:scale-105 min-w-[200px]"
-            style={{
-              background: 'var(--gradient-gold)',
-              boxShadow: '0 4px 20px rgba(212, 175, 55, 0.4)',
-              border: '2px solid rgba(255, 255, 255, 0.3)'
-            }}
-          >
-            <span className="relative z-10 transition-colors duration-300 group-hover:text-white">
-              {language === 'ar' ? 'احجز إقامتك الآن' : 'Book Your Stay Now'}
-            </span>
-            <div className="absolute inset-0 bg-gradient-to-r from-[var(--primary-ocean)] to-[var(--secondary-ocean)] opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-          </button>
-
-          <button
-            onClick={() => scrollToSection('directions')}
-            aria-label={t('directions')}
-            className="group relative px-10 py-4 rounded-full font-semibold text-white overflow-hidden transition-all duration-500 hover:-translate-y-1 min-w-[180px] backdrop-blur-sm"
-            style={{
-              background: 'rgba(255, 255, 255, 0.15)',
-              border: '2px solid rgba(255, 255, 255, 0.5)'
-            }}
-          >
-            <span className="relative z-10 transition-colors duration-300 group-hover:text-white">
-              {language === 'ar' ? 'كيف تصل إلينا' : 'How to Get Here'}
-            </span>
-            <div className="absolute inset-0 bg-gradient-to-r from-[var(--primary-ocean)] to-[var(--secondary-ocean)] opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+          <button onClick={() => scrollTo('about')} className="btn-ghost-light px-7 py-4">
+            {isAr ? 'تعرّف على المنتجع' : 'Discover the resort'}
           </button>
         </div>
+
+        {/* MICRO STATS */}
+        <dl className="mt-16 grid grid-cols-3 gap-4 sm:gap-10 max-w-[640px] mx-auto animate-fade-in-up" style={{ animationDelay: '0.9s' }}>
+          {[
+            { v: '1,180m', l: isAr ? 'فوق سطح البحر' : 'Above sea level' },
+            { v: isAr ? '١٦' : '16', l: isAr ? 'غرفة وجناح' : 'Rooms & suites' },
+            { v: isAr ? '٤٠ سنة' : '40 yrs', l: isAr ? 'إرث عائلي' : 'Family legacy' },
+          ].map((m) => (
+            <div key={m.l} className="border-t border-white/22 pt-4 text-center">
+              <dt
+                className="text-white leading-none whitespace-nowrap"
+                style={
+                  isAr
+                    ? { fontFamily: 'var(--font-display-ar)', fontWeight: 600, fontSize: 'clamp(1.05rem, 1.6vw, 1.5rem)' }
+                    : {
+                        fontFamily: 'var(--font-display)',
+                        fontVariationSettings: "'SOFT' 60, 'opsz' 144",
+                        fontWeight: 460,
+                        fontSize: 'clamp(1.05rem, 1.6vw, 1.5rem)',
+                        letterSpacing: '-0.01em',
+                      }
+                }
+              >
+                {m.v}
+              </dt>
+              <dd
+                className={`mt-2 text-[10px] uppercase text-white/55 ${isAr ? 'tracking-[0.12em] normal-case' : 'tracking-[0.28em]'}`}
+                style={isAr ? { textTransform: 'none', fontFamily: 'var(--font-sans-ar)' } : {}}
+              >
+                {m.l}
+              </dd>
+            </div>
+          ))}
+        </dl>
       </div>
 
-      {/* Scroll Indicator */}
-      <div
-        className="absolute bottom-8 left-1/2 -translate-x-1/2 cursor-pointer animate-bounce text-white"
-        onClick={() => scrollToSection('about')}
-        role="button"
-        tabIndex={0}
-        aria-label="Scroll to next section"
-        onKeyDown={(e) => e.key === 'Enter' && scrollToSection('about')}
+      {/* ─── SCROLL HINT ────────────────────────────────── */}
+      <button
+        onClick={() => scrollTo('about')}
+        aria-label="Scroll down"
+        className={`absolute bottom-12 left-1/2 -translate-x-1/2 z-20 text-white/80 hover:text-white focus-ring transition-opacity duration-500 ${
+          scrolled ? 'opacity-0 pointer-events-none' : 'animate-scroll-hint'
+        }`}
       >
-        <div className="p-3 rounded-full bg-white/20 backdrop-blur-sm border border-white/30 hover:bg-white/30 transition-all duration-300">
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <path d="M7 13l5 5 5-5M7 6l5 5 5-5" />
+        <div className="flex flex-col items-center gap-2">
+          <span
+            className="text-[9px] tracking-[0.38em] uppercase"
+            style={isAr ? { fontFamily: 'var(--font-sans-ar)', textTransform: 'none', letterSpacing: '0.18em' } : {}}
+          >
+            {isAr ? 'تابع للأسفل' : 'Scroll'}
+          </span>
+          <svg width="14" height="22" viewBox="0 0 14 22" fill="none">
+            <rect x="1" y="1" width="12" height="20" rx="6" stroke="currentColor" strokeWidth="1" />
+            <circle cx="7" cy="6" r="1.5" fill="currentColor" />
           </svg>
         </div>
-      </div>
+      </button>
 
-      {/* Decorative Elements */}
-      <div className="absolute top-20 left-10 w-32 h-32 bg-[var(--luxury-gold)]/10 rounded-full blur-3xl animate-pulse" />
-      <div className="absolute bottom-20 right-10 w-40 h-40 bg-[var(--primary-ocean)]/10 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '1s' }} />
+      {/* ─── BOTTOM MARQUEE ─────────────────────────────── */}
+      <div className="absolute bottom-2 inset-x-0 z-10 overflow-hidden text-white/35 pointer-events-none">
+        <div
+          className="flex gap-12 whitespace-nowrap text-[10px] tracking-[0.4em] uppercase animate-marquee"
+          style={isAr ? { fontFamily: 'var(--font-sans-ar)', textTransform: 'none', letterSpacing: '0.18em' } : {}}
+        >
+          {Array.from({ length: 2 }).map((_, dup) => (
+            <React.Fragment key={dup}>
+              {(isAr
+                ? ['نسمة جبل', '✶', 'هدوء طويل', '✶', 'صنوبر و نجوم', '✶', 'موسم ٢٠٢٦', '✶', 'إقامة عائلية', '✶']
+                : ['Pine on the breeze', '✶', 'Slow afternoons', '✶', 'Sea & stars', '✶', 'Season 2026', '✶', 'Family run', '✶']
+              ).map((t, i) => (
+                <span key={`${dup}-${i}`}>{t}</span>
+              ))}
+            </React.Fragment>
+          ))}
+        </div>
+      </div>
     </section>
   );
 };
+
+/* ─── Sub-components ────────────────────────────────── */
+
+const SunEmblem = ({ className }) => (
+  <svg viewBox="0 0 120 120" fill="none" stroke="currentColor" strokeWidth="0.8" strokeLinecap="round" className={className}>
+    <circle cx="60" cy="60" r="22" />
+    {[...Array(16)].map((_, i) => {
+      const a = (i * Math.PI * 2) / 16;
+      const x1 = 60 + Math.cos(a) * 30;
+      const y1 = 60 + Math.sin(a) * 30;
+      const x2 = 60 + Math.cos(a) * (i % 2 === 0 ? 52 : 42);
+      const y2 = 60 + Math.sin(a) * (i % 2 === 0 ? 52 : 42);
+      return <line key={i} x1={x1} y1={y1} x2={x2} y2={y2} />;
+    })}
+  </svg>
+);
+
+const ArrowSmall = ({ flip }) => (
+  <svg
+    width="14" height="14" viewBox="0 0 24 24"
+    fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"
+    style={flip ? { transform: 'scaleX(-1)' } : undefined}
+  >
+    <path d="M5 12h14M13 5l7 7-7 7" />
+  </svg>
+);
 
 export default Hero;

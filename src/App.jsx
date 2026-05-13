@@ -1,22 +1,42 @@
-import './App.css'
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom'
-import { useState, createContext } from 'react'
-import HomePage from './Home Page/homePage'
-import RoomPage from './Room/RoomPage'
+import { useState, createContext, useContext } from 'react'
+import './App.css'
+import Header from './components/Header'
+import Footer from './components/Footer'
+import HomePage from './pages/HomePage'
+import RoomsPage from './pages/RoomsPage'
+import RoomDetailPage from './pages/RoomDetailPage'
+import BookingPage from './pages/BookingPage'
+import ConfirmationPage from './pages/ConfirmationPage'
 
 export const LanguageContext = createContext()
 
+export function useLanguage() {
+  return useContext(LanguageContext)
+}
+
 function App() {
-  const [language, setLanguage] = useState('en')
+  const [language, setLanguage] = useState('ar')
+  const isRTL = language === 'ar'
 
   return (
-    <LanguageContext.Provider value={{ language, setLanguage }}>
-      <div className={`app ${language === 'ar' ? 'rtl' : 'ltr'}`} dir={language === 'ar' ? 'rtl' : 'ltr'}>
+    <LanguageContext.Provider value={{ language, setLanguage, isRTL }}>
+      <div
+        className={isRTL ? 'rtl' : 'ltr'}
+        dir={isRTL ? 'rtl' : 'ltr'}
+      >
         <Router>
-          <Routes>
-            <Route path="/" element={<HomePage />} />
-            <Route path="/room/:roomId" element={<RoomPage />} />
-          </Routes>
+          <Header />
+          <main style={{ minHeight: 'calc(100vh - var(--header-h))' }}>
+            <Routes>
+              <Route path="/"                         element={<HomePage />} />
+              <Route path="/rooms"                    element={<RoomsPage />} />
+              <Route path="/rooms/:roomId"            element={<RoomDetailPage />} />
+              <Route path="/booking/:roomId"          element={<BookingPage />} />
+              <Route path="/confirmation/:bookingId"  element={<ConfirmationPage />} />
+            </Routes>
+          </main>
+          <Footer />
         </Router>
       </div>
     </LanguageContext.Provider>

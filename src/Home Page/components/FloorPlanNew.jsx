@@ -11,7 +11,8 @@ const FloorPlanNew = () => {
   const cardRef = useRef(null);
   const containerRef = useRef(null);
   const navigate = useNavigate();
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
+  const isAr = language === 'ar';
 
   const floors = {
     1: {
@@ -260,7 +261,7 @@ const FloorPlanNew = () => {
   };
 
   return (
-    <div className="floor-plan-container" ref={containerRef}>
+    <div id="floor-plan" className="floor-plan-container" ref={containerRef}>
       {/* Header */}
       <motion.div
         className="floor-plan-header"
@@ -268,8 +269,18 @@ const FloorPlanNew = () => {
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.6 }}
       >
-        <h2>Interactive Room Selection</h2>
-        <p>Choose your perfect room from our luxury floor plan</p>
+        <h2>
+          {isAr ? (
+            <>اختر غرفتك حسب <em style={{ color: 'var(--terracotta)' }}>الطابق</em>.</>
+          ) : (
+            <>Pick a room by <em style={{ color: 'var(--terracotta)' }}>floor</em>.</>
+          )}
+        </h2>
+        <p>
+          {isAr
+            ? '"مرّر أو انقر فوق غرفةٍ، ندخلك إليها."'
+            : '“Hover or tap a room — we’ll show you in.”'}
+        </p>
       </motion.div>
 
       {/* Room Preview Section - Shows first on mobile */}
@@ -337,7 +348,7 @@ const FloorPlanNew = () => {
                     whileHover={{ scale: 1.03 }}
                     whileTap={{ scale: 0.97 }}
                   >
-                    View Full Details & Book →
+                    {isAr ? 'تفاصيل الغرفة والحجز' : 'See & reserve'} →
                   </motion.button>
                 </motion.div>
               </div>
@@ -351,9 +362,9 @@ const FloorPlanNew = () => {
             >
               <div className="placeholder-content">
                 <svg className="placeholder-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M3 21h18M5 21V8l7-5 7 5v13M9 9h2v2H9zM13 9h2v2h-2zM9 13h2v2H9zM13 13h2v2h-2zM10 21v-4h4v4" />
                 </svg>
-                <p>Hover over or tap a room to preview details</p>
+                <p>{isAr ? 'مرّر فوق غرفةٍ أو انقر عليها لعرض التفاصيل' : 'Hover a room — or tap on mobile — to peek inside'}</p>
               </div>
             </motion.div>
           )}
@@ -376,7 +387,9 @@ const FloorPlanNew = () => {
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
             >
-              {floors[floorNum].name}
+              {isAr
+                ? ['الطابق الأول', 'الطابق الثاني', 'الطابق الثالث', 'الطابق الرابع'][Number(floorNum) - 1]
+                : floors[floorNum].name}
             </motion.button>
           ))}
         </div>
@@ -394,44 +407,44 @@ const FloorPlanNew = () => {
                 <feDropShadow dx="0" dy="2" stdDeviation="2" floodOpacity="0.25" />
               </filter>
               <linearGradient id="hallGrad" x1="0" x2="0" y1="0" y2="1">
-                <stop offset="0%" stopColor="rgb(236 253 245)" />
-                <stop offset="100%" stopColor="rgb(224 242 254)" />
+                <stop offset="0%" stopColor="#FFFEF9" />
+                <stop offset="100%" stopColor="#E5EEF1" />
               </linearGradient>
             </defs>
 
             {/* Building outline */}
             <rect
               x="6" y="6" width="88" height="88"
-              rx="6"
+              rx="2"
               fill="url(#hallGrad)"
-              stroke="rgba(2,6,23,0.12)"
-              strokeWidth="0.8"
+              stroke="rgba(26, 46, 59, 0.16)"
+              strokeWidth="0.6"
               filter="url(#softShadow)"
             />
 
             {/* Central corridor */}
             <rect
               x="45" y="20" width="10" height="60"
-              rx="2"
-              fill="white"
-              stroke="rgba(2,6,23,0.12)"
-              strokeWidth="0.6"
+              rx="1"
+              fill="#FAF5ED"
+              stroke="rgba(26, 46, 59, 0.16)"
+              strokeWidth="0.4"
             />
 
             {/* Stairs Icon */}
             <g>
-              <rect x="47" y="22" width="2" height="2" fill="#1E5F74" />
-              <rect x="47" y="24" width="4" height="2" fill="#1E5F74" />
-              <rect x="47" y="26" width="6" height="2" fill="#1E5F74" />
-              <line x1="47" y1="28" x2="53" y2="22" stroke="#0f172a" strokeWidth="0.4" />
+              <rect x="47" y="22" width="2" height="2" fill="#1F4E6B" />
+              <rect x="47" y="24" width="4" height="2" fill="#1F4E6B" />
+              <rect x="47" y="26" width="6" height="2" fill="#1F4E6B" />
+              <line x1="47" y1="28" x2="53" y2="22" stroke="#103247" strokeWidth="0.4" />
             </g>
 
             {/* Elevator Icon */}
             <g>
-              <rect x="47" y="45" width="6" height="10" rx="1.2" fill="#1E5F74" stroke="#154D5C" strokeWidth="0.4" />
-              <rect x="48.5" y="46.5" width="3" height="4" rx="0.5" fill="white" opacity="0.9" />
-              <line x1="48.5" y1="52" x2="51.5" y2="52" stroke="white" strokeWidth="0.3" opacity="0.8" />
-              <circle cx="50" cy="53" r="0.4" fill="#D4AF37" />
+              <rect x="47" y="45" width="6" height="10" rx="0.8" fill="#1F4E6B" stroke="#103247" strokeWidth="0.4" />
+              <rect x="48.5" y="46.5" width="3" height="4" rx="0.3" fill="#FFFEF9" opacity="0.92" />
+              <line x1="48.5" y1="52" x2="51.5" y2="52" stroke="#FFFEF9" strokeWidth="0.3" opacity="0.8" />
+              <circle cx="50" cy="53" r="0.5" fill="#C56B47" />
             </g>
 
             {/* Rooms */}
@@ -457,15 +470,15 @@ const FloorPlanNew = () => {
         >
           <div className="legend-item">
             <div className="legend-color available"></div>
-            <span>Available</span>
+            <span>{isAr ? 'متاحة' : 'Available'}</span>
           </div>
           <div className="legend-item">
             <div className="legend-color occupied"></div>
-            <span>Occupied</span>
+            <span>{isAr ? 'محجوزة' : 'Occupied'}</span>
           </div>
           <div className="legend-item">
             <div className="legend-color maintenance"></div>
-            <span>Maintenance</span>
+            <span>{isAr ? 'صيانة' : 'Maintenance'}</span>
           </div>
         </motion.div>
       </div>
@@ -511,20 +524,20 @@ const RoomRect = ({ room, onHover, onLeave, onClick, isSelected }) => {
         <linearGradient id={`room-${room.id}`} x1="0" y1="0" x2="0" y2="1">
           {room.status === 'available' && (
             <>
-              <stop offset="0%" stopColor="#40916C" stopOpacity="0.9" />
-              <stop offset="100%" stopColor="#2D6A4F" stopOpacity="0.95" />
+              <stop offset="0%" stopColor="#8C9D67" stopOpacity="0.95" />
+              <stop offset="100%" stopColor="#5A6A3F" stopOpacity="1" />
             </>
           )}
           {room.status === 'occupied' && (
             <>
-              <stop offset="0%" stopColor="#718096" stopOpacity="0.8" />
-              <stop offset="100%" stopColor="#4A5568" stopOpacity="0.9" />
+              <stop offset="0%" stopColor="#C0CBD1" stopOpacity="0.85" />
+              <stop offset="100%" stopColor="#94A1A8" stopOpacity="0.95" />
             </>
           )}
           {room.status === 'maintenance' && (
             <>
-              <stop offset="0%" stopColor="#FFA726" stopOpacity="0.85" />
-              <stop offset="100%" stopColor="#FB8C00" stopOpacity="0.9" />
+              <stop offset="0%" stopColor="#F3DA88" stopOpacity="0.9" />
+              <stop offset="100%" stopColor="#E8B83A" stopOpacity="1" />
             </>
           )}
         </linearGradient>
