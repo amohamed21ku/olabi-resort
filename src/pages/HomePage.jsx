@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useLanguage } from '../App'
 import { t } from '../translations'
-import { rooms } from '../data/rooms'
+import { useRooms } from '../hooks/useRooms'
 import SearchBar from '../components/SearchBar'
 import RoomCard from '../components/RoomCard'
 import DirectionsMap from '../components/DirectionsMap'
@@ -11,6 +11,7 @@ import { FiPhone, FiMail, FiMapPin, FiChevronDown, FiSearch, FiNavigation } from
 export default function HomePage() {
   const { language, isRTL } = useLanguage()
   const tr = (key) => t(language, key)
+  const { rooms } = useRooms()
   const featuredRooms = rooms.filter(r => r.featured)
   const [scrolled, setScrolled] = useState(false)
   const videoRef = useRef(null)

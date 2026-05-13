@@ -125,7 +125,7 @@ export default function ConfirmationPage() {
                   { label: tr('booking_checkOut'), value: formatDate(booking.checkOut) },
                   { label: tr('booking_nights'),   value: booking.nights },
                   { label: tr('booking_guests'),   value: booking.guests },
-                  { label: tr('booking_total'),    value: `$${booking.totalPrice}` },
+                  { label: tr('booking_total'),    value: booking.totalPrice != null ? `$${booking.totalPrice}` : (isRTL ? 'عند الطلب' : 'On Request') },
                 ].map(({ label, value }) => (
                   <div key={label} style={{
                     display: 'flex',

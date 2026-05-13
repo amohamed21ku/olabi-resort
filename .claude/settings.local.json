@@ -7,9 +7,16 @@
       "Bash(touch:*)",
       "Bash(npx tailwindcss init:*)",
       "Bash(cat:*)",
-      "Bash(del \"c:\\\\Users\\\\bodys\\\\Desktop\\\\Work\\\\olabi-resort\\\\src\\\\pages\\\\HomePage.jsx\")"
+      "Bash(del \"c:\\\\Users\\\\bodys\\\\Desktop\\\\Work\\\\olabi-resort\\\\src\\\\pages\\\\HomePage.jsx\")",
+      "Bash(Get-ChildItem -Path \"c:\\\\Users\\\\bodys\\\\Desktop\\\\Work\\\\olabi-resort\" -Recurse -Force)",
+      "Bash(Select-Object -Property FullName, PSIsContainer)",
+      "Bash(Sort-Object FullName)",
+      "Bash(ConvertTo-Json -Depth 100)"
     ],
     "deny": [],
-    "ask": []
+    "ask": [],
+    "additionalDirectories": [
+      "c:\\Users\\bodys\\.claude\\projects\\c--Users-bodys-Desktop-Work-olabi-resort\\memory"
+    ]
   }
 }
