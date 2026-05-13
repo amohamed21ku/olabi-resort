@@ -37,7 +37,7 @@ export default function HomePage() {
       <section style={{
         position: 'relative',
         height: '100vh',
-        minHeight: '600px',
+        minHeight: '580px',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
@@ -74,11 +74,9 @@ export default function HomePage() {
         }} />
 
         {/* Content */}
-        <div className="container" style={{
+        <div className="container hero-content" style={{
           position: 'relative', zIndex: 2,
           textAlign: 'center',
-          paddingTop: 'calc(var(--header-h) + 40px)',
-          paddingBottom: '64px',
           display: 'flex', flexDirection: 'column', alignItems: 'center',
         }}>
           <p style={{
@@ -178,11 +176,7 @@ export default function HomePage() {
             </p>
           </div>
 
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
-            gap: '28px',
-          }}>
+          <div className="grid-rooms">
             {featuredRooms.map(room => (
               <RoomCard key={room.id} room={room} />
             ))}
@@ -199,12 +193,7 @@ export default function HomePage() {
       {/* ─── About ─── */}
       <section id="about" className="section" style={{ background: 'var(--linen)' }}>
         <div className="container">
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
-            gap: '60px',
-            alignItems: 'center',
-          }}>
+          <div className="about-grid">
             <div style={{
               borderRadius: 'var(--radius-lg)',
               overflow: 'hidden',
@@ -271,18 +260,12 @@ export default function HomePage() {
             <DirectionsMap />
           </div>
 
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
-            gap: '24px',
-            maxWidth: '800px',
-            margin: '0 auto',
-          }}>
+          <div className="grid-dirs">
             {[
               { title: tr('dir_from_lat'), time: tr('dir_hours_lat'), color: 'var(--terracotta)' },
               { title: tr('dir_from_dam'), time: tr('dir_hours_dam'), color: 'var(--olive)' },
             ].map(({ title, time, color }) => (
-              <div key={title} style={{
+              <div key={title} className="dir-card-inner" style={{
                 background: 'var(--white)',
                 borderRadius: 'var(--radius-lg)',
                 padding: '28px',
@@ -291,7 +274,7 @@ export default function HomePage() {
                 border: '1px solid rgba(221, 208, 184, 0.72)',
                 borderTop: `5px solid ${color}`,
               }}>
-                <div style={{
+                <div className="dir-card-icon" style={{
                   width: '44px',
                   height: '44px',
                   borderRadius: '12px',
@@ -304,19 +287,19 @@ export default function HomePage() {
                 }}>
                   <FiNavigation size={22} />
                 </div>
-                <h3 style={{
+                <h3 className="dir-card-title" style={{
                   fontSize: '18px', fontWeight: 700,
                   color: 'var(--ink)', marginBottom: '8px',
                   fontFamily: isRTL ? 'var(--font-ar)' : 'var(--font-heading)',
                 }}>
                   {title}
                 </h3>
-                <p style={{ fontSize: '15px', color: 'var(--charcoal)', fontWeight: 700, lineHeight: 1.55 }}>{time}</p>
+                <p className="dir-card-time" style={{ fontSize: '15px', color: 'var(--charcoal)', fontWeight: 700, lineHeight: 1.55 }}>{time}</p>
               </div>
             ))}
           </div>
 
-          <div style={{
+          <div className="dir-contact-row" style={{
             display: 'flex',
             flexWrap: 'wrap',
             justifyContent: 'center',

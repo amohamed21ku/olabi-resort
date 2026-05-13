@@ -96,11 +96,11 @@ export default function RoomCard({ room, checkIn, checkOut, guests, availability
       </Link>
 
       {/* Content */}
-      <div style={{ padding: '20px', display: 'flex', flexDirection: 'column', flex: 1, gap: '12px' }}>
+      <div className="card-body-room" style={{ padding: '20px', display: 'flex', flexDirection: 'column', flex: 1, gap: '12px' }}>
         {/* Name + Price */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '8px' }}>
           <Link to={detailHref}>
-            <h3 style={{
+            <h3 className="card-name-room" style={{
               fontSize: '17px',
               fontWeight: 700,
               color: 'var(--ink)',
@@ -111,17 +111,17 @@ export default function RoomCard({ room, checkIn, checkOut, guests, availability
             </h3>
           </Link>
           <div style={{ textAlign: isRTL ? 'left' : 'right', flexShrink: 0 }}>
-            <span style={{ fontSize: '20px', fontWeight: 700, color: 'var(--terracotta)' }}>
+            <span className="card-price-room" style={{ fontSize: '20px', fontWeight: 700, color: 'var(--terracotta)' }}>
               ${room.price}
             </span>
-            <span style={{ fontSize: '12px', color: 'var(--muted)', display: 'block' }}>
+            <span className="card-price-label" style={{ fontSize: '12px', color: 'var(--muted)', display: 'block' }}>
               {tr('rooms_perNight')}
             </span>
           </div>
         </div>
 
         {/* Meta */}
-        <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
+        <div className="card-meta-room" style={{ display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
           <span style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '13px', color: 'var(--muted)' }}>
             <FiUsers size={13} />
             {room.capacity} {tr('rooms_guests')}
@@ -136,7 +136,7 @@ export default function RoomCard({ room, checkIn, checkOut, guests, availability
         </div>
 
         {/* Amenities preview */}
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+        <div className="card-amenities-room" style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
           {(isRTL ? room.amenitiesAr : room.amenities).slice(0, 3).map((a, i) => (
             <span key={i} style={{
               background: 'var(--linen)',
@@ -169,7 +169,7 @@ export default function RoomCard({ room, checkIn, checkOut, guests, availability
           <Link to={bookHref} className="btn btn-primary btn-sm" style={{ flex: 1, justifyContent: 'center' }}>
             {tr('rooms_bookNow')}
           </Link>
-          <Link to={detailHref} className="btn btn-outline btn-sm" style={{ gap: '6px' }}>
+          <Link to={detailHref} className="btn btn-outline btn-sm card-cta-details" style={{ gap: '6px' }}>
             {tr('rooms_details')}
             <ArrowIcon size={14} />
           </Link>

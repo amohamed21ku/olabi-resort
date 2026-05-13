@@ -116,11 +116,7 @@ export default function RoomsPage() {
             <p>{tr('rooms_noRooms')}</p>
           </div>
         ) : (
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))',
-            gap: '28px',
-          }}>
+          <div className="grid-rooms-page">
             {filtered.map(room => (
               <RoomCard
                 key={room.id}

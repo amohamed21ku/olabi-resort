@@ -362,3 +362,147 @@ input, select, textarea { font-family: inherit; }
   to   { opacity: 1; transform: translateY(0); }
 }
 .animate-fade-in-down { animation: fadeInDown 0.85s cubic-bezier(0.22, 1, 0.36, 1) both; }
+
+/* ═══════════════════════════════════════════════════════
+   MOBILE RESPONSIVE
+   ═══════════════════════════════════════════════════════ */
+
+/* Tighter section padding on mobile */
+@media (max-width: 767px) {
+  .section    { padding: 56px 0; }
+  .section-sm { padding: 36px 0; }
+}
+
+/* Hero content padding */
+.hero-content {
+  padding-top: calc(var(--header-h) + 40px);
+  padding-bottom: 64px;
+}
+
+@media (max-width: 767px) {
+  .hero-content {
+    padding-top: calc(var(--header-h) + 20px);
+    padding-bottom: 36px;
+  }
+}
+
+/* Search bar — fix horizontal overflow on narrow screens */
+@media (max-width: 767px) {
+  .search-bar-form {
+    padding: 16px !important;
+    gap: 12px !important;
+  }
+  .search-bar-field {
+    flex: 1 1 100% !important;
+    min-width: 0 !important;
+  }
+}
+
+/* 2-column room grids: 2 cols on mobile, auto-fill on desktop */
+.grid-rooms {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(2, 1fr);
+}
+
+@media (min-width: 768px) {
+  .grid-rooms {
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 28px;
+  }
+}
+
+/* Rooms page grid */
+.grid-rooms-page {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(2, 1fr);
+}
+
+@media (min-width: 768px) {
+  .grid-rooms-page {
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 28px;
+  }
+}
+
+/* Directions 2-column grid */
+.grid-dirs {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(2, 1fr);
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+@media (min-width: 768px) {
+  .grid-dirs {
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 24px;
+  }
+}
+
+/* About section grid */
+.about-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 60px;
+  align-items: center;
+}
+
+@media (max-width: 767px) {
+  .about-grid {
+    gap: 32px;
+  }
+}
+
+/* Compact room card in mobile 2-col grid */
+@media (max-width: 767px) {
+  .card-body-room {
+    padding: 12px !important;
+    gap: 8px !important;
+  }
+  .card-name-room   { font-size: 13px !important; }
+  .card-price-room  { font-size: 15px !important; }
+  .card-price-label { font-size: 10px !important; }
+  .card-meta-room,
+  .card-amenities-room { display: none !important; }
+  .card-cta-details    { display: none !important; }
+}
+
+/* Compact direction card in mobile 2-col grid */
+@media (max-width: 767px) {
+  .dir-card-inner {
+    padding: 16px !important;
+  }
+  .dir-card-icon {
+    width: 36px !important;
+    height: 36px !important;
+    margin-bottom: 12px !important;
+  }
+  .dir-card-title {
+    font-size: 15px !important;
+    margin-bottom: 6px !important;
+  }
+  .dir-card-time {
+    font-size: 13px !important;
+  }
+}
+
+/* Directions contact info row — tighter on mobile */
+@media (max-width: 767px) {
+  .dir-contact-row {
+    gap: 16px !important;
+    margin-top: 32px !important;
+    padding-top: 28px !important;
+    flex-direction: column !important;
+    align-items: center !important;
+  }
+}
+
+/* Footer mobile gap */
+@media (max-width: 767px) {
+  .footer-grid {
+    gap: 32px !important;
+  }
+}
