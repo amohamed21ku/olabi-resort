@@ -83,7 +83,7 @@ export default function Header() {
           </Link>
 
           {/* Desktop nav */}
-          <nav style={{ display: 'flex', alignItems: 'center', gap: '4px' }} className="hidden md:flex">
+          <nav style={{ display: 'flex', alignItems: 'center', gap: '4px' }} className="hide-mobile">
             {navLinks.map(link => (
               link.href.startsWith('/#')
                 ? <button
@@ -147,7 +147,7 @@ export default function Header() {
             {/* Book Now — desktop only */}
             <Link
               to="/rooms"
-              className="btn btn-primary btn-sm hidden md:inline-flex"
+              className="btn btn-primary btn-sm hide-mobile"
               style={{ background: transparent ? 'rgba(61,90,58,0.9)' : 'var(--terracotta)' }}
             >
               {tr('nav_bookNow')}
@@ -155,7 +155,7 @@ export default function Header() {
 
             {/* Hamburger — mobile only */}
             <button
-              className="md:hidden"
+              className="hide-desktop"
               onClick={() => setMenuOpen(v => !v)}
               aria-label="Menu"
               style={{

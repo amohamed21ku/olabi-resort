@@ -367,6 +367,10 @@ input, select, textarea { font-family: inherit; }
    MOBILE RESPONSIVE
    ═══════════════════════════════════════════════════════ */
 
+/* Visibility helpers that win over component display values */
+@media (max-width: 767px)  { .hide-mobile  { display: none !important; } }
+@media (min-width: 768px)  { .hide-desktop { display: none !important; } }
+
 /* Tighter section padding on mobile */
 @media (max-width: 767px) {
   .section    { padding: 56px 0; }
@@ -386,15 +390,31 @@ input, select, textarea { font-family: inherit; }
   }
 }
 
-/* Search bar — fix horizontal overflow on narrow screens */
+/* Search bar — compact & no overflow on mobile */
 @media (max-width: 767px) {
   .search-bar-form {
-    padding: 16px !important;
-    gap: 12px !important;
+    padding: 14px !important;
+    gap: 10px !important;
   }
   .search-bar-field {
     flex: 1 1 100% !important;
     min-width: 0 !important;
+  }
+  /* Hide text labels — icon + value is enough on mobile */
+  .search-bar-field label {
+    display: none !important;
+  }
+  /* Shorter inputs */
+  .search-bar-form input,
+  .search-bar-form select {
+    padding: 10px 12px !important;
+    font-size: 14px !important;
+  }
+  /* Shorter search button */
+  .search-bar-submit {
+    min-height: 44px !important;
+    padding: 10px 16px !important;
+    font-size: 14px !important;
   }
 }
 
