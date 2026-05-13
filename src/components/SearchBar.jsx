@@ -36,6 +36,8 @@ export default function SearchBar({ onDark = false, initialValues = {} }) {
     background: '#f9f8f6',
     outline: 'none',
     width: '100%',
+    maxWidth: '100%',
+    boxSizing: 'border-box',
     fontFamily: 'inherit',
     transition: 'border-color 0.2s, box-shadow 0.2s',
   }
@@ -57,14 +59,17 @@ export default function SearchBar({ onDark = false, initialValues = {} }) {
       background: '#ffffff',
       border: 'none',
       borderRadius: '16px',
-      padding: onDark ? '28px 32px' : '20px 24px',
+      padding: onDark ? '20px 24px' : '16px 20px',
       boxShadow: onDark
         ? '0 24px 80px rgba(0,0,0,0.30), 0 4px 16px rgba(0,0,0,0.12)'
         : 'var(--shadow-md)',
       display: 'flex',
-      gap: onDark ? '20px' : '16px',
+      gap: onDark ? '16px' : '14px',
       alignItems: 'flex-end',
       flexWrap: 'wrap',
+      width: '100%',
+      maxWidth: '100%',
+      boxSizing: 'border-box',
     }}>
       {/* Check-in */}
       <div className="search-bar-field" style={fieldStyle}>

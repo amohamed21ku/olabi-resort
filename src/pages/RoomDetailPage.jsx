@@ -85,13 +85,8 @@ export default function RoomDetailPage() {
         </div>
       </div>
 
-      <div className="container" style={{ paddingTop: '40px' }}>
-        <div style={{
-          display: 'grid',
-          gridTemplateColumns: 'minmax(0, 1fr) 340px',
-          gap: '40px',
-          alignItems: 'start',
-        }}>
+      <div className="container room-detail-top" style={{ paddingTop: '40px' }}>
+        <div className="room-detail-grid">
           {/* Left: gallery + details */}
           <div>
             {/* Main image */}
@@ -212,11 +207,7 @@ export default function RoomDetailPage() {
             }}>
               {tr('detail_amenities')}
             </h3>
-            <div style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))',
-              gap: '10px',
-            }}>
+            <div className="amenities-grid">
               {amenities.map((a, i) => (
                 <div key={i} style={{
                   display: 'flex',
@@ -235,8 +226,8 @@ export default function RoomDetailPage() {
             </div>
           </div>
 
-          {/* Right: booking card (sticky) */}
-          <div style={{
+          {/* Right: booking card (sticky on desktop, static on mobile) */}
+          <div className="room-booking-card" style={{
             position: 'sticky',
             top: 'calc(var(--header-h) + 24px)',
           }}>
@@ -248,7 +239,7 @@ export default function RoomDetailPage() {
               border: '1px solid var(--border)',
             }}>
               {/* Price header */}
-              <div style={{
+              <div className="booking-card-price" style={{
                 background: 'var(--linen)',
                 padding: '24px',
                 borderBottom: '1px solid var(--sand)',
@@ -307,7 +298,7 @@ export default function RoomDetailPage() {
               )}
 
               {/* CTA */}
-              <div style={{ padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <div className="booking-card-body" style={{ padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
                 {available !== false && (
                   <Link
                     to={`/booking/${room.id}${bookingParams ? `?${bookingParams}` : ''}`}

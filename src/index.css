@@ -38,6 +38,8 @@
 /* ─── Reset ─────────────────────────────────────────── */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 html { scroll-behavior: smooth; }
+/* Prevent horizontal scroll on mobile (RTL or any overflow) */
+html, body { overflow-x: hidden; max-width: 100%; }
 
 body {
   background: var(--cream);
@@ -390,15 +392,19 @@ input, select, textarea { font-family: inherit; }
   }
 }
 
-/* Search bar — compact & no overflow on mobile */
+/* Search bar — compact & contained on mobile */
 @media (max-width: 767px) {
   .search-bar-form {
-    padding: 14px !important;
+    padding: 12px !important;
     gap: 10px !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    box-sizing: border-box !important;
   }
   .search-bar-field {
     flex: 1 1 100% !important;
     min-width: 0 !important;
+    max-width: 100% !important;
   }
   /* Hide text labels — icon + value is enough on mobile */
   .search-bar-field label {
@@ -409,12 +415,16 @@ input, select, textarea { font-family: inherit; }
   .search-bar-form select {
     padding: 10px 12px !important;
     font-size: 14px !important;
+    max-width: 100% !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
   }
   /* Shorter search button */
   .search-bar-submit {
     min-height: 44px !important;
     padding: 10px 16px !important;
     font-size: 14px !important;
+    width: 100% !important;
   }
 }
 
@@ -488,6 +498,53 @@ input, select, textarea { font-family: inherit; }
   .card-meta-room,
   .card-amenities-room { display: none !important; }
   .card-cta-details    { display: none !important; }
+}
+
+/* Room detail page — responsive layout */
+.room-detail-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 340px;
+  gap: 40px;
+  align-items: start;
+}
+
+@media (max-width: 767px) {
+  .room-detail-grid {
+    grid-template-columns: 1fr;
+    gap: 24px;
+  }
+  /* Move booking card above gallery on mobile */
+  .room-booking-card {
+    order: -1;
+    position: static !important;
+  }
+  /* Compact booking card padding on mobile */
+  .room-booking-card .booking-card-price {
+    padding: 16px !important;
+  }
+  .room-booking-card .booking-card-body {
+    padding: 16px !important;
+  }
+}
+
+/* Amenities — 2 cols on mobile, auto on desktop */
+.amenities-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+}
+
+@media (min-width: 640px) {
+  .amenities-grid {
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  }
+}
+
+/* Room detail page top padding on mobile */
+@media (max-width: 767px) {
+  .room-detail-top {
+    padding-top: 24px !important;
+  }
 }
 
 /* Compact direction card in mobile 2-col grid */
