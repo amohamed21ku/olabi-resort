@@ -6,7 +6,8 @@
       "Bash(npm run dev:*)",
       "Bash(touch:*)",
       "Bash(npx tailwindcss init:*)",
-      "Bash(cat:*)"
+      "Bash(cat:*)",
+      "Bash(del \"c:\\\\Users\\\\bodys\\\\Desktop\\\\Work\\\\olabi-resort\\\\src\\\\pages\\\\HomePage.jsx\")"
     ],
     "deny": [],
     "ask": []

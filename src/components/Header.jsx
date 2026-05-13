@@ -148,7 +148,7 @@ export default function Header() {
             <Link
               to="/rooms"
               className="btn btn-primary btn-sm hidden md:inline-flex"
-              style={{ background: transparent ? 'rgba(184,87,66,0.9)' : 'var(--terracotta)' }}
+              style={{ background: transparent ? 'rgba(61,90,58,0.9)' : 'var(--terracotta)' }}
             >
               {tr('nav_bookNow')}
             </Link>

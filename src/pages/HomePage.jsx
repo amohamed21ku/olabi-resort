@@ -1,4 +1,4 @@
-import { useRef, useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useLanguage } from '../App'
 import { t } from '../translations'
@@ -11,19 +11,8 @@ export default function HomePage() {
   const { language, isRTL } = useLanguage()
   const tr = (key) => t(language, key)
   const featuredRooms = rooms.filter(r => r.featured)
-  const videoRef = useRef(null)
   const [scrolled, setScrolled] = useState(false)
-
-  /* Force-play video — bypasses browser autoplay restrictions */
-  useEffect(() => {
-    const v = videoRef.current
-    if (!v) return
-    v.muted = true
-    const tryPlay = () => v.play().catch(() => {})
-    if (v.readyState >= 2) tryPlay()
-    else v.addEventListener('canplay', tryPlay, { once: true })
-    return () => v.removeEventListener('canplay', tryPlay)
-  }, [])
+  const videoRef = useRef(null)
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 80)
@@ -31,186 +20,151 @@ export default function HomePage() {
     return () => window.removeEventListener('scroll', onScroll)
   }, [])
 
+  useEffect(() => {
+    const v = videoRef.current
+    if (!v) return
+    v.muted = true
+    const play = () => v.play().catch(() => {})
+    if (v.readyState >= 2) play()
+    else v.addEventListener('canplay', play, { once: true })
+    return () => v.removeEventListener('canplay', play)
+  }, [])
+
   return (
     <>
-      {/* ─── Hero ──────────────────────────────────────── */}
+      {/* ─── Hero ─── */}
       <section style={{
         position: 'relative',
         height: '100vh',
-        minHeight: '620px',
+        minHeight: '600px',
         display: 'flex',
-        alignItems: 'flex-start',
+        alignItems: 'center',
         justifyContent: 'center',
         overflow: 'hidden',
-        background: '#0a1a10',
+        background: '#07130a',
       }}>
-
         <style>{`
-          @keyframes heroKenBurn { from { transform: scale(1); } to { transform: scale(1.08); } }
-@keyframes heroFadeUp {
+          @keyframes heroFadeUp {
             from { opacity: 0; transform: translateY(20px); }
-            to   { opacity: 1; transform: translateY(0);    }
+            to   { opacity: 1; transform: translateY(0); }
           }
-@keyframes heroScrollBounce {
-            0%, 100% { transform: translateY(0);   opacity: 0.5; }
-            50%       { transform: translateY(7px); opacity: 0.25; }
+          @keyframes heroScrollBounce {
+            0%, 100% { transform: translateX(-50%) translateY(0);   opacity: 0.4; }
+            50%       { transform: translateX(-50%) translateY(7px); opacity: 0.18; }
           }
         `}</style>
 
-        {/* Video */}
+        {/* Autoplay background video */}
         <video
           ref={videoRef}
-          src="/static/images/assets/hero-bg.MP4"
+          src="/static/images/assets/for website 1.mp4"
           autoPlay muted loop playsInline preload="auto"
-          poster="/static/images/assets/hero-bg.png"
           style={{
             position: 'absolute', inset: 0,
             width: '100%', height: '100%',
             objectFit: 'cover',
-            animation: 'heroKenBurn 28s ease-out forwards',
           }}
         />
 
-        {/* Overlay — light enough to see the resort, dark enough to read text */}
+        {/* Gradient overlay — dark enough to read text */}
         <div style={{
           position: 'absolute', inset: 0,
-          background: 'linear-gradient(180deg, rgba(0,0,0,0.55) 0%, rgba(0,0,0,0.38) 40%, rgba(0,0,0,0.45) 70%, rgba(0,0,0,0.72) 100%)',
+          background: 'linear-gradient(180deg, rgba(0,0,0,0.58) 0%, rgba(0,0,0,0.38) 40%, rgba(0,0,0,0.45) 70%, rgba(0,0,0,0.72) 100%)',
         }} />
 
-        {/* Content — starts at golden-ratio position below header */}
+        {/* Content */}
         <div className="container" style={{
-          position: 'relative',
-          zIndex: 3,
+          position: 'relative', zIndex: 2,
           textAlign: 'center',
-          paddingTop: 'calc(var(--header-h) + 7vh)',
-          paddingBottom: '0',
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          gap: '16px',
+          paddingTop: 'calc(var(--header-h) + 40px)',
+          paddingBottom: '64px',
+          display: 'flex', flexDirection: 'column', alignItems: 'center',
         }}>
-
-          {/* Eyebrow */}
           <p style={{
-            fontSize: '11px',
-            fontWeight: 600,
-            letterSpacing: '3px',
-            textTransform: 'uppercase',
-            color: 'rgba(255,255,255,0.70)',
-            animation: 'heroFadeUp 0.8s ease 0.1s both',
+            fontSize: '11px', fontWeight: 600,
+            letterSpacing: '3px', textTransform: isRTL ? 'none' : 'uppercase',
+            color: 'rgba(255,255,255,0.7)', marginBottom: '16px',
+            fontFamily: isRTL ? 'var(--font-ar)' : undefined,
+            animation: 'heroFadeUp 0.7s ease 0.1s both',
           }}>
             {tr('hero_label')}
           </p>
 
-          {/* Headline — prominent but not page-eating */}
           <h1 style={{
-            fontSize: 'clamp(28px, 4.2vw, 48px)',
+            fontSize: 'clamp(30px, 4.5vw, 54px)',
             fontWeight: 700,
             color: '#ffffff',
-            lineHeight: 1.15,
-            maxWidth: '620px',
+            lineHeight: 1.12,
+            maxWidth: '640px',
+            marginBottom: '16px',
             fontFamily: isRTL ? 'var(--font-ar)' : 'var(--font-heading)',
-            textShadow: '0 2px 16px rgba(0,0,0,0.55)',
-            marginBottom: '0',
-            animation: 'heroFadeUp 0.8s ease 0.22s both',
+            textShadow: '0 2px 20px rgba(0,0,0,0.5)',
+            animation: 'heroFadeUp 0.7s ease 0.2s both',
           }}>
             {tr('hero_title')}
           </h1>
 
-          {/* Booking widget */}
-          <div style={{
-            width: '100%',
-            maxWidth: '900px',
-            marginTop: '4px',
-            animation: 'heroFadeUp 0.8s ease 0.46s both',
+          <p style={{
+            fontSize: '15px',
+            color: 'rgba(255,255,255,0.62)',
+            lineHeight: 1.7,
+            maxWidth: '480px',
+            marginBottom: '28px',
+            fontFamily: isRTL ? 'var(--font-ar)' : undefined,
+            textShadow: '0 1px 8px rgba(0,0,0,0.4)',
+            animation: 'heroFadeUp 0.7s ease 0.3s both',
           }}>
+            {isRTL
+              ? 'منتجعٌ عائليٌّ في مرتفعات كسب — نسمةُ صنوبر، هدوءٌ طويل، وإطلالة لا تُنسى.'
+              : "A family resort in the heights of Kasab — pine breeze, slow afternoons, and views you'll never forget."}
+          </p>
+
+          <div style={{ width: '100%', maxWidth: '720px', animation: 'heroFadeUp 0.7s ease 0.4s both' }}>
             <SearchBar onDark />
           </div>
 
-          {/* ═══ ACTION BUTTONS ═══ */}
           <div style={{
-            display: 'flex',
-            flexWrap: 'wrap',
-            justifyContent: 'center',
-            gap: '12px',
-            marginTop: '8px',
-            animation: 'heroFadeUp 0.8s ease 0.7s both',
+            display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: '12px',
+            marginTop: '16px',
+            animation: 'heroFadeUp 0.7s ease 0.52s both',
           }}>
-            {/* View all rooms */}
             <Link
               to="/rooms"
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '8px',
-                padding: '11px 24px',
-                borderRadius: '100px',
-                background: 'rgba(255,255,255,0.12)',
-                backdropFilter: 'blur(10px)',
-                border: '1.5px solid rgba(255,255,255,0.35)',
-                color: 'var(--white)',
-                fontSize: '13px',
-                fontWeight: 600,
-                textDecoration: 'none',
-                transition: 'background 0.2s, border-color 0.2s',
-                fontFamily: isRTL ? 'var(--font-ar)' : 'inherit',
-              }}
-              onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.22)'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.6)' }}
-              onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.12)'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.35)' }}
+              className="btn btn-primary btn-sm"
+              style={{ borderRadius: '100px', display: 'inline-flex', alignItems: 'center', gap: '7px' }}
             >
-              <FiSearch size={14} />
-              {isRTL ? 'استعرض جميع الغرف' : 'View all rooms'}
+              <FiSearch size={13} />
+              {isRTL ? 'استعرض الغرف' : 'Explore rooms'}
             </Link>
-
-            {/* Directions */}
             <button
-              onClick={() => {
-                const el = document.getElementById('directions')
-                if (el) el.scrollIntoView({ behavior: 'smooth' })
-              }}
+              onClick={() => document.getElementById('directions')?.scrollIntoView({ behavior: 'smooth' })}
               style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '8px',
-                padding: '11px 24px',
-                borderRadius: '100px',
-                background: 'rgba(255,255,255,0.12)',
-                backdropFilter: 'blur(10px)',
-                border: '1.5px solid rgba(255,255,255,0.35)',
-                color: 'var(--white)',
-                fontSize: '13px',
-                fontWeight: 600,
-                cursor: 'pointer',
-                transition: 'background 0.2s, border-color 0.2s',
-                fontFamily: isRTL ? 'var(--font-ar)' : 'inherit',
+                display: 'inline-flex', alignItems: 'center', gap: '7px',
+                padding: '9px 20px', borderRadius: '100px',
+                background: 'rgba(255,255,255,0.1)',
+                border: '1.5px solid rgba(255,255,255,0.28)',
+                color: 'rgba(255,255,255,0.82)', fontSize: '13px', fontWeight: 600,
+                cursor: 'pointer', fontFamily: isRTL ? 'var(--font-ar)' : undefined,
               }}
-              onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.22)'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.6)' }}
-              onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.12)'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.35)' }}
             >
-              <FiMapPin size={14} />
+              <FiMapPin size={13} />
               {isRTL ? 'كيف تصل إلينا' : 'How to get here'}
             </button>
           </div>
         </div>
 
-        {/* Scroll hint */}
-        <div style={{
-          position: 'absolute', bottom: '28px', left: '50%',
-          transform: 'translateX(-50%)',
-          display: scrolled ? 'none' : 'flex',
-          flexDirection: 'column', alignItems: 'center', gap: '5px',
-          color: 'rgba(255,255,255,0.4)',
-          animation: 'heroScrollBounce 2.2s ease-in-out infinite',
-          zIndex: 3,
-        }}>
-          <span style={{ fontSize: '9px', letterSpacing: '2.5px', textTransform: 'uppercase' }}>
-            {tr('hero_scroll')}
-          </span>
-          <FiChevronDown size={14} />
-        </div>
+        {!scrolled && (
+          <div style={{
+            position: 'absolute', bottom: '24px', left: '50%',
+            animation: 'heroScrollBounce 2.2s ease-in-out infinite',
+            zIndex: 3,
+          }}>
+            <FiChevronDown size={16} style={{ color: 'rgba(255,255,255,0.35)' }} />
+          </div>
+        )}
       </section>
 
-      {/* ─── Featured Rooms ────────────────────────────── */}
+      {/* ─── Featured Rooms ─── */}
       <section className="section" style={{ background: 'var(--cream)' }}>
         <div className="container">
           <div style={{ marginBottom: '48px', textAlign: 'center' }}>
@@ -241,7 +195,7 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* ─── About ─────────────────────────────────────── */}
+      {/* ─── About ─── */}
       <section id="about" className="section" style={{ background: 'var(--linen)' }}>
         <div className="container">
           <div style={{
@@ -250,7 +204,6 @@ export default function HomePage() {
             gap: '60px',
             alignItems: 'center',
           }}>
-            {/* Image */}
             <div style={{
               borderRadius: 'var(--radius-lg)',
               overflow: 'hidden',
@@ -264,7 +217,6 @@ export default function HomePage() {
               />
             </div>
 
-            {/* Text */}
             <div>
               <p className="section-label">{tr('about_label')}</p>
               <h2 className="section-title">{tr('about_title')}</h2>
@@ -272,16 +224,11 @@ export default function HomePage() {
                 {tr('about_body')}
               </p>
 
-              {/* Stats */}
-              <div style={{
-                display: 'grid',
-                gridTemplateColumns: '1fr 1fr',
-                gap: '24px',
-              }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px' }}>
                 {[
-                  { value: '40+', label: tr('about_stat1') },
-                  { value: '8',   label: tr('about_stat2') },
-                  { value: '5k+', label: tr('about_stat3') },
+                  { value: '40+',  label: tr('about_stat1') },
+                  { value: '8',    label: tr('about_stat2') },
+                  { value: '5k+',  label: tr('about_stat3') },
                   { value: '1200', label: tr('about_stat4') },
                 ].map(({ value, label }) => (
                   <div key={label} style={{
@@ -291,12 +238,9 @@ export default function HomePage() {
                     boxShadow: 'var(--shadow-sm)',
                   }}>
                     <div style={{
-                      fontSize: '28px',
-                      fontWeight: 800,
+                      fontSize: '28px', fontWeight: 800,
                       color: 'var(--terracotta)',
-                      lineHeight: 1,
-                      marginBottom: '6px',
-                      fontFamily: 'var(--font-body)',
+                      lineHeight: 1, marginBottom: '6px',
                     }}>
                       {value}
                     </div>
@@ -311,7 +255,7 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* ─── Directions ─────────────────────────────────── */}
+      {/* ─── Directions ─── */}
       <section id="directions" className="section" style={{ background: 'var(--cream)' }}>
         <div className="container">
           <div style={{ textAlign: 'center', marginBottom: '48px' }}>
@@ -342,10 +286,8 @@ export default function HomePage() {
               }}>
                 <div style={{ fontSize: '36px', marginBottom: '12px' }}>{icon}</div>
                 <h3 style={{
-                  fontSize: '18px',
-                  fontWeight: 700,
-                  color: 'var(--ink)',
-                  marginBottom: '8px',
+                  fontSize: '18px', fontWeight: 700,
+                  color: 'var(--ink)', marginBottom: '8px',
                   fontFamily: isRTL ? 'var(--font-ar)' : 'var(--font-heading)',
                 }}>
                   {title}
@@ -355,7 +297,6 @@ export default function HomePage() {
             ))}
           </div>
 
-          {/* Contact info */}
           <div style={{
             display: 'flex',
             flexWrap: 'wrap',
@@ -371,11 +312,8 @@ export default function HomePage() {
               { Icon: FiMail,  text: tr('dir_email'),  href: `mailto:${tr('dir_email')}` },
             ].map(({ Icon, text, href }) => (
               <div key={text} style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '10px',
-                fontSize: '15px',
-                color: 'var(--charcoal)',
+                display: 'flex', alignItems: 'center',
+                gap: '10px', fontSize: '15px', color: 'var(--charcoal)',
               }}>
                 <Icon size={18} style={{ color: 'var(--terracotta)', flexShrink: 0 }} />
                 {href
@@ -391,12 +329,8 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* ─── CTA Banner ─────────────────────────────────── */}
-      <section style={{
-        background: 'var(--terracotta)',
-        padding: '64px 0',
-        textAlign: 'center',
-      }}>
+      {/* ─── CTA Banner ─── */}
+      <section style={{ background: 'var(--terracotta)', padding: '64px 0', textAlign: 'center' }}>
         <div className="container">
           <h2 style={{
             fontSize: 'clamp(24px, 4vw, 36px)',
