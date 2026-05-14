@@ -572,9 +572,74 @@ input, select, textarea { font-family: inherit; }
 /* Room detail page top padding on mobile */
 @media (max-width: 767px) {
   .room-detail-top {
-    padding-top: 20px !important;
+    padding-top: 0 !important;
     /* Extra bottom space for sticky CTA bar */
-    padding-bottom: 88px !important;
+    padding-bottom: 96px !important;
+  }
+}
+
+/* ── Gallery base styles ──────────────────────────────── */
+.gallery-arrow {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 10;
+  background: rgba(255,255,255,0.92);
+  border: none;
+  border-radius: 50%;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.18);
+}
+.gallery-arrow-left  { left: 12px; }
+.gallery-arrow-right { right: 12px; }
+
+/* ── Gallery mobile overrides ─────────────────────────── */
+@media (max-width: 767px) {
+  /* Full-bleed: pull the gallery outside the container's 24px padding */
+  .room-gallery-bleed {
+    margin-left: -24px;
+    margin-right: -24px;
+  }
+
+  /* No rounded corners when the image is edge-to-edge */
+  .gallery-main-area {
+    border-radius: 0 !important;
+  }
+
+  /* Give the text content some breathing room after the full-bleed gallery */
+  .room-detail-content {
+    padding: 16px 0 0;
+  }
+
+  /* Bigger touch targets for arrows on mobile */
+  .gallery-arrow {
+    width: 44px;
+    height: 44px;
+    background: rgba(0,0,0,0.38);
+    box-shadow: none;
+  }
+  .gallery-arrow svg { color: #fff !important; }
+  .gallery-arrow-left  { left: 10px; }
+  .gallery-arrow-right { right: 10px; }
+
+  /* Thumbnail strip: pad back to align with page content */
+  .gallery-thumb-strip {
+    padding-left: 24px !important;
+    padding-right: 24px !important;
+    margin-top: 10px !important;
+    margin-bottom: 16px !important;
+    gap: 6px !important;
+  }
+
+  /* Smaller thumbnails on mobile */
+  .gallery-thumb-btn {
+    width: 60px !important;
+    height: 44px !important;
   }
 }
 

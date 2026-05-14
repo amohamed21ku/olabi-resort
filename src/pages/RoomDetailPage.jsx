@@ -199,10 +199,11 @@ function ImageGallery({ images, name }) {
   }
 
   return (
-    <div style={{ marginBottom: 12 }}>
+    <div className="gallery-wrap">
       <div
         ref={galleryRef} tabIndex={0}
         onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}
+        className="gallery-main-area"
         style={{ position: 'relative', borderRadius: 'var(--radius-lg)', overflow: 'hidden', aspectRatio: '16/9', background: '#e8e0d0', outline: 'none', cursor: images.length > 1 ? 'grab' : 'default' }}
       >
         {/* Shimmer while first image loads */}
@@ -233,11 +234,11 @@ function ImageGallery({ images, name }) {
             {/* In RTL the thumbnails flow right-to-left, so the visually-left
                 arrow advances activeIdx (the next thumbnail sits to the left). */}
             <button onClick={isRTL ? next : prev} aria-label={isRTL ? 'Next image' : 'Previous image'}
-              style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', zIndex: 10, background: 'rgba(255,255,255,0.92)', border: 'none', borderRadius: '50%', width: 40, height: 40, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', boxShadow: '0 2px 8px rgba(0,0,0,0.18)' }}>
+              className="gallery-arrow gallery-arrow-left">
               <FiChevronLeft size={20} color="var(--ink)" />
             </button>
             <button onClick={isRTL ? prev : next} aria-label={isRTL ? 'Previous image' : 'Next image'}
-              style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', zIndex: 10, background: 'rgba(255,255,255,0.92)', border: 'none', borderRadius: '50%', width: 40, height: 40, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', boxShadow: '0 2px 8px rgba(0,0,0,0.18)' }}>
+              className="gallery-arrow gallery-arrow-right">
               <FiChevronRight size={20} color="var(--ink)" />
             </button>
             <div style={{ position: 'absolute', bottom: 12, right: 12, zIndex: 10, background: 'rgba(0,0,0,0.52)', color: '#fff', borderRadius: 20, padding: '3px 10px', fontSize: 12, fontWeight: 600 }}>
@@ -247,12 +248,13 @@ function ImageGallery({ images, name }) {
         )}
       </div>
 
-      {/* Thumbnails — lazy loaded, share same URL so browser cache makes them instant after main view */}
+      {/* Thumbnails */}
       {images.length > 1 && (
-        <div style={{ display: 'flex', gap: 8, marginTop: 10, marginBottom: 28, overflowX: 'auto', paddingBottom: 4 }}>
+        <div className="gallery-thumb-strip" style={{ display: 'flex', gap: 8, marginTop: 10, marginBottom: 20, overflowX: 'auto', paddingBottom: 4 }}>
           {images.map((img, i) => (
             <button key={i} onClick={() => switchTo(i)}
               aria-label={`Show image ${i + 1}`}
+              className="gallery-thumb-btn"
               style={{ flexShrink: 0, width: 76, height: 54, borderRadius: 'var(--radius-sm)', overflow: 'hidden', border: `2.5px solid ${activeIdx === i ? 'var(--terracotta)' : 'transparent'}`, padding: 0, cursor: 'pointer', background: '#e8e0d0', transition: 'border-color 0.18s, opacity 0.18s', opacity: activeIdx === i ? 1 : 0.7, position: 'relative' }}
               onMouseEnter={e => { if (activeIdx !== i) e.currentTarget.style.opacity = '1'; loadImage(img).catch(() => {}) }}
               onFocus={() => loadImage(img).catch(() => {})}
@@ -416,12 +418,15 @@ export default function RoomDetailPage() {
           {/* Left: gallery + details */}
           <div>
             {/* Image gallery */}
-            {images.length > 0
-              ? <ImageGallery images={images} name={name} />
-              : <div style={{ borderRadius: 'var(--radius-lg)', aspectRatio: '16/9', marginBottom: 36, background: '#f3f0ea', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 64, color: '#ccc' }}>🏨</div>
-            }
+            <div className="room-gallery-bleed">
+              {images.length > 0
+                ? <ImageGallery images={images} name={name} />
+                : <div style={{ aspectRatio: '16/9', marginBottom: 20, background: '#f3f0ea', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 64, color: '#ccc' }}>🏨</div>
+              }
+            </div>
 
             {/* Name + type */}
+            <div className="room-detail-content">
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12, flexWrap: 'wrap' }}>
               <span style={{ background: 'var(--linen)', color: 'var(--charcoal)', padding: '4px 12px', borderRadius: '100px', fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.8px' }}>
                 {tr(`type_${room.type}`)}
@@ -472,6 +477,7 @@ export default function RoomDetailPage() {
                 </div>
               </>
             )}
+            </div>{/* end .room-detail-content */}
           </div>
 
           {/* Right: booking card (sticky on desktop) */}
