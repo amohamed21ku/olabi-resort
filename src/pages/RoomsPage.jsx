@@ -2,7 +2,6 @@ import { useState, useEffect, useCallback } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useLanguage } from '../App'
 import { t } from '../translations'
-import { roomTypes } from '../data/rooms'
 import { useRooms } from '../hooks/useRooms'
 import { checkAvailability } from '../firebase/services'
 import RoomCard from '../components/RoomCard'
@@ -19,12 +18,10 @@ export default function RoomsPage() {
 
   const { rooms, loading } = useRooms()
 
-  const [activeType, setActiveType]       = useState('all')
   const [availability, setAvailability]   = useState({})
   const [checkingAvail, setCheckingAvail] = useState(false)
 
   const filtered = rooms.filter(r => {
-    if (activeType !== 'all' && r.type !== activeType) return false
     if (guests > 0 && r.capacity < guests) return false
     return true
   })
@@ -59,26 +56,6 @@ export default function RoomsPage() {
       </div>
 
       <div className="container" style={{ paddingTop: 36 }}>
-        {/* Type filters */}
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 32, justifyContent: isRTL ? 'flex-end' : 'flex-start' }}>
-          {roomTypes.map(rt => (
-            <button
-              key={rt.value}
-              onClick={() => setActiveType(rt.value)}
-              className="btn btn-sm"
-              style={{
-                background:   activeType === rt.value ? 'var(--terracotta)' : 'var(--white)',
-                color:        activeType === rt.value ? 'var(--white)'      : 'var(--charcoal)',
-                border:       `1.5px solid ${activeType === rt.value ? 'var(--terracotta)' : 'var(--border)'}`,
-                borderRadius: '100px',
-                transition:   'all 0.2s',
-              }}
-            >
-              {isRTL ? rt.labelAr : rt.labelEn}
-            </button>
-          ))}
-        </div>
-
         {/* Availability notice */}
         {checkIn && checkOut && (
           <div style={{ background: 'var(--olive-light)', border: '1px solid var(--olive)', borderRadius: 'var(--radius-md)', padding: '12px 16px', marginBottom: 28, fontSize: 14, color: 'var(--olive-dark)', display: 'flex', alignItems: 'center', gap: 8 }}>

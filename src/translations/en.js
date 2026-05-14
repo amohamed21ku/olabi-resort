@@ -104,7 +104,7 @@ export const en = {
   // About section
   about_label:    'Our Story',
   about_title:    'A Mountain Sanctuary Since 1985',
-  about_body:     'Nestled in the highlands of Kasab — Syria\'s green jewel — Olabi Resort was founded on a simple belief: that nature is the finest luxury. Our cedar-scented air, home-cooked meals and warm hospitality have welcomed families for four decades.',
+  about_body:     'Perched in the cedar-lined heights of Kasab, Olabi Resort grew over four decades around a single belief — that quiet and nature are the truest luxury. Pine-scented breezes drift across the balconies, the view stretches from mountain ridges to the distant sea, and our family welcomes yours with hospitality passed down through generations.',
   about_stat1:    'Years of Hospitality',
   about_stat2:    'Rooms & Suites',
   about_stat3:    'Happy Guests',

@@ -62,20 +62,37 @@ export default function Header() {
           gap: '16px',
         }}>
           {/* Logo */}
-          <Link to="/" style={{ flexShrink: 0, lineHeight: 0 }}>
+          <Link
+            to="/"
+            style={{
+              flexShrink: 0,
+              lineHeight: 0,
+              display: 'inline-flex',
+              alignItems: 'center',
+              padding: transparent ? '6px 14px' : '0',
+              borderRadius: '14px',
+              background: transparent
+                ? 'linear-gradient(180deg, rgba(255,250,240,0.96) 0%, rgba(252,245,232,0.92) 100%)'
+                : 'transparent',
+              boxShadow: transparent
+                ? '0 6px 24px rgba(0,0,0,0.35), 0 0 0 1px rgba(255,255,255,0.35) inset'
+                : 'none',
+              transition: 'background 0.3s, box-shadow 0.3s, padding 0.3s',
+            }}
+          >
             <img
               src="/static/images/assets/olabi-logo.jpg"
               alt="Olabi Resort"
               style={{
-                height: '52px',
+                height: '72px',
                 width: 'auto',
                 objectFit: 'contain',
                 display: 'block',
                 borderRadius: '8px',
                 filter: transparent
-                  ? 'drop-shadow(0 2px 12px rgba(0,0,0,0.55))'
+                  ? 'none'
                   : 'drop-shadow(0 1px 4px rgba(0,0,0,0.15))',
-                transition: 'filter 0.3s, transform 0.3s',
+                transition: 'transform 0.3s, height 0.3s',
               }}
               onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.04)'}
               onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}

@@ -31,15 +31,20 @@ export default function Footer() {
         }}>
           {/* Brand */}
           <div>
-            <Link to="/" style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '16px' }}>
+            <Link to="/" style={{ display: 'flex', alignItems: 'center', gap: '14px', marginBottom: '18px' }}>
               <img
                 src="/static/images/assets/olabi-logo.jpg"
                 alt="Olabi Resort"
-                style={{ width: 40, height: 40, borderRadius: '50%', objectFit: 'cover' }}
+                style={{
+                  width: 64, height: 64, borderRadius: '12px', objectFit: 'cover',
+                  background: 'rgba(255,250,240,0.96)',
+                  padding: 4, boxSizing: 'border-box',
+                  boxShadow: '0 4px 14px rgba(0,0,0,0.35)',
+                }}
               />
               <span style={{
                 fontWeight: 700,
-                fontSize: '18px',
+                fontSize: '20px',
                 color: 'var(--white)',
                 fontFamily: isRTL ? 'var(--font-ar)' : 'var(--font-heading)',
               }}>

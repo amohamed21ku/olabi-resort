@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
-import { useParams, useSearchParams, Link, useNavigate } from 'react-router-dom'
+import { useParams, useSearchParams, Link, useNavigate, useLocation } from 'react-router-dom'
 import { useLanguage } from '../App'
 import { t } from '../translations'
 import { useRoom } from '../hooks/useRooms'
@@ -333,7 +333,10 @@ export default function RoomDetailPage() {
   const [searchParams, setSearchParams] = useSearchParams()
   const { language, isRTL } = useLanguage()
   const navigate = useNavigate()
+  const location = useLocation()
   const tr = (key) => t(language, key)
+
+  const cameFromHome = location.state?.from === '/'
 
   const { room, loading } = useRoom(roomId)
   const BackIcon = isRTL ? FiArrowRight : FiArrowLeft
@@ -421,13 +424,15 @@ export default function RoomDetailPage() {
       <div style={{ background: 'var(--white)', borderBottom: '1px solid var(--sand)', padding: '16px 0' }}>
         <div className="container">
           <button
-            onClick={() => navigate(`/rooms${bookingParams ? `?${bookingParams}` : ''}`)}
+            onClick={() => navigate(cameFromHome ? '/' : `/rooms${bookingParams ? `?${bookingParams}` : ''}`)}
             style={{ display: 'inline-flex', alignItems: 'center', gap: 8, color: 'var(--muted)', fontSize: 14, fontFamily: 'inherit', background: 'none', border: 'none', cursor: 'pointer', transition: 'color 0.2s' }}
             onMouseEnter={e => e.currentTarget.style.color = 'var(--terracotta)'}
             onMouseLeave={e => e.currentTarget.style.color = 'var(--muted)'}
           >
             <BackIcon size={16} />
-            {isRTL ? 'عودة إلى الغرف' : 'Back to Rooms'}
+            {cameFromHome
+              ? (isRTL ? 'العودة للرئيسية' : 'Back to Home')
+              : (isRTL ? 'عودة إلى الغرف' : 'Back to Rooms')}
           </button>
         </div>
       </div>

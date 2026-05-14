@@ -1,10 +1,11 @@
-import { Link } from 'react-router-dom'
+import { Link, useLocation } from 'react-router-dom'
 import { useLanguage } from '../App'
 import { t } from '../translations'
 import { FiUsers, FiMaximize2, FiArrowRight, FiArrowLeft } from 'react-icons/fi'
 
 export default function RoomCard({ room, checkIn, checkOut, guests, availability = null }) {
   const { language, isRTL } = useLanguage()
+  const location = useLocation()
   const tr = (key) => t(language, key)
 
   const name      = isRTL ? room.nameAr : room.nameEn
@@ -20,6 +21,7 @@ export default function RoomCard({ room, checkIn, checkOut, guests, availability
 
   const bookHref   = `/booking/${room.id}${bookingParams ? `?${bookingParams}` : ''}`
   const detailHref = `/rooms/${room.id}${bookingParams ? `?${bookingParams}` : ''}`
+  const linkState  = { from: location.pathname }
 
   const typeColors = {
     standard:  { bg: 'var(--linen)',       color: 'var(--charcoal)' },
@@ -45,7 +47,7 @@ export default function RoomCard({ room, checkIn, checkOut, guests, availability
       onMouseLeave={e => { e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = 'var(--shadow-card)' }}
     >
       {/* Image */}
-      <Link to={detailHref} style={{ display: 'block', position: 'relative', paddingTop: '65%', overflow: 'hidden', flexShrink: 0, background: '#f3f0ea' }}>
+      <Link to={detailHref} state={linkState} style={{ display: 'block', position: 'relative', paddingTop: '65%', overflow: 'hidden', flexShrink: 0, background: '#f3f0ea' }}>
         {mainImage ? (
           <img
             src={mainImage}
@@ -82,7 +84,7 @@ export default function RoomCard({ room, checkIn, checkOut, guests, availability
       <div className="card-body-room" style={{ padding: 20, display: 'flex', flexDirection: 'column', flex: 1, gap: 12 }}>
         {/* Name + Price */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
-          <Link to={detailHref}>
+          <Link to={detailHref} state={linkState}>
             <h3 className="card-name-room" style={{ fontSize: 17, fontWeight: 700, color: 'var(--ink)', lineHeight: 1.3, fontFamily: isRTL ? 'var(--font-ar)' : 'var(--font-heading)' }}>
               {name}
             </h3>
@@ -147,7 +149,7 @@ export default function RoomCard({ room, checkIn, checkOut, guests, availability
               {tr('rooms_bookNow')}
             </Link>
           )}
-          <Link to={detailHref} className="btn btn-outline btn-sm card-cta-details" style={{ gap: 6 }}>
+          <Link to={detailHref} state={linkState} className="btn btn-outline btn-sm card-cta-details" style={{ gap: 6 }}>
             {tr('rooms_details')}
             <ArrowIcon size={14} />
           </Link>

@@ -1,5 +1,5 @@
-import { BrowserRouter as Router, Routes, Route, useLocation } from 'react-router-dom'
-import { useState, createContext, useContext } from 'react'
+import { BrowserRouter as Router, Routes, Route, useLocation, useNavigationType } from 'react-router-dom'
+import { useState, useEffect, createContext, useContext } from 'react'
 import './App.css'
 import Header from './components/Header'
 import Footer from './components/Footer'
@@ -16,12 +16,28 @@ export function useLanguage() {
   return useContext(LanguageContext)
 }
 
+// Reset scroll on every PUSH/REPLACE navigation. POP (browser back/forward)
+// keeps the browser-restored position, and hash links handle their own scroll.
+function ScrollToTop() {
+  const { pathname, hash } = useLocation()
+  const navType = useNavigationType()
+
+  useEffect(() => {
+    if (navType === 'POP') return
+    if (hash) return
+    window.scrollTo(0, 0)
+  }, [pathname, hash, navType])
+
+  return null
+}
+
 function AppLayout() {
   const location = useLocation()
   const isAdmin  = location.pathname.startsWith('/admin')
 
   return (
     <>
+      <ScrollToTop />
       {!isAdmin && <Header />}
       <main style={isAdmin ? {} : { minHeight: 'calc(100vh - var(--header-h))' }}>
         <Routes>

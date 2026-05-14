@@ -6,7 +6,126 @@ import { useRooms, useCurrentlyBookedRoomIds } from '../hooks/useRooms'
 import SearchBar from '../components/SearchBar'
 import RoomCard from '../components/RoomCard'
 import DirectionsMap from '../components/DirectionsMap'
-import { FiPhone, FiMail, FiMapPin, FiChevronDown, FiSearch, FiNavigation } from 'react-icons/fi'
+import { FiPhone, FiMail, FiMapPin, FiChevronDown, FiSearch, FiNavigation, FiChevronLeft, FiChevronRight } from 'react-icons/fi'
+
+const ABOUT_IMAGES = [
+  '/static/images/assets/about-image.png',
+  '/static/images/assets/DSC02417.JPG',
+  '/static/images/assets/DSC02418.JPG',
+  '/static/images/assets/DSC02433.JPG',
+  '/static/images/assets/DSC02434.JPG',
+]
+
+function AboutCarousel({ isRTL }) {
+  const [idx, setIdx] = useState(0)
+  const [paused, setPaused] = useState(false)
+  const touchStartX = useRef(null)
+
+  useEffect(() => {
+    if (paused) return
+    const t = setInterval(() => setIdx(i => (i + 1) % ABOUT_IMAGES.length), 5000)
+    return () => clearInterval(t)
+  }, [paused])
+
+  const go = (n) => setIdx((n + ABOUT_IMAGES.length) % ABOUT_IMAGES.length)
+  const next = () => go(idx + 1)
+  const prev = () => go(idx - 1)
+
+  const onTouchStart = (e) => { touchStartX.current = e.touches[0].clientX }
+  const onTouchEnd = (e) => {
+    if (touchStartX.current == null) return
+    const dx = e.changedTouches[0].clientX - touchStartX.current
+    if (Math.abs(dx) > 40) (isRTL ? dx > 0 : dx < 0) ? next() : prev()
+    touchStartX.current = null
+  }
+
+  return (
+    <div
+      onMouseEnter={() => setPaused(true)}
+      onMouseLeave={() => setPaused(false)}
+      onTouchStart={onTouchStart}
+      onTouchEnd={onTouchEnd}
+      style={{
+        position: 'relative',
+        borderRadius: 'var(--radius-lg)',
+        overflow: 'hidden',
+        aspectRatio: '4/3',
+        background: '#e8e0d0',
+        order: isRTL ? 1 : 0,
+        boxShadow: 'var(--shadow-md)',
+      }}
+    >
+      {ABOUT_IMAGES.map((src, i) => (
+        <img
+          key={src}
+          src={src}
+          alt=""
+          loading={i === 0 ? 'eager' : 'lazy'}
+          style={{
+            position: 'absolute', inset: 0,
+            width: '100%', height: '100%',
+            objectFit: 'cover',
+            opacity: i === idx ? 1 : 0,
+            transition: 'opacity 0.7s ease',
+          }}
+        />
+      ))}
+
+      <button
+        onClick={isRTL ? next : prev}
+        aria-label={isRTL ? 'Next' : 'Previous'}
+        style={{
+          position: 'absolute', top: '50%', left: 12, transform: 'translateY(-50%)',
+          width: 38, height: 38, borderRadius: '50%',
+          background: 'rgba(255,255,255,0.85)', border: 'none',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          cursor: 'pointer', boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+          transition: 'background 0.2s',
+        }}
+        onMouseEnter={e => e.currentTarget.style.background = '#fff'}
+        onMouseLeave={e => e.currentTarget.style.background = 'rgba(255,255,255,0.85)'}
+      >
+        <FiChevronLeft size={20} color="var(--ink)" />
+      </button>
+      <button
+        onClick={isRTL ? prev : next}
+        aria-label={isRTL ? 'Previous' : 'Next'}
+        style={{
+          position: 'absolute', top: '50%', right: 12, transform: 'translateY(-50%)',
+          width: 38, height: 38, borderRadius: '50%',
+          background: 'rgba(255,255,255,0.85)', border: 'none',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          cursor: 'pointer', boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+          transition: 'background 0.2s',
+        }}
+        onMouseEnter={e => e.currentTarget.style.background = '#fff'}
+        onMouseLeave={e => e.currentTarget.style.background = 'rgba(255,255,255,0.85)'}
+      >
+        <FiChevronRight size={20} color="var(--ink)" />
+      </button>
+
+      <div style={{
+        position: 'absolute', bottom: 14, left: 0, right: 0,
+        display: 'flex', justifyContent: 'center', gap: 8,
+      }}>
+        {ABOUT_IMAGES.map((_, i) => (
+          <button
+            key={i}
+            onClick={() => go(i)}
+            aria-label={`Go to slide ${i + 1}`}
+            style={{
+              width: i === idx ? 22 : 8, height: 8, borderRadius: 6,
+              background: i === idx ? 'var(--white)' : 'rgba(255,255,255,0.55)',
+              border: 'none', padding: 0, cursor: 'pointer',
+              transition: 'all 0.3s',
+              boxShadow: '0 1px 3px rgba(0,0,0,0.25)',
+            }}
+          />
+        ))}
+      </div>
+    </div>
+  )
+}
 
 export default function HomePage() {
   const { language, isRTL } = useLanguage()
@@ -195,18 +314,7 @@ export default function HomePage() {
       <section id="about" className="section" style={{ background: 'var(--linen)' }}>
         <div className="container">
           <div className="about-grid">
-            <div style={{
-              borderRadius: 'var(--radius-lg)',
-              overflow: 'hidden',
-              aspectRatio: '4/3',
-              order: isRTL ? 1 : 0,
-            }}>
-              <img
-                src="/static/images/assets/about-image.png"
-                alt="Olabi Resort"
-                style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-              />
-            </div>
+            <AboutCarousel isRTL={isRTL} />
 
             <div>
               <p className="section-label">{tr('about_label')}</p>

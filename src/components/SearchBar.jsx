@@ -43,11 +43,11 @@ export default function SearchBar({ onDark = false, initialValues = {} }) {
   }
 
   const labelStyle = {
-    fontSize: '11px',
-    fontWeight: 600,
+    fontSize: '12px',
+    fontWeight: 700,
     textTransform: 'uppercase',
     letterSpacing: '0.8px',
-    color: 'var(--muted)',
+    color: 'var(--charcoal)',
     marginBottom: '7px',
     display: 'flex',
     alignItems: 'center',

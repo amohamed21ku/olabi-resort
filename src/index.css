@@ -44,7 +44,7 @@
   --shadow-lg:   0 10px 40px rgba(0,0,0,0.13);
   --shadow-card: 0 2px 12px rgba(0,0,0,0.08);
 
-  --header-h: 72px;
+  --header-h: 92px;
 }
 
 /* ─── Gallery shimmer skeleton ──────────────────────── */
@@ -428,9 +428,13 @@ input, select, textarea { font-family: inherit; }
     max-width: 100% !important;
     width: 100% !important;
   }
-  /* Hide text labels — icon + value is enough on mobile */
+  /* Compact but visible labels on mobile so check-in/check-out aren't ambiguous */
   .search-bar-field label {
-    display: none !important;
+    font-size: 11px !important;
+    margin-bottom: 5px !important;
+    letter-spacing: 0.5px !important;
+    color: var(--charcoal) !important;
+    font-weight: 700 !important;
   }
   /* Unify date/select sizing — iOS Safari's native chrome gives input[type=date]
      and <select> different intrinsic heights, so equal CSS padding produces unequal
