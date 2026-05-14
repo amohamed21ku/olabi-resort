@@ -23,35 +23,47 @@ export default function Footer() {
       paddingBottom: '32px',
     }}>
       <div className="container">
-        <div style={{
+        <div className="footer-grid" style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-          gap: '48px',
+          gridTemplateColumns: '1.8fr 1fr 1fr',
+          gap: '56px',
           marginBottom: '48px',
         }}>
           {/* Brand */}
-          <div>
-            <Link to="/" style={{ display: 'flex', alignItems: 'center', gap: '14px', marginBottom: '18px' }}>
-              <img
-                src="/static/images/assets/olabi-logo.jpg"
-                alt="Olabi Resort"
-                style={{
-                  width: 64, height: 64, borderRadius: '12px', objectFit: 'cover',
-                  background: 'rgba(255,250,240,0.96)',
-                  padding: 4, boxSizing: 'border-box',
-                  boxShadow: '0 4px 14px rgba(0,0,0,0.35)',
-                }}
-              />
+          <div style={{ minWidth: 0 }}>
+            <Link to="/" style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '18px', flexWrap: 'wrap' }}>
+              <span style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                height: 96,
+                padding: '8px 14px',
+                borderRadius: '14px',
+                background: '#ffffff',
+                boxShadow: '0 4px 14px rgba(0,0,0,0.35)',
+                flexShrink: 0,
+              }}>
+                <img
+                  src="/static/images/assets/olabi-logo.jpg"
+                  alt="Olabi Resort"
+                  style={{
+                    height: '100%',
+                    width: 'auto',
+                    objectFit: 'contain',
+                    display: 'block',
+                  }}
+                />
+              </span>
               <span style={{
                 fontWeight: 700,
-                fontSize: '20px',
+                fontSize: '22px',
                 color: 'var(--white)',
                 fontFamily: isRTL ? 'var(--font-ar)' : 'var(--font-heading)',
               }}>
                 {isRTL ? 'منتجع العلبي' : 'Olabi Resort'}
               </span>
             </Link>
-            <p style={{ fontSize: '14px', lineHeight: 1.75, maxWidth: '240px' }}>
+            <p style={{ fontSize: '14px', lineHeight: 1.75, maxWidth: '380px' }}>
               {tr('footer_tagline')}
             </p>
             {/* Social */}

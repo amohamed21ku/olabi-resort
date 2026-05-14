@@ -125,7 +125,7 @@ export const ar = {
   footer_tagline: 'ملاذك الجبلي في قلب سوريا',
   footer_links:   'روابط سريعة',
   footer_contact: 'اتصل بنا',
-  footer_rights:  '© 2025 منتجع العلبي. جميع الحقوق محفوظة.',
+  footer_rights:  '© 2026 منتجع العلبي. جميع الحقوق محفوظة.',
   footer_privacy: 'سياسة الخصوصية',
 
   // Common

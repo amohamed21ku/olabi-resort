@@ -855,9 +855,16 @@ input, select, textarea { font-family: inherit; }
   }
 }
 
-/* Footer mobile gap */
-@media (max-width: 767px) {
+/* Footer responsive grid */
+@media (max-width: 900px) {
   .footer-grid {
+    grid-template-columns: 1fr 1fr !important;
+    gap: 40px !important;
+  }
+}
+@media (max-width: 600px) {
+  .footer-grid {
+    grid-template-columns: 1fr !important;
     gap: 32px !important;
   }
 }

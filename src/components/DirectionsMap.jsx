@@ -193,7 +193,7 @@ export default function DirectionsMap() {
           />
           <path d={ROAD} fill="none" stroke="rgba(255,255,255,0.62)" strokeWidth="1.4" strokeLinecap="round" strokeDasharray="12 16" className="direction-dash" />
 
-          <g style={{ opacity: animate ? 1 : 0, transition: 'opacity 0.5s ease 2.3s' }}>
+          <g>
             <rect x="286" y="196" width="128" height="56" rx="12" fill="rgba(255,255,255,0.94)" filter="url(#softShadow)" />
             <text x="350" y="218" fill="#2d4429" fontSize="15" textAnchor="middle" fontWeight="800" fontFamily="system-ui,sans-serif">
               {copy.distance}
@@ -239,7 +239,7 @@ export default function DirectionsMap() {
             {copy.place}
           </text>
 
-          <g style={{ opacity: animate ? 1 : 0, transition: 'opacity 0.5s ease 2.8s' }}>
+          <g>
             <rect x="254" y="386" width="192" height="30" rx="15" fill="#3d5a3a" />
             <text x="350" y="406" fill="#ffffff" fontSize="12" textAnchor="middle" fontWeight="700" fontFamily="system-ui,sans-serif">
               {copy.title}

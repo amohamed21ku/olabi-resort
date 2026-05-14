@@ -319,36 +319,9 @@ export default function HomePage() {
             <div>
               <p className="section-label">{tr('about_label')}</p>
               <h2 className="section-title">{tr('about_title')}</h2>
-              <p style={{ fontSize: '16px', color: 'var(--charcoal)', lineHeight: 1.8, marginBottom: '36px' }}>
+              <p style={{ fontSize: '16px', color: 'var(--charcoal)', lineHeight: 1.8 }}>
                 {tr('about_body')}
               </p>
-
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px' }}>
-                {[
-                  { value: '40+',  label: tr('about_stat1') },
-                  { value: '8',    label: tr('about_stat2') },
-                  { value: '5k+',  label: tr('about_stat3') },
-                  { value: '1200', label: tr('about_stat4') },
-                ].map(({ value, label }) => (
-                  <div key={label} style={{
-                    background: 'var(--white)',
-                    borderRadius: 'var(--radius-md)',
-                    padding: '20px',
-                    boxShadow: 'var(--shadow-sm)',
-                  }}>
-                    <div style={{
-                      fontSize: '28px', fontWeight: 800,
-                      color: 'var(--terracotta)',
-                      lineHeight: 1, marginBottom: '6px',
-                    }}>
-                      {value}
-                    </div>
-                    <div style={{ fontSize: '13px', color: 'var(--muted)', lineHeight: 1.4 }}>
-                      {label}
-                    </div>
-                  </div>
-                ))}
-              </div>
             </div>
           </div>
         </div>
