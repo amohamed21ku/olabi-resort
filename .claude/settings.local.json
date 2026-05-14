@@ -14,7 +14,10 @@
       "Bash(ConvertTo-Json -Depth 100)",
       "Bash(Get-ChildItem -Path \"c:\\\\Users\\\\bodys\\\\Desktop\\\\Work\\\\olabi-resort\" -Recurse -Name)",
       "Bash(curl -s --max-time 10 https://olabi-resort.vercel.app/ -A \"Mozilla/5.0 \\(iPhone; CPU iPhone OS 17_4 like Mac OS X\\) AppleWebKit/605.1.15\" -o /tmp/olabi.html)",
-      "Bash(curl -s --max-time 15 https://olabi-resort.vercel.app/assets/index-BbyW3r3z.css)"
+      "Bash(curl -s --max-time 15 https://olabi-resort.vercel.app/assets/index-BbyW3r3z.css)",
+      "Bash(grep -o \"search-bar[^,{}@]*\")",
+      "Bash(curl -s --max-time 15 https://olabi-resort.vercel.app/)",
+      "Bash(curl -s --max-time 15 https://olabi-resort.vercel.app/assets/index-CgRCrB4o.css)"
     ],
     "deny": [],
     "ask": [],
