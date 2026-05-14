@@ -573,9 +573,9 @@ input, select, textarea { font-family: inherit; }
 /* Room detail page top padding on mobile */
 @media (max-width: 767px) {
   .room-detail-top {
-    padding-top: 20px !important;
-    /* Extra bottom space for sticky CTA bar */
-    padding-bottom: 96px !important;
+    padding-top: 12px !important;
+    /* Extra bottom space for sticky CTA bar (button height + safe-area home indicator) */
+    padding-bottom: 110px !important;
   }
 }
 
@@ -605,11 +605,12 @@ input, select, textarea { font-family: inherit; }
   .room-gallery-bleed {
     margin-left: -24px;
     margin-right: -24px;
+    margin-bottom: 4px;
   }
 
-  /* Taller aspect ratio on mobile so more of the room is visible */
+  /* Shorter aspect ratio on mobile so room info + booking CTA fit above the fold */
   .gallery-main-area {
-    aspect-ratio: 4/3 !important;
+    aspect-ratio: 16/10 !important;
     border-radius: 0 !important;
   }
 
@@ -617,15 +618,15 @@ input, select, textarea { font-family: inherit; }
   .gallery-thumb-strip {
     padding-left: 24px !important;
     padding-right: 24px !important;
-    margin-top: 8px !important;
-    margin-bottom: 14px !important;
+    margin-top: 6px !important;
+    margin-bottom: 10px !important;
     gap: 6px !important;
   }
 
   /* Bigger touch targets for arrows on mobile */
   .gallery-arrow {
-    width: 44px;
-    height: 44px;
+    width: 40px;
+    height: 40px;
     background: rgba(0,0,0,0.38);
     box-shadow: none;
   }
@@ -635,8 +636,8 @@ input, select, textarea { font-family: inherit; }
 
   /* Smaller thumbnails on mobile */
   .gallery-thumb-btn {
-    width: 60px !important;
-    height: 44px !important;
+    width: 56px !important;
+    height: 40px !important;
   }
 
   /* Breathing room for text content below gallery */
@@ -645,6 +646,35 @@ input, select, textarea { font-family: inherit; }
     overflow-wrap: break-word;
     word-break: break-word;
     min-width: 0;
+  }
+
+  /* Tighten inline-style margins on title/description so booking content reaches the screen */
+  .room-detail-content h1 {
+    font-size: 22px !important;
+    margin-bottom: 10px !important;
+    line-height: 1.2 !important;
+  }
+  .room-detail-content h3 {
+    font-size: 15px !important;
+    margin-bottom: 8px !important;
+  }
+  .room-detail-content > p {
+    font-size: 14.5px !important;
+    line-height: 1.6 !important;
+    margin-bottom: 18px !important;
+  }
+
+  /* Compact specs row */
+  .room-specs-row {
+    padding: 12px 0 !important;
+    margin-bottom: 16px !important;
+    gap: 12px !important;
+  }
+
+  /* Smaller amenities tiles so the list stays compact */
+  .amenities-grid > div {
+    padding: 8px 10px !important;
+    font-size: 13px !important;
   }
 }
 
