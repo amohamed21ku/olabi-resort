@@ -572,7 +572,7 @@ input, select, textarea { font-family: inherit; }
 /* Room detail page top padding on mobile */
 @media (max-width: 767px) {
   .room-detail-top {
-    padding-top: 0 !important;
+    padding-top: 20px !important;
     /* Extra bottom space for sticky CTA bar */
     padding-bottom: 96px !important;
   }
@@ -600,22 +600,6 @@ input, select, textarea { font-family: inherit; }
 
 /* ── Gallery mobile overrides ─────────────────────────── */
 @media (max-width: 767px) {
-  /* Full-bleed: pull the gallery outside the container's 24px padding */
-  .room-gallery-bleed {
-    margin-left: -24px;
-    margin-right: -24px;
-  }
-
-  /* No rounded corners when the image is edge-to-edge */
-  .gallery-main-area {
-    border-radius: 0 !important;
-  }
-
-  /* Give the text content some breathing room after the full-bleed gallery */
-  .room-detail-content {
-    padding: 16px 0 0;
-  }
-
   /* Bigger touch targets for arrows on mobile */
   .gallery-arrow {
     width: 44px;
@@ -627,12 +611,10 @@ input, select, textarea { font-family: inherit; }
   .gallery-arrow-left  { left: 10px; }
   .gallery-arrow-right { right: 10px; }
 
-  /* Thumbnail strip: pad back to align with page content */
+  /* Thumbnail strip */
   .gallery-thumb-strip {
-    padding-left: 24px !important;
-    padding-right: 24px !important;
-    margin-top: 10px !important;
-    margin-bottom: 16px !important;
+    margin-top: 8px !important;
+    margin-bottom: 14px !important;
     gap: 6px !important;
   }
 
@@ -640,6 +622,11 @@ input, select, textarea { font-family: inherit; }
   .gallery-thumb-btn {
     width: 60px !important;
     height: 44px !important;
+  }
+
+  /* Breathing room for text content below gallery */
+  .room-detail-content {
+    padding-top: 4px;
   }
 }
 
