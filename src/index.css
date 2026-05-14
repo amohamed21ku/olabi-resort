@@ -601,6 +601,27 @@ input, select, textarea { font-family: inherit; }
 
 /* ── Gallery mobile overrides ─────────────────────────── */
 @media (max-width: 767px) {
+  /* Full-bleed gallery on mobile — escape the container's 24px side padding */
+  .room-gallery-bleed {
+    margin-left: -24px;
+    margin-right: -24px;
+  }
+
+  /* Taller aspect ratio on mobile so more of the room is visible */
+  .gallery-main-area {
+    aspect-ratio: 4/3 !important;
+    border-radius: 0 !important;
+  }
+
+  /* Pull the thumb strip back inside the container padding */
+  .gallery-thumb-strip {
+    padding-left: 24px !important;
+    padding-right: 24px !important;
+    margin-top: 8px !important;
+    margin-bottom: 14px !important;
+    gap: 6px !important;
+  }
+
   /* Bigger touch targets for arrows on mobile */
   .gallery-arrow {
     width: 44px;
@@ -612,13 +633,6 @@ input, select, textarea { font-family: inherit; }
   .gallery-arrow-left  { left: 10px; }
   .gallery-arrow-right { right: 10px; }
 
-  /* Thumbnail strip */
-  .gallery-thumb-strip {
-    margin-top: 8px !important;
-    margin-bottom: 14px !important;
-    gap: 6px !important;
-  }
-
   /* Smaller thumbnails on mobile */
   .gallery-thumb-btn {
     width: 60px !important;
@@ -628,6 +642,9 @@ input, select, textarea { font-family: inherit; }
   /* Breathing room for text content below gallery */
   .room-detail-content {
     padding-top: 4px;
+    overflow-wrap: break-word;
+    word-break: break-word;
+    min-width: 0;
   }
 }
 
