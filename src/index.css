@@ -529,7 +529,9 @@ input, select, textarea { font-family: inherit; }
 
 @media (max-width: 767px) {
   .room-detail-grid {
-    grid-template-columns: 1fr;
+    /* minmax(0, 1fr) — without the 0 floor, long admin-entered words/URLs in the
+       description or amenities expand the column past viewport, causing horizontal scroll. */
+    grid-template-columns: minmax(0, 1fr);
     gap: 24px;
   }
   /* Booking card hidden on mobile — sticky bar is the primary CTA */
@@ -541,7 +543,7 @@ input, select, textarea { font-family: inherit; }
 /* Amenities — 2 cols on mobile, auto on desktop */
 .amenities-grid {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
 }
 
@@ -565,7 +567,7 @@ input, select, textarea { font-family: inherit; }
 @media (max-width: 480px) {
   .room-specs-row {
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
     gap: 16px;
   }
 }
@@ -643,9 +645,20 @@ input, select, textarea { font-family: inherit; }
   /* Breathing room for text content below gallery */
   .room-detail-content {
     padding-top: 4px;
-    overflow-wrap: break-word;
-    word-break: break-word;
     min-width: 0;
+    max-width: 100%;
+  }
+
+  /* Aggressive overflow protection — admin-entered text (URLs, hyphenated words,
+     long Arabic strings, pasted phone numbers) must never push the page wide. */
+  .room-detail-content,
+  .room-detail-content *,
+  .room-mobile-cta,
+  .room-mobile-cta * {
+    overflow-wrap: anywhere !important;
+    word-break: break-word !important;
+    max-width: 100%;
+    box-sizing: border-box;
   }
 
   /* Tighten inline-style margins on title/description so booking content reaches the screen */
@@ -669,12 +682,27 @@ input, select, textarea { font-family: inherit; }
     padding: 12px 0 !important;
     margin-bottom: 16px !important;
     gap: 12px !important;
+    min-width: 0;
   }
+  .room-specs-row > * { min-width: 0; }
 
-  /* Smaller amenities tiles so the list stays compact */
+  /* Amenities — let grid cells shrink and force long admin-entered text to wrap */
+  .amenities-grid {
+    min-width: 0;
+  }
   .amenities-grid > div {
     padding: 8px 10px !important;
     font-size: 13px !important;
+    min-width: 0;
+  }
+
+  /* Gallery hard width cap (image element shouldn't overflow even if inline styles drift) */
+  .gallery-main-area > img {
+    max-width: 100% !important;
+  }
+  .gallery-wrap {
+    max-width: 100vw;
+    overflow-x: hidden;
   }
 }
 
