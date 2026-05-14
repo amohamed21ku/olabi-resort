@@ -531,16 +531,9 @@ input, select, textarea { font-family: inherit; }
     grid-template-columns: 1fr;
     gap: 24px;
   }
-  /* Booking card comes after gallery/details naturally (DOM order) */
+  /* Booking card hidden on mobile — sticky bar is the primary CTA */
   .room-booking-card {
-    position: static !important;
-  }
-  /* Compact booking card padding on mobile */
-  .room-booking-card .booking-card-price {
-    padding: 16px !important;
-  }
-  .room-booking-card .booking-card-body {
-    padding: 16px !important;
+    display: none !important;
   }
 }
 
@@ -557,10 +550,55 @@ input, select, textarea { font-family: inherit; }
   }
 }
 
+/* Quick specs — 2×2 grid on small screens */
+.room-specs-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 24px;
+  padding: 20px 0;
+  border-top: 1px solid var(--sand);
+  border-bottom: 1px solid var(--sand);
+  margin-bottom: 28px;
+}
+
+@media (max-width: 480px) {
+  .room-specs-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+  }
+}
+
 /* Room detail page top padding on mobile */
 @media (max-width: 767px) {
   .room-detail-top {
-    padding-top: 24px !important;
+    padding-top: 20px !important;
+    /* Extra bottom space for sticky CTA bar */
+    padding-bottom: 88px !important;
+  }
+}
+
+/* ── Sticky mobile booking bar ────────────────────────── */
+.room-mobile-cta {
+  display: none;
+}
+
+@media (max-width: 767px) {
+  .room-mobile-cta {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    z-index: 200;
+    background: var(--white);
+    border-top: 1px solid var(--sand);
+    padding: 12px 20px;
+    padding-bottom: calc(12px + env(safe-area-inset-bottom));
+    box-shadow: 0 -4px 20px rgba(0,0,0,0.10);
   }
 }
 
