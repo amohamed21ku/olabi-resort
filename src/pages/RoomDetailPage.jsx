@@ -1,10 +1,155 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { useParams, useSearchParams, Link, useNavigate } from 'react-router-dom'
 import { useLanguage } from '../App'
 import { t } from '../translations'
 import { useRoom } from '../hooks/useRooms'
 import { checkAvailability } from '../firebase/services'
-import { FiUsers, FiMaximize2, FiArrowLeft, FiArrowRight, FiCheck, FiCalendar } from 'react-icons/fi'
+import { FiUsers, FiMaximize2, FiArrowLeft, FiArrowRight, FiCheck, FiCalendar, FiChevronLeft, FiChevronRight } from 'react-icons/fi'
+
+function ImageGallery({ images, name }) {
+  const [activeIdx, setActiveIdx]   = useState(0)
+  const [bgSrc, setBgSrc]           = useState(images[0])  // stable visible image
+  const [fgSrc, setFgSrc]           = useState(null)        // image being loaded on top
+  const [fgLoaded, setFgLoaded]     = useState(false)       // fg ready to fade in
+  const [bgReady, setBgReady]       = useState(false)       // first img loaded
+  const pendingUrl                  = useRef(null)
+  const preloaded                   = useRef(new Set([images[0]]))
+  const touchStartX                 = useRef(null)
+  const galleryRef                  = useRef(null)
+
+  const preload = useCallback((url) => {
+    if (!url || preloaded.current.has(url)) return
+    const img = new Image()
+    img.onload = () => preloaded.current.add(url)
+    img.src = url
+  }, [])
+
+  // Preload the rest of the gallery in the background once the hero is painted.
+  // Cached images switch instantly (see switchTo) — visitors on slow connections
+  // get a smooth scrub through all photos instead of waiting per swipe.
+  useEffect(() => {
+    if (images.length <= 1) return
+    const ric = window.requestIdleCallback || (cb => setTimeout(cb, 250))
+    const cic = window.cancelIdleCallback  || clearTimeout
+    const handle = ric(() => { images.slice(1).forEach(preload) }, { timeout: 2000 })
+    return () => cic(handle)
+  }, [images, preload])
+
+  const switchTo = useCallback((idx) => {
+    if (idx === activeIdx) return
+    const url = images[idx]
+    setActiveIdx(idx)
+    // Already cached → swap instantly, no fade-in wait.
+    if (preloaded.current.has(url)) {
+      pendingUrl.current = null
+      setFgSrc(null)
+      setFgLoaded(false)
+      setBgSrc(url)
+      return
+    }
+    pendingUrl.current = url
+    setFgLoaded(false)
+    setFgSrc(url)
+    preload(images[(idx + 1) % images.length])
+  }, [activeIdx, images, preload])
+
+  // When fg image finishes downloading: fade it in, then promote it to bg
+  const handleFgLoad = useCallback(() => {
+    const url = fgSrc
+    if (url !== pendingUrl.current) return // stale, user navigated again
+    preloaded.current.add(url)
+    setFgLoaded(true)
+    setTimeout(() => {
+      if (pendingUrl.current !== url) return
+      setBgSrc(url)
+      setFgSrc(null)
+      setFgLoaded(false)
+      pendingUrl.current = null
+    }, 300)
+  }, [fgSrc])
+
+  const prev = useCallback(() => switchTo(activeIdx === 0 ? images.length - 1 : activeIdx - 1), [switchTo, activeIdx, images.length])
+  const next = useCallback(() => switchTo(activeIdx === images.length - 1 ? 0 : activeIdx + 1), [switchTo, activeIdx, images.length])
+
+  useEffect(() => {
+    const el = galleryRef.current; if (!el) return
+    const h = (e) => { if (e.key === 'ArrowLeft') prev(); if (e.key === 'ArrowRight') next() }
+    el.addEventListener('keydown', h)
+    return () => el.removeEventListener('keydown', h)
+  }, [prev, next])
+
+  const onTouchStart = (e) => { touchStartX.current = e.touches[0].clientX }
+  const onTouchEnd = (e) => {
+    if (!touchStartX.current) return
+    const dx = e.changedTouches[0].clientX - touchStartX.current
+    if (Math.abs(dx) > 40) dx < 0 ? next() : prev()
+    touchStartX.current = null
+  }
+
+  return (
+    <div style={{ marginBottom: 12 }}>
+      <div
+        ref={galleryRef} tabIndex={0}
+        onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}
+        style={{ position: 'relative', borderRadius: 'var(--radius-lg)', overflow: 'hidden', aspectRatio: '16/9', background: '#e8e0d0', outline: 'none', cursor: images.length > 1 ? 'grab' : 'default' }}
+      >
+        {/* Shimmer while first image loads */}
+        {!bgReady && (
+          <div style={{ position: 'absolute', inset: 0, zIndex: 1, background: 'linear-gradient(90deg, #e8e0d0 25%, #f0e8d8 50%, #e8e0d0 75%)', backgroundSize: '200% 100%', animation: 'gallery-shimmer 1.4s infinite' }} />
+        )}
+
+        {/* BG: stable current image — stays visible while next loads */}
+        <img src={bgSrc} alt={name} decoding="async" fetchpriority="high"
+          onLoad={() => !bgReady && setBgReady(true)}
+          style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', zIndex: 2 }} />
+
+        {/* FG: new image fading in on top */}
+        {fgSrc && (
+          <img key={fgSrc} src={fgSrc} alt="" decoding="async"
+            onLoad={handleFgLoad}
+            style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', zIndex: 3, opacity: fgLoaded ? 1 : 0, transition: fgLoaded ? 'opacity 0.28s ease' : 'none' }} />
+        )}
+
+        {/* Tiny loading spinner while fg is downloading */}
+        {fgSrc && !fgLoaded && (
+          <div style={{ position: 'absolute', bottom: 16, left: '50%', transform: 'translateX(-50%)', zIndex: 10, width: 24, height: 24, borderRadius: '50%', border: '2.5px solid rgba(255,255,255,0.35)', borderTopColor: '#fff', animation: 'spin 0.65s linear infinite' }} />
+        )}
+
+        {images.length > 1 && (
+          <>
+            <button onClick={prev} aria-label="Previous image"
+              style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', zIndex: 10, background: 'rgba(255,255,255,0.92)', border: 'none', borderRadius: '50%', width: 40, height: 40, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', boxShadow: '0 2px 8px rgba(0,0,0,0.18)' }}>
+              <FiChevronLeft size={20} color="var(--ink)" />
+            </button>
+            <button onClick={next} aria-label="Next image"
+              style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', zIndex: 10, background: 'rgba(255,255,255,0.92)', border: 'none', borderRadius: '50%', width: 40, height: 40, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', boxShadow: '0 2px 8px rgba(0,0,0,0.18)' }}>
+              <FiChevronRight size={20} color="var(--ink)" />
+            </button>
+            <div style={{ position: 'absolute', bottom: 12, right: 12, zIndex: 10, background: 'rgba(0,0,0,0.52)', color: '#fff', borderRadius: 20, padding: '3px 10px', fontSize: 12, fontWeight: 600 }}>
+              {activeIdx + 1} / {images.length}
+            </div>
+          </>
+        )}
+      </div>
+
+      {/* Thumbnails — lazy loaded, share same URL so browser cache makes them instant after main view */}
+      {images.length > 1 && (
+        <div style={{ display: 'flex', gap: 8, marginTop: 10, marginBottom: 28, overflowX: 'auto', paddingBottom: 4 }}>
+          {images.map((img, i) => (
+            <button key={i} onClick={() => switchTo(i)}
+              style={{ flexShrink: 0, width: 76, height: 54, borderRadius: 'var(--radius-sm)', overflow: 'hidden', border: `2.5px solid ${activeIdx === i ? 'var(--terracotta)' : 'transparent'}`, padding: 0, cursor: 'pointer', background: '#e8e0d0', transition: 'border-color 0.18s, opacity 0.18s', opacity: activeIdx === i ? 1 : 0.7 }}
+              onMouseEnter={e => { if (activeIdx !== i) e.currentTarget.style.opacity = '1' }}
+              onMouseLeave={e => { if (activeIdx !== i) e.currentTarget.style.opacity = '0.7' }}
+            >
+              <img src={img} alt="" loading={i < 2 ? 'eager' : 'lazy'} decoding="async"
+                style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
 
 export default function RoomDetailPage() {
   const { roomId } = useParams()
@@ -20,7 +165,6 @@ export default function RoomDetailPage() {
   const checkOut = searchParams.get('checkOut') || ''
   const guests   = searchParams.get('guests')   || '2'
 
-  const [activeImg, setActiveImg]    = useState(0)
   const [available, setAvailable]    = useState(null)
   const [checkingAvail, setChecking] = useState(false)
 
@@ -90,25 +234,11 @@ export default function RoomDetailPage() {
         <div className="room-detail-grid">
           {/* Left: gallery + details */}
           <div>
-            {/* Main image */}
-            {images.length > 0 ? (
-              <>
-                <div style={{ borderRadius: 'var(--radius-lg)', overflow: 'hidden', aspectRatio: '16/9', marginBottom: 12 }}>
-                  <img src={images[activeImg]} alt={name} style={{ width: '100%', height: '100%', objectFit: 'cover', transition: 'opacity 0.3s' }} />
-                </div>
-                {images.length > 1 && (
-                  <div style={{ display: 'flex', gap: 10, marginBottom: 36 }}>
-                    {images.map((img, i) => (
-                      <button key={i} onClick={() => setActiveImg(i)} style={{ width: 80, height: 56, borderRadius: 'var(--radius-sm)', overflow: 'hidden', border: `2px solid ${activeImg === i ? 'var(--terracotta)' : 'transparent'}`, padding: 0, cursor: 'pointer', flexShrink: 0, transition: 'border-color 0.2s' }}>
-                        <img src={img} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </>
-            ) : (
-              <div style={{ borderRadius: 'var(--radius-lg)', aspectRatio: '16/9', marginBottom: 36, background: '#f3f0ea', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 64, color: '#ccc' }}>🏨</div>
-            )}
+            {/* Image gallery */}
+            {images.length > 0
+              ? <ImageGallery images={images} name={name} />
+              : <div style={{ borderRadius: 'var(--radius-lg)', aspectRatio: '16/9', marginBottom: 36, background: '#f3f0ea', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 64, color: '#ccc' }}>🏨</div>
+            }
 
             {/* Name + type */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12, flexWrap: 'wrap' }}>

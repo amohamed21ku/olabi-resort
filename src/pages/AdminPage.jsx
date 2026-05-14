@@ -2,256 +2,516 @@ import { useState, useEffect, useRef } from 'react'
 import { onAuthStateChanged, signInWithEmailAndPassword, signOut } from 'firebase/auth'
 import {
   collection, doc, onSnapshot, setDoc, updateDoc, deleteDoc,
-  query, orderBy, Timestamp,
+  query, orderBy, Timestamp, addDoc,
 } from 'firebase/firestore'
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage'
 import { auth, db, storage } from '../firebase/config'
 import { seedRooms } from '../firebase/seed'
+import { sendWhatsAppNotification } from '../firebase/services'
+import { compressImage } from '../utils/imageCompress'
 import {
-  FiLogOut, FiEdit2, FiTrash2, FiPlus, FiUpload, FiX,
-  FiCheck, FiAlertCircle, FiHome, FiImage, FiEye, FiEyeOff,
+  FiLogOut, FiEdit2, FiTrash2, FiPlus, FiUpload, FiX, FiCheck,
+  FiAlertCircle, FiHome, FiImage, FiEye, FiEyeOff, FiCalendar,
+  FiSearch, FiBookOpen, FiPhone, FiUser, FiMail, FiMessageSquare,
+  FiMenu, FiChevronUp, FiChevronDown, FiChevronRight, FiLayers, FiActivity,
+  FiCheckSquare, FiSliders, FiDatabase, FiClock, FiDollarSign,
+  FiUsers, FiArrowUp, FiArrowDown, FiMoreVertical, FiRefreshCw,
+  FiExternalLink, FiPlusCircle, FiToggleLeft, FiToggleRight,
+  FiCreditCard, FiStar, FiBell, FiSettings,
 } from 'react-icons/fi'
 
-// ─── Colour helpers ───────────────────────────────────────
+/* ─────────────────────────────────────────────────────────────
+   Constants
+───────────────────────────────────────────────────────────── */
 const STATUS = {
-  confirmed:    { label: 'مؤكد',           color: '#2563eb', bg: '#dbeafe' },
-  pending:      { label: 'معلق',           color: '#d97706', bg: '#fef3c7' },
-  'checked-in': { label: 'تسجيل وصول',    color: '#059669', bg: '#d1fae5' },
-  'checked-out':{ label: 'تسجيل مغادرة',  color: '#6b7280', bg: '#f3f4f6' },
-  cancelled:    { label: 'ملغى',           color: '#dc2626', bg: '#fee2e2' },
+  confirmed:    { label: 'مؤكد',        color: '#1d4ed8', bg: '#eff6ff', border: '#bfdbfe' },
+  pending:      { label: 'معلق',        color: '#b45309', bg: '#fffbeb', border: '#fde68a' },
+  'checked-in': { label: 'وصل',         color: '#15803d', bg: '#f0fdf4', border: '#bbf7d0' },
+  'checked-out':{ label: 'غادر',        color: '#6b7280', bg: '#f9fafb', border: '#e5e7eb' },
+  cancelled:    { label: 'ملغى',        color: '#b91c1c', bg: '#fef2f2', border: '#fecaca' },
 }
 
-const inp = {
-  width: '100%', padding: '9px 12px', border: '1px solid #D4C9B8',
-  borderRadius: 8, fontSize: 14, fontFamily: 'Cairo, Inter, sans-serif',
-  background: '#FFFDF9', color: '#1C1C14', boxSizing: 'border-box',
-  outline: 'none',
+const SOURCE_LABELS = {
+  phone:    'هاتف',
+  'walk-in':'حضور شخصي',
+  website:  'الموقع',
+  referral: 'إحالة',
+  other:    'أخرى',
 }
 
-const lbl = {
-  display: 'block', fontSize: 13, fontWeight: 600, color: '#5a5544',
-  marginBottom: 5, fontFamily: 'Cairo, sans-serif',
-}
+const NAV_SECTIONS = [
+  {
+    items: [
+      { id: 'dashboard',    label: 'نظرة عامة',   Icon: FiActivity },
+      { id: 'new-booking',  label: 'حجز جديد',    Icon: FiPlusCircle },
+    ],
+  },
+  {
+    title: 'الإدارة',
+    items: [
+      { id: 'bookings',     label: 'الحجوزات',    Icon: FiBookOpen },
+      { id: 'availability', label: 'الإتاحة',     Icon: FiCalendar },
+      { id: 'rooms',        label: 'الغرف',        Icon: FiLayers },
+    ],
+  },
+]
 
-// ─── Entry point ──────────────────────────────────────────
+/* ─────────────────────────────────────────────────────────────
+   Entry point
+───────────────────────────────────────────────────────────── */
 export default function AdminPage() {
-  const [user, setUser]     = useState(null)
-  const [ready, setReady]   = useState(false)
-
+  const [user, setUser]   = useState(null)
+  const [ready, setReady] = useState(false)
   useEffect(() => onAuthStateChanged(auth, u => { setUser(u); setReady(true) }), [])
-
-  if (!ready) return <Loader full />
+  if (!ready) return <FullLoader />
   if (!user)  return <LoginForm />
   return <Dashboard user={user} />
 }
 
-// ─── Login ────────────────────────────────────────────────
+/* ─────────────────────────────────────────────────────────────
+   Login
+───────────────────────────────────────────────────────────── */
 function LoginForm() {
   const [email, setEmail]       = useState('')
-  const [password, setPass]     = useState('')
+  const [pass,  setPass]        = useState('')
   const [loading, setLoading]   = useState(false)
-  const [error, setError]       = useState('')
-  const [showPass, setShowPass] = useState(false)
+  const [error,   setError]     = useState('')
+  const [showPass, setShow]     = useState(false)
 
-  const submit = async (e) => {
+  const submit = async e => {
     e.preventDefault(); setError(''); setLoading(true)
-    try {
-      await signInWithEmailAndPassword(auth, email, password)
-    } catch {
-      setError('البريد الإلكتروني أو كلمة المرور غير صحيحة')
-    } finally {
-      setLoading(false)
-    }
+    try { await signInWithEmailAndPassword(auth, email, pass) }
+    catch { setError('البريد الإلكتروني أو كلمة المرور غير صحيحة') }
+    finally { setLoading(false) }
   }
 
   return (
-    <div style={{ minHeight: '100vh', background: '#FDF8F2', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }} dir="rtl">
-      <div style={{ background: '#fff', borderRadius: 16, padding: '44px 40px', boxShadow: '0 4px 32px rgba(0,0,0,0.10)', width: '100%', maxWidth: 400 }}>
+    <div dir="rtl" style={{ minHeight: '100vh', background: '#F1F5F1', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'Cairo, sans-serif' }}>
+      <div style={{ width: '100%', maxWidth: 400, padding: '0 16px' }}>
+        {/* Brand mark */}
         <div style={{ textAlign: 'center', marginBottom: 32 }}>
-          <div style={{ fontSize: 36, marginBottom: 8 }}>🏨</div>
-          <h1 style={{ fontSize: 22, fontWeight: 700, color: '#1C1C14', fontFamily: 'Cairo, sans-serif', marginBottom: 4 }}>لوحة الإدارة</h1>
-          <p style={{ fontSize: 13, color: '#7A7860' }}>منتجع العلبي</p>
+          <div style={{ width: 48, height: 48, background: '#1C2B1C', borderRadius: 12, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', marginBottom: 16 }}>
+            <FiHome size={20} color="#86efac" />
+          </div>
+          <h1 style={{ fontSize: 20, fontWeight: 700, color: '#111827', marginBottom: 4 }}>منتجع العلبي</h1>
+          <p style={{ fontSize: 13, color: '#9CA3AF' }}>لوحة الإدارة</p>
         </div>
-        <form onSubmit={submit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-          <div>
-            <label style={lbl}>البريد الإلكتروني</label>
-            <input type="email" value={email} onChange={e => setEmail(e.target.value)} style={inp} required placeholder="admin@example.com" />
-          </div>
-          <div style={{ position: 'relative' }}>
-            <label style={lbl}>كلمة المرور</label>
-            <input type={showPass ? 'text' : 'password'} value={password} onChange={e => setPass(e.target.value)} style={{ ...inp, paddingLeft: 40 }} required placeholder="••••••••" />
-            <button type="button" onClick={() => setShowPass(s => !s)} style={{ position: 'absolute', left: 10, bottom: 9, background: 'none', border: 'none', cursor: 'pointer', color: '#7A7860', padding: 0 }}>
-              {showPass ? <FiEyeOff size={16} /> : <FiEye size={16} />}
+
+        <div style={{ background: '#fff', borderRadius: 16, border: '1px solid #E5E7EB', padding: '32px 28px', boxShadow: '0 1px 3px rgba(0,0,0,0.06), 0 4px 16px rgba(0,0,0,0.04)' }}>
+          <form onSubmit={submit} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            <div>
+              <label style={loginLbl}>البريد الإلكتروني</label>
+              <input type="email" value={email} onChange={e => setEmail(e.target.value)} required placeholder="admin@resort.com"
+                style={loginInp} onFocus={e => e.target.style.borderColor = '#3d5a3a'} onBlur={e => e.target.style.borderColor = '#E5E7EB'} />
+            </div>
+            <div>
+              <label style={loginLbl}>كلمة المرور</label>
+              <div style={{ position: 'relative' }}>
+                <input type={showPass ? 'text' : 'password'} value={pass} onChange={e => setPass(e.target.value)} required placeholder="••••••••"
+                  style={{ ...loginInp, paddingLeft: 40 }} onFocus={e => e.target.style.borderColor = '#3d5a3a'} onBlur={e => e.target.style.borderColor = '#E5E7EB'} />
+                <button type="button" onClick={() => setShow(s => !s)} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: '#9CA3AF', cursor: 'pointer', padding: 0, display: 'flex' }}>
+                  {showPass ? <FiEyeOff size={16} /> : <FiEye size={16} />}
+                </button>
+              </div>
+            </div>
+            {error && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, padding: '10px 12px' }}>
+                <FiAlertCircle size={14} color="#dc2626" style={{ flexShrink: 0 }} />
+                <span style={{ fontSize: 13, color: '#b91c1c' }}>{error}</span>
+              </div>
+            )}
+            <button type="submit" disabled={loading}
+              style={{ background: loading ? '#6b7280' : '#1C2B1C', color: '#fff', border: 'none', borderRadius: 10, padding: '12px 0', fontWeight: 700, fontSize: 14, fontFamily: 'Cairo, sans-serif', cursor: loading ? 'not-allowed' : 'pointer', marginTop: 4, transition: 'background 0.15s' }}>
+              {loading ? 'جارٍ التحقق...' : 'دخول'}
             </button>
-          </div>
-          {error && <p style={{ color: '#dc2626', fontSize: 13, display: 'flex', gap: 6, alignItems: 'center' }}><FiAlertCircle size={14} />{error}</p>}
-          <button type="submit" disabled={loading} style={{ background: '#3d5a3a', color: '#fff', border: 'none', borderRadius: 10, padding: '11px 0', fontWeight: 700, fontSize: 15, fontFamily: 'Cairo, sans-serif', cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.7 : 1, marginTop: 4 }}>
-            {loading ? 'جارٍ الدخول...' : 'دخول'}
-          </button>
-        </form>
-        <p style={{ fontSize: 12, color: '#aaa', textAlign: 'center', marginTop: 20, lineHeight: 1.7 }}>
-          يجب تفعيل Firebase Authentication وإضافة مستخدم admin من Firebase Console
-        </p>
+          </form>
+        </div>
       </div>
     </div>
   )
 }
+const loginLbl = { display: 'block', fontSize: 12, fontWeight: 600, color: '#374151', marginBottom: 6, letterSpacing: '0.01em' }
+const loginInp = { width: '100%', padding: '10px 14px', border: '1px solid #E5E7EB', borderRadius: 8, fontSize: 14, fontFamily: 'Cairo, sans-serif', color: '#111827', background: '#fff', outline: 'none', transition: 'border-color 0.15s', boxSizing: 'border-box' }
 
-// ─── Dashboard ────────────────────────────────────────────
+/* ─────────────────────────────────────────────────────────────
+   Dashboard shell
+───────────────────────────────────────────────────────────── */
 function Dashboard({ user }) {
-  const [tab, setTab]               = useState('rooms')
-  const [rooms, setRooms]           = useState([])
-  const [bookings, setBookings]     = useState([])
-  const [loadingRooms, setLR]       = useState(true)
-  const [loadingBookings, setLB]    = useState(true)
-  const [modalRoom, setModalRoom]   = useState(null) // null=closed, {}=new, room=edit
-  const [seeding, setSeeding]       = useState(false)
-  const [seedMsg, setSeedMsg]       = useState('')
+  const [tab, setTab]             = useState('dashboard')
+  const [mobileSidebar, setMob]   = useState(false)
+  const [rooms, setRooms]         = useState([])
+  const [bookings, setBookings]   = useState([])
+  const [loadingR, setLR]         = useState(true)
+  const [loadingB, setLB]         = useState(true)
+  const [editingRoom, setEditingRoom] = useState(null) // null = new, object = editing
+  const [seeding, setSeeding]         = useState(false)
+  const [seedMsg, setSeedMsg]     = useState('')
 
-  useEffect(() => {
-    return onSnapshot(collection(db, 'rooms'), snap => {
-      setRooms(snap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => parseInt(a.number) - parseInt(b.number)))
-      setLR(false)
-    })
-  }, [])
+  useEffect(() => onSnapshot(collection(db, 'rooms'), snap => {
+    setRooms(snap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => +a.number - +b.number))
+    setLR(false)
+  }), [])
 
   useEffect(() => {
     const q = query(collection(db, 'bookings'), orderBy('createdAt', 'desc'))
-    return onSnapshot(q, snap => {
-      setBookings(snap.docs.map(d => ({ id: d.id, ...d.data() })))
-      setLB(false)
-    })
+    return onSnapshot(q, snap => { setBookings(snap.docs.map(d => ({ id: d.id, ...d.data() }))); setLB(false) })
   }, [])
 
   const handleSeed = async () => {
-    if (!confirm('هل تريد إضافة الغرف الـ١٤ الحقيقية؟ سيتم الكتابة فوق أي غرفة موجودة بنفس الرقم.')) return
+    if (!confirm('إضافة الـ١٤ غرفة الحقيقية؟')) return
     setSeeding(true)
-    try {
-      const count = await seedRooms()
-      setSeedMsg(`✅ تم إضافة ${count} غرفة بنجاح`)
-    } catch (err) {
-      setSeedMsg(`❌ خطأ: ${err.message}`)
-    } finally {
-      setSeeding(false)
-      setTimeout(() => setSeedMsg(''), 5000)
-    }
+    try { const n = await seedRooms(); setSeedMsg(`تم إضافة ${n} غرفة بنجاح`) }
+    catch (e) { setSeedMsg(`خطأ: ${e.message}`) }
+    finally { setSeeding(false); setTimeout(() => setSeedMsg(''), 4000) }
   }
 
+  const pending = bookings.filter(b => b.status === 'pending').length
+  const navLabel = tab === 'room-form'
+    ? (editingRoom ? `تعديل: ${editingRoom.nameAr}` : 'إضافة غرفة جديدة')
+    : NAV_SECTIONS.flatMap(s => s.items).find(n => n.id === tab)?.label ?? ''
+
   return (
-    <div style={{ minHeight: '100vh', background: '#F5F0E8', fontFamily: 'Cairo, Inter, sans-serif' }} dir="rtl">
-      {/* Top bar */}
-      <div style={{ background: '#3d5a3a', color: '#fff', height: 56, padding: '0 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'sticky', top: 0, zIndex: 100 }}>
-        <span style={{ fontWeight: 700, fontSize: 17 }}>🏨 منتجع العلبي — لوحة الإدارة</span>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <span style={{ fontSize: 13, opacity: 0.75 }}>{user.email}</span>
-          <a href="/" target="_blank" style={{ display: 'flex', alignItems: 'center', gap: 5, background: 'rgba(255,255,255,0.15)', border: '1px solid rgba(255,255,255,0.2)', color: '#fff', padding: '5px 12px', borderRadius: 7, fontSize: 13, textDecoration: 'none' }}>
-            <FiHome size={13} /> الموقع
+    <div dir="rtl" style={{ minHeight: '100vh', background: '#F4F6F4', fontFamily: 'Cairo, sans-serif', display: 'flex' }}>
+      {/* Mobile backdrop */}
+      {mobileSidebar && <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 39 }} onClick={() => setMob(false)} />}
+
+      {/* ── Sidebar ── */}
+      <aside style={{
+        position: 'fixed', top: 0, right: 0, height: '100%', width: 240,
+        background: '#1C2B1C', display: 'flex', flexDirection: 'column', zIndex: 40,
+        borderLeft: '1px solid rgba(255,255,255,0.06)',
+        transform: mobileSidebar ? 'translateX(0)' : undefined,
+        transition: 'transform 0.25s',
+      }}>
+        {/* Logo */}
+        <div style={{ padding: '20px 20px 16px', borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div style={{ width: 34, height: 34, background: 'rgba(134,239,172,0.12)', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <FiHome size={16} color="#86efac" />
+            </div>
+            <div>
+              <p style={{ color: '#fff', fontSize: 14, fontWeight: 700, lineHeight: 1.2 }}>منتجع العلبي</p>
+              <p style={{ color: 'rgba(255,255,255,0.35)', fontSize: 10, letterSpacing: '0.05em', textTransform: 'uppercase' }}>Admin Panel</p>
+            </div>
+          </div>
+        </div>
+
+        {/* Nav */}
+        <nav style={{ flex: 1, padding: '12px 10px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 20 }}>
+          {NAV_SECTIONS.map((section, si) => (
+            <div key={si}>
+              {section.title && (
+                <p style={{ fontSize: 10, fontWeight: 700, color: 'rgba(255,255,255,0.25)', letterSpacing: '0.08em', textTransform: 'uppercase', padding: '0 10px', marginBottom: 6 }}>
+                  {section.title}
+                </p>
+              )}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                {section.items.map(({ id, label, Icon }) => {
+                  const active = tab === id
+                  const hasBadge = id === 'bookings' && pending > 0
+                  return (
+                    <button key={id} onClick={() => { setTab(id); setMob(false) }} style={{
+                      width: '100%', display: 'flex', alignItems: 'center', gap: 10,
+                      padding: '9px 10px', borderRadius: 8, border: 'none', cursor: 'pointer',
+                      background: active ? 'rgba(134,239,172,0.12)' : 'transparent',
+                      color: active ? '#86efac' : 'rgba(255,255,255,0.5)',
+                      fontSize: 13, fontFamily: 'Cairo, sans-serif', fontWeight: active ? 600 : 400,
+                      transition: 'all 0.15s', textAlign: 'right',
+                    }}
+                      onMouseEnter={e => { if (!active) { e.currentTarget.style.background = 'rgba(255,255,255,0.05)'; e.currentTarget.style.color = 'rgba(255,255,255,0.8)' } }}
+                      onMouseLeave={e => { if (!active) { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'rgba(255,255,255,0.5)' } }}
+                    >
+                      <Icon size={16} style={{ flexShrink: 0 }} />
+                      <span style={{ flex: 1 }}>{label}</span>
+                      {hasBadge && (
+                        <span style={{ background: '#fbbf24', color: '#78350f', fontSize: 10, fontWeight: 700, padding: '1px 7px', borderRadius: 100, lineHeight: '18px' }}>{pending}</span>
+                      )}
+                      {id === 'new-booking' && (
+                        <span style={{ background: 'rgba(134,239,172,0.15)', color: '#86efac', fontSize: 10, fontWeight: 700, padding: '1px 7px', borderRadius: 100, lineHeight: '18px' }}>جديد</span>
+                      )}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+          ))}
+        </nav>
+
+        {/* Footer */}
+        <div style={{ padding: '12px 10px', borderTop: '1px solid rgba(255,255,255,0.07)' }}>
+          <a href="/" target="_blank" style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px', borderRadius: 8, color: 'rgba(255,255,255,0.35)', fontSize: 12, textDecoration: 'none', transition: 'color 0.15s' }}
+            onMouseEnter={e => e.currentTarget.style.color = 'rgba(255,255,255,0.7)'}
+            onMouseLeave={e => e.currentTarget.style.color = 'rgba(255,255,255,0.35)'}>
+            <FiExternalLink size={14} /><span>عرض الموقع</span>
           </a>
-          <button onClick={() => signOut(auth)} style={{ display: 'flex', alignItems: 'center', gap: 5, background: 'rgba(255,255,255,0.15)', border: '1px solid rgba(255,255,255,0.2)', color: '#fff', padding: '5px 12px', borderRadius: 7, fontSize: 13, cursor: 'pointer' }}>
-            <FiLogOut size={13} /> خروج
+          <button onClick={() => signOut(auth)} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px', borderRadius: 8, border: 'none', background: 'none', color: 'rgba(255,255,255,0.35)', fontSize: 12, fontFamily: 'Cairo, sans-serif', cursor: 'pointer', transition: 'color 0.15s' }}
+            onMouseEnter={e => { e.currentTarget.style.color = '#fca5a5'; e.currentTarget.style.background = 'rgba(239,68,68,0.08)' }}
+            onMouseLeave={e => { e.currentTarget.style.color = 'rgba(255,255,255,0.35)'; e.currentTarget.style.background = 'none' }}>
+            <FiLogOut size={14} /><span>تسجيل الخروج</span>
           </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px', marginTop: 4, borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+            <div style={{ width: 28, height: 28, borderRadius: '50%', background: 'rgba(134,239,172,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <FiUser size={13} color="#86efac" />
+            </div>
+            <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{user.email}</p>
+          </div>
         </div>
+      </aside>
+
+      {/* ── Main ── */}
+      <div style={{ flex: 1, marginRight: 240, display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
+        {/* Top bar */}
+        <header style={{ background: '#fff', borderBottom: '1px solid #E5E7EB', padding: '0 28px', height: 56, display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'sticky', top: 0, zIndex: 20 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+            <button onClick={() => setMob(s => !s)} style={{ display: 'none', background: 'none', border: 'none', cursor: 'pointer', color: '#6B7280', padding: 4 }} className="mobile-menu-btn">
+              <FiMenu size={20} />
+            </button>
+            <div>
+              <h1 style={{ fontSize: 15, fontWeight: 700, color: '#111827' }}>{navLabel}</h1>
+            </div>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            {seedMsg && (
+              <span style={{ fontSize: 12, padding: '4px 12px', borderRadius: 6, background: '#f0fdf4', color: '#15803d', border: '1px solid #bbf7d0', fontWeight: 600 }}>
+                {seedMsg}
+              </span>
+            )}
+            <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#22c55e' }} />
+            <span style={{ fontSize: 12, color: '#9CA3AF' }}>متصل</span>
+          </div>
+        </header>
+
+        {/* Content */}
+        <main style={{ flex: 1, padding: '28px 28px' }}>
+          {tab === 'dashboard'    && <DashboardTab rooms={rooms} bookings={bookings} setTab={setTab} />}
+          {tab === 'rooms'        && <RoomsTab rooms={rooms} bookings={bookings} loading={loadingR} onAdd={() => { setEditingRoom(null); setTab('room-form') }} onEdit={r => { setEditingRoom(r); setTab('room-form') }} onSeed={handleSeed} seeding={seeding} />}
+          {tab === 'room-form'    && <RoomFormPage room={editingRoom} onBack={() => setTab('rooms')} />}
+          {tab === 'availability' && <AvailabilityTab rooms={rooms} bookings={bookings} loading={loadingR || loadingB} />}
+          {tab === 'bookings'     && <BookingsTab bookings={bookings} loading={loadingB} />}
+          {tab === 'new-booking'  && <NewBookingTab rooms={rooms} bookings={bookings} onDone={() => setTab('bookings')} />}
+        </main>
       </div>
 
-      {/* Tab bar */}
-      <div style={{ background: '#fff', borderBottom: '1px solid #E8E0D0', padding: '0 24px', display: 'flex', gap: 0 }}>
-        {[['rooms', `الغرف (${rooms.length})`], ['bookings', `الحجوزات (${bookings.length})`]].map(([id, label]) => (
-          <button key={id} onClick={() => setTab(id)} style={{ padding: '14px 20px', background: 'none', border: 'none', borderBottom: tab === id ? '2.5px solid #3d5a3a' : '2.5px solid transparent', color: tab === id ? '#3d5a3a' : '#7A7860', fontWeight: tab === id ? 700 : 400, cursor: 'pointer', fontSize: 14, fontFamily: 'Cairo, sans-serif' }}>
-            {label}
-          </button>
-        ))}
-      </div>
-
-      {/* Seed message */}
-      {seedMsg && (
-        <div style={{ background: seedMsg.startsWith('✅') ? '#d1fae5' : '#fee2e2', padding: '10px 24px', fontSize: 14, color: seedMsg.startsWith('✅') ? '#065f46' : '#991b1b', borderBottom: '1px solid #E8E0D0' }}>
-          {seedMsg}
-        </div>
-      )}
-
-      <div style={{ padding: 24, maxWidth: 1200, margin: '0 auto' }}>
-        {tab === 'rooms' && (
-          <RoomsTab
-            rooms={rooms}
-            loading={loadingRooms}
-            onAdd={() => setModalRoom({})}
-            onEdit={(r) => setModalRoom(r)}
-            onSeed={handleSeed}
-            seeding={seeding}
-          />
-        )}
-        {tab === 'bookings' && (
-          <BookingsTab bookings={bookings} loading={loadingBookings} rooms={rooms} />
-        )}
-      </div>
-
-      {/* Room modal */}
-      {modalRoom !== null && (
-        <RoomModal
-          room={Object.keys(modalRoom).length === 0 ? null : modalRoom}
-          onClose={() => setModalRoom(null)}
-        />
-      )}
     </div>
   )
 }
 
-// ─── Rooms tab ────────────────────────────────────────────
-function RoomsTab({ rooms, loading, onAdd, onEdit, onSeed, seeding }) {
-  const [search, setSearch] = useState('')
-  const [deleting, setDeleting] = useState(null)
+/* ─────────────────────────────────────────────────────────────
+   Dashboard tab
+───────────────────────────────────────────────────────────── */
+function DashboardTab({ rooms, bookings, setTab }) {
+  const active   = rooms.filter(r => r.active !== false).length
+  const occupied = bookings.filter(b => ['confirmed', 'checked-in'].includes(b.status)).length
+  const pending  = bookings.filter(b => b.status === 'pending').length
+  const revenue  = bookings.filter(b => b.status !== 'cancelled').reduce((s, b) => s + (b.totalPrice || 0), 0)
+  const recent   = bookings.slice(0, 6)
 
-  const filtered = rooms.filter(r =>
-    r.number?.includes(search) ||
-    r.nameAr?.includes(search) ||
-    r.nameEn?.toLowerCase().includes(search.toLowerCase())
-  )
+  const fmtD = d => { try { return (d?.toDate ? d.toDate() : new Date(d)).toLocaleDateString('ar-SY', { day: 'numeric', month: 'short' }) } catch { return '—' } }
 
-  const handleDelete = async (room) => {
-    if (!confirm(`هل تريد حذف الغرفة ${room.nameAr}؟ لا يمكن التراجع عن هذا.`)) return
-    setDeleting(room.id)
-    try { await deleteDoc(doc(db, 'rooms', room.id)) }
-    catch (err) { alert('فشل الحذف: ' + err.message) }
-    finally { setDeleting(null) }
-  }
-
-  const toggleActive = async (room) => {
-    await updateDoc(doc(db, 'rooms', room.id), { active: !room.active, updatedAt: Timestamp.now() })
-  }
-
-  if (loading) return <Loader />
+  const kpis = [
+    { label: 'إجمالي الغرف',    value: rooms.length,  sub: `${active} نشطة`,       Icon: FiLayers,     accent: '#3d5a3a' },
+    { label: 'حجوزات نشطة',     value: occupied,      sub: 'ضيف داخل المنتجع',     Icon: FiUsers,      accent: '#1d4ed8' },
+    { label: 'بانتظار التأكيد', value: pending,       sub: pending ? 'تحتاج مراجعة' : 'لا يوجد معلق', Icon: FiClock, accent: pending ? '#b45309' : '#6b7280' },
+    { label: 'إجمالي الإيرادات',value: `$${revenue.toLocaleString()}`, sub: 'كل الحجوزات غير الملغاة', Icon: FiCreditCard, accent: '#15803d' },
+  ]
 
   return (
-    <div>
-      {/* Action bar */}
-      <div style={{ display: 'flex', gap: 12, marginBottom: 20, flexWrap: 'wrap', alignItems: 'center' }}>
-        <input
-          value={search}
-          onChange={e => setSearch(e.target.value)}
-          placeholder="بحث برقم الغرفة أو الاسم..."
-          style={{ ...inp, width: 'auto', flex: 1, minWidth: 200 }}
-        />
-        <button onClick={onAdd} style={{ display: 'flex', alignItems: 'center', gap: 7, background: '#3d5a3a', color: '#fff', border: 'none', borderRadius: 9, padding: '9px 18px', fontWeight: 700, cursor: 'pointer', fontSize: 14, fontFamily: 'Cairo, sans-serif', whiteSpace: 'nowrap' }}>
-          <FiPlus size={16} /> إضافة غرفة
-        </button>
-        <button onClick={onSeed} disabled={seeding} style={{ display: 'flex', alignItems: 'center', gap: 7, background: '#fff', color: '#3d5a3a', border: '1.5px solid #3d5a3a', borderRadius: 9, padding: '9px 18px', fontWeight: 700, cursor: seeding ? 'not-allowed' : 'pointer', fontSize: 14, fontFamily: 'Cairo, sans-serif', whiteSpace: 'nowrap', opacity: seeding ? 0.6 : 1 }}>
-          {seeding ? '⏳ جارٍ الإضافة...' : '📋 إضافة الـ١٤ غرفة'}
-        </button>
+    <div style={{ maxWidth: 1100, display: 'flex', flexDirection: 'column', gap: 24 }}>
+      {/* KPI cards */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16 }}>
+        {kpis.map(k => (
+          <div key={k.label} style={{ background: '#fff', borderRadius: 12, border: '1px solid #E5E7EB', padding: '20px 20px', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 14 }}>
+              <div style={{ width: 36, height: 36, background: k.accent + '12', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <k.Icon size={16} color={k.accent} />
+              </div>
+            </div>
+            <p style={{ fontSize: 26, fontWeight: 700, color: '#111827', lineHeight: 1, marginBottom: 6 }}>{k.value}</p>
+            <p style={{ fontSize: 12, color: '#6B7280', marginBottom: 2 }}>{k.label}</p>
+            <p style={{ fontSize: 11, color: '#9CA3AF' }}>{k.sub}</p>
+          </div>
+        ))}
       </div>
 
-      {/* Rooms count */}
-      <p style={{ fontSize: 13, color: '#7A7860', marginBottom: 16 }}>{filtered.length} غرفة</p>
-
-      {/* Rooms grid */}
-      {filtered.length === 0 ? (
-        <div style={{ textAlign: 'center', padding: '60px 0', color: '#7A7860' }}>
-          <p style={{ fontSize: 32, marginBottom: 12 }}>🏨</p>
-          <p style={{ marginBottom: 16 }}>لا توجد غرف بعد. اضغط "إضافة الـ١٤ غرفة" لإضافة الغرف الحقيقية.</p>
+      {/* Recent bookings + quick actions */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 280px', gap: 16 }}>
+        {/* Recent bookings table */}
+        <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #E5E7EB', overflow: 'hidden', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 20px', borderBottom: '1px solid #F3F4F6' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <FiBookOpen size={15} color="#6B7280" />
+              <span style={{ fontSize: 13, fontWeight: 700, color: '#111827' }}>آخر الحجوزات</span>
+            </div>
+            <button onClick={() => setTab('bookings')} style={{ fontSize: 12, color: '#3d5a3a', fontWeight: 600, background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'Cairo, sans-serif' }}>عرض الكل</button>
+          </div>
+          {recent.length === 0 ? (
+            <div style={{ padding: '40px 20px', textAlign: 'center', color: '#9CA3AF', fontSize: 13 }}>لا توجد حجوزات بعد</div>
+          ) : (
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <thead>
+                <tr style={{ borderBottom: '1px solid #F3F4F6' }}>
+                  {['الضيف', 'الغرفة', 'الوصول', 'المغادرة', 'الحالة'].map(h => (
+                    <th key={h} style={{ padding: '10px 16px', textAlign: 'right', fontSize: 11, fontWeight: 600, color: '#9CA3AF', letterSpacing: '0.03em', textTransform: 'uppercase' }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {recent.map((b, i) => {
+                  const s = STATUS[b.status] || STATUS.confirmed
+                  return (
+                    <tr key={b.id} style={{ borderBottom: i < recent.length - 1 ? '1px solid #F9FAFB' : 'none', transition: 'background 0.1s' }}
+                      onMouseEnter={e => e.currentTarget.style.background = '#FAFAFA'}
+                      onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                      <td style={{ padding: '12px 16px' }}>
+                        <p style={{ fontSize: 13, fontWeight: 600, color: '#111827' }}>{b.guestName}</p>
+                        <p style={{ fontSize: 11, color: '#9CA3AF' }}>{b.guestPhone}</p>
+                      </td>
+                      <td style={{ padding: '12px 16px', fontSize: 13, color: '#374151' }}>{b.roomNameAr}</td>
+                      <td style={{ padding: '12px 16px', fontSize: 12, color: '#6B7280' }}>{fmtD(b.checkIn)}</td>
+                      <td style={{ padding: '12px 16px', fontSize: 12, color: '#6B7280' }}>{fmtD(b.checkOut)}</td>
+                      <td style={{ padding: '12px 16px' }}>
+                        <StatusPill status={b.status} />
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          )}
         </div>
+
+        {/* Quick actions */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <div style={{ background: '#1C2B1C', borderRadius: 12, padding: '20px 20px', border: '1px solid rgba(255,255,255,0.06)' }}>
+            <p style={{ fontSize: 11, fontWeight: 700, color: 'rgba(255,255,255,0.3)', letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 14 }}>إجراءات سريعة</p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {[
+                { label: 'إنشاء حجز جديد', id: 'new-booking', Icon: FiPlusCircle, accent: '#86efac' },
+                { label: 'إدارة الحجوزات', id: 'bookings',    Icon: FiBookOpen,   accent: 'rgba(255,255,255,0.6)' },
+                { label: 'فحص الإتاحة',    id: 'availability',Icon: FiCalendar,   accent: 'rgba(255,255,255,0.6)' },
+              ].map(item => (
+                <button key={item.id} onClick={() => setTab(item.id)} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', borderRadius: 8, border: 'none', background: 'rgba(255,255,255,0.06)', color: item.accent, fontSize: 13, fontFamily: 'Cairo, sans-serif', fontWeight: 500, cursor: 'pointer', textAlign: 'right', transition: 'background 0.15s' }}
+                  onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.12)'}
+                  onMouseLeave={e => e.currentTarget.style.background = 'rgba(255,255,255,0.06)'}>
+                  <item.Icon size={15} />
+                  {item.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #E5E7EB', padding: '20px 20px', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
+            <p style={{ fontSize: 11, fontWeight: 700, color: '#9CA3AF', letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 14 }}>إحصائيات الحجوزات</p>
+            {Object.entries(STATUS).map(([k, v]) => {
+              const count = bookings.filter(b => b.status === k).length
+              const pct   = bookings.length ? Math.round(count / bookings.length * 100) : 0
+              return (
+                <div key={k} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+                  <StatusPill status={k} />
+                  <div style={{ flex: 1, height: 4, background: '#F3F4F6', borderRadius: 4, overflow: 'hidden' }}>
+                    <div style={{ height: '100%', width: pct + '%', background: v.color, borderRadius: 4, transition: 'width 0.4s' }} />
+                  </div>
+                  <span style={{ fontSize: 12, fontWeight: 700, color: '#374151', minWidth: 24, textAlign: 'left' }}>{count}</span>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+/* ─────────────────────────────────────────────────────────────
+   Rooms tab
+───────────────────────────────────────────────────────────── */
+function RoomsTab({ rooms, bookings, loading, onAdd, onEdit, onSeed, seeding }) {
+  const [search,      setSearch]  = useState('')
+  const [floorF,      setFloor]   = useState('all')
+  const [typeF,       setType]    = useState('all')
+  const [activeF,     setActive]  = useState('all')
+  const [deleting,    setDel]     = useState(null)
+
+  const floors   = ['all', ...new Set(rooms.map(r => r.floor).filter(Boolean).sort())]
+  const types    = ['all', ...new Set(rooms.map(r => r.type).filter(Boolean).sort())]
+  const activeBookings  = bookings.filter(b => ['confirmed', 'pending', 'checked-in'].includes(b.status))
+  const occupiedIds     = new Set(activeBookings.map(b => b.roomId))
+
+  const filtered = rooms.filter(r => {
+    const q = search.toLowerCase()
+    return (!search || r.number?.includes(q) || r.nameAr?.includes(search) || r.nameEn?.toLowerCase().includes(q) || r.type?.toLowerCase().includes(q))
+      && (floorF  === 'all' || String(r.floor) === String(floorF))
+      && (typeF   === 'all' || r.type === typeF)
+      && (activeF === 'all' || (activeF === 'active' ? r.active !== false : r.active === false))
+  })
+
+  const handleDelete = async room => {
+    if (!confirm(`حذف "${room.nameAr}"؟`)) return
+    setDel(room.id)
+    try { await deleteDoc(doc(db, 'rooms', room.id)) }
+    catch (e) { alert(e.message) }
+    finally { setDel(null) }
+  }
+  const toggleActive = r => updateDoc(doc(db, 'rooms', r.id), { active: !r.active, updatedAt: Timestamp.now() })
+
+  if (loading) return <PageLoader />
+
+  const chips = [
+    { label: 'إجمالي',  v: rooms.length,                                 c: '#374151', bg: '#F3F4F6' },
+    { label: 'نشطة',    v: rooms.filter(r => r.active !== false).length,  c: '#15803d', bg: '#f0fdf4' },
+    { label: 'مخفية',   v: rooms.filter(r => r.active === false).length,   c: '#b91c1c', bg: '#fef2f2' },
+    { label: 'محجوزة',  v: occupiedIds.size,                              c: '#1d4ed8', bg: '#eff6ff' },
+    { label: 'مميزة',   v: rooms.filter(r => r.featured).length,           c: '#b45309', bg: '#fffbeb' },
+  ]
+
+  return (
+    <div style={{ maxWidth: 1100, display: 'flex', flexDirection: 'column', gap: 20 }}>
+      {/* Chips */}
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+        {chips.map(c => (
+          <div key={c.label} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 14px', borderRadius: 8, background: c.bg, border: `1px solid ${c.c}20` }}>
+            <span style={{ fontSize: 16, fontWeight: 700, color: c.c, lineHeight: 1 }}>{c.v}</span>
+            <span style={{ fontSize: 12, color: c.c, opacity: 0.8 }}>{c.label}</span>
+          </div>
+        ))}
+      </div>
+
+      {/* Toolbar */}
+      <div style={{ background: '#fff', borderRadius: 10, border: '1px solid #E5E7EB', padding: '12px 16px', display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
+        <div style={{ position: 'relative', flex: 1, minWidth: 200 }}>
+          <FiSearch size={14} style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', color: '#9CA3AF', pointerEvents: 'none' }} />
+          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="بحث برقم الغرفة أو الاسم أو النوع..."
+            style={{ ...filterInp, paddingRight: 36 }} />
+        </div>
+        <select value={floorF} onChange={e => setFloor(e.target.value)} style={filterInp}>
+          <option value="all">كل الطوابق</option>
+          {floors.filter(f => f !== 'all').map(f => <option key={f} value={f}>الطابق {f}</option>)}
+        </select>
+        <select value={typeF} onChange={e => setType(e.target.value)} style={filterInp}>
+          <option value="all">كل الأنواع</option>
+          {types.filter(t => t !== 'all').map(t => <option key={t} value={t}>{t}</option>)}
+        </select>
+        <select value={activeF} onChange={e => setActive(e.target.value)} style={filterInp}>
+          <option value="all">كل الحالات</option>
+          <option value="active">نشطة فقط</option>
+          <option value="inactive">مخفية فقط</option>
+        </select>
+        <div style={{ display: 'flex', gap: 8, marginRight: 'auto' }}>
+          <Btn onClick={onSeed} disabled={seeding} variant="outline" icon={<FiDatabase size={14} />}>{seeding ? 'جارٍ...' : 'إضافة الـ١٤ غرفة'}</Btn>
+          <Btn onClick={onAdd} icon={<FiPlus size={14} />}>إضافة غرفة</Btn>
+        </div>
+      </div>
+
+      <p style={{ fontSize: 12, color: '#9CA3AF' }}>{filtered.length} غرفة</p>
+
+      {filtered.length === 0 ? (
+        <Empty icon={<FiLayers size={28} />} text="لا توجد غرف. اضغط «إضافة الـ١٤ غرفة» للبدء." />
       ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: 16 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 14 }}>
           {filtered.map(room => (
-            <RoomCard key={room.id} room={room} onEdit={onEdit} onDelete={handleDelete} onToggle={toggleActive} deleting={deleting === room.id} />
+            <RoomCard key={room.id} room={room} onEdit={onEdit} onDelete={handleDelete} onToggle={toggleActive}
+              deleting={deleting === room.id} isOccupied={occupiedIds.has(room.id)}
+              booking={activeBookings.find(b => b.roomId === room.id)} />
           ))}
         </div>
       )}
@@ -259,44 +519,62 @@ function RoomsTab({ rooms, loading, onAdd, onEdit, onSeed, seeding }) {
   )
 }
 
-function RoomCard({ room, onEdit, onDelete, onToggle, deleting }) {
-  const mainImg = room.images?.[0]
+function RoomCard({ room, onEdit, onDelete, onToggle, deleting, isOccupied, booking }) {
   return (
-    <div style={{ background: '#fff', borderRadius: 12, overflow: 'hidden', boxShadow: '0 1px 8px rgba(0,0,0,0.07)', border: '1px solid #E8E0D0', opacity: room.active === false ? 0.6 : 1 }}>
-      <div style={{ height: 160, background: '#f3f0ea', position: 'relative' }}>
-        {mainImg ? (
-          <img src={mainImg} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-        ) : (
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: '#bbb' }}>
-            <FiImage size={40} />
-          </div>
-        )}
-        <span style={{ position: 'absolute', top: 10, right: 10, background: room.active !== false ? '#d1fae5' : '#fee2e2', color: room.active !== false ? '#065f46' : '#991b1b', fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 100 }}>
-          {room.active !== false ? 'نشطة' : 'مخفية'}
-        </span>
-        {room.featured && (
-          <span style={{ position: 'absolute', top: 10, left: 10, background: '#fef3c7', color: '#92400e', fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 100 }}>مميزة</span>
-        )}
-      </div>
-      <div style={{ padding: '14px 16px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
-          <div>
-            <p style={{ fontWeight: 700, fontSize: 16, color: '#1C1C14', marginBottom: 2 }}>{room.nameAr}</p>
-            <p style={{ fontSize: 12, color: '#7A7860' }}>رقم {room.number} · الطابق {room.floor} · {room.capacity} أشخاص</p>
-          </div>
-          <span style={{ fontSize: 15, fontWeight: 700, color: '#3d5a3a' }}>
-            {room.price ? `$${room.price}` : 'عند الطلب'}
+    <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #E5E7EB', overflow: 'hidden', boxShadow: '0 1px 3px rgba(0,0,0,0.04)', opacity: room.active === false ? 0.65 : 1, transition: 'box-shadow 0.15s' }}
+      onMouseEnter={e => e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.08)'}
+      onMouseLeave={e => e.currentTarget.style.boxShadow = '0 1px 3px rgba(0,0,0,0.04)'}>
+      {/* Image */}
+      <div style={{ height: 152, background: '#F3F4F6', position: 'relative', overflow: 'hidden' }}>
+        {room.images?.[0]
+          ? <img src={room.images[0]} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+          : <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><FiImage size={28} color="#D1D5DB" /></div>}
+        {/* Badges */}
+        <div style={{ position: 'absolute', top: 10, right: 10 }}>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11, fontWeight: 600, padding: '3px 9px', borderRadius: 6, background: room.active !== false ? '#f0fdf4' : '#F9FAFB', color: room.active !== false ? '#15803d' : '#6B7280', border: `1px solid ${room.active !== false ? '#bbf7d0' : '#E5E7EB'}` }}>
+            {room.active !== false ? <FiEye size={10} /> : <FiEyeOff size={10} />}
+            {room.active !== false ? 'نشطة' : 'مخفية'}
           </span>
         </div>
-        <p style={{ fontSize: 12, color: '#9a9282', marginBottom: 12 }}>{room.bedsAr}</p>
-        <div style={{ display: 'flex', gap: 8 }}>
-          <button onClick={() => onEdit(room)} style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, background: '#3d5a3a', color: '#fff', border: 'none', borderRadius: 8, padding: '8px 0', cursor: 'pointer', fontSize: 13, fontFamily: 'Cairo, sans-serif', fontWeight: 600 }}>
-            <FiEdit2 size={13} /> تعديل
+        <div style={{ position: 'absolute', top: 10, left: 10, display: 'flex', gap: 4 }}>
+          {isOccupied && <span style={{ fontSize: 11, fontWeight: 600, padding: '3px 9px', borderRadius: 6, background: '#eff6ff', color: '#1d4ed8', border: '1px solid #bfdbfe' }}>محجوزة</span>}
+          {!isOccupied && room.active !== false && <span style={{ fontSize: 11, fontWeight: 600, padding: '3px 9px', borderRadius: 6, background: '#f0fdf4', color: '#15803d', border: '1px solid #bbf7d0' }}>متاحة</span>}
+          {room.featured && <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 11, fontWeight: 600, padding: '3px 9px', borderRadius: 6, background: '#fffbeb', color: '#b45309', border: '1px solid #fde68a' }}><FiStar size={9} />مميزة</span>}
+        </div>
+      </div>
+
+      {/* Body */}
+      <div style={{ padding: '14px 16px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 6 }}>
+          <div>
+            <p style={{ fontSize: 14, fontWeight: 700, color: '#111827', marginBottom: 2 }}>{room.nameAr}</p>
+            <p style={{ fontSize: 12, color: '#9CA3AF' }}>غرفة {room.number} · الطابق {room.floor} · {room.capacity} أشخاص</p>
+          </div>
+          <p style={{ fontSize: 14, fontWeight: 700, color: '#3d5a3a', flexShrink: 0 }}>{room.price ? `$${room.price}` : 'عند الطلب'}</p>
+        </div>
+        {room.type && <span style={{ display: 'inline-block', fontSize: 11, fontWeight: 600, color: '#6B7280', background: '#F3F4F6', padding: '2px 8px', borderRadius: 5, marginBottom: 6 }}>{room.type}</span>}
+        {room.bedsAr && <p style={{ fontSize: 12, color: '#9CA3AF', marginBottom: booking ? 10 : 14 }}>{room.bedsAr}</p>}
+        {booking && (
+          <div style={{ background: '#F8FAFF', border: '1px solid #DBEAFE', borderRadius: 8, padding: '8px 10px', marginBottom: 12, fontSize: 12 }}>
+            <p style={{ fontWeight: 700, color: '#1E40AF', marginBottom: 2 }}>{booking.guestName}</p>
+            <p style={{ color: '#3B82F6' }}>{booking.guestPhone}</p>
+          </div>
+        )}
+        {/* Actions */}
+        <div style={{ display: 'flex', gap: 6 }}>
+          <button onClick={() => onEdit(room)} style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, background: '#1C2B1C', color: '#fff', border: 'none', borderRadius: 8, padding: '8px 0', fontSize: 12, fontFamily: 'Cairo, sans-serif', fontWeight: 600, cursor: 'pointer', transition: 'background 0.15s' }}
+            onMouseEnter={e => e.currentTarget.style.background = '#2d4429'}
+            onMouseLeave={e => e.currentTarget.style.background = '#1C2B1C'}>
+            <FiEdit2 size={12} /> تعديل
           </button>
-          <button onClick={() => onToggle(room)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, background: '#f5f0e8', color: '#5a5544', border: '1px solid #D4C9B8', borderRadius: 8, padding: '8px 12px', cursor: 'pointer', fontSize: 13, fontFamily: 'Cairo, sans-serif' }}>
+          <button onClick={() => onToggle(room)} title={room.active !== false ? 'إخفاء' : 'إظهار'} style={{ padding: '8px 10px', borderRadius: 8, border: '1px solid #E5E7EB', background: '#fff', color: '#6B7280', cursor: 'pointer', display: 'flex', alignItems: 'center', transition: 'all 0.15s' }}
+            onMouseEnter={e => { e.currentTarget.style.background = '#F9FAFB'; e.currentTarget.style.borderColor = '#D1D5DB' }}
+            onMouseLeave={e => { e.currentTarget.style.background = '#fff'; e.currentTarget.style.borderColor = '#E5E7EB' }}>
             {room.active !== false ? <FiEyeOff size={13} /> : <FiEye size={13} />}
           </button>
-          <button onClick={() => onDelete(room)} disabled={deleting} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#fee2e2', color: '#dc2626', border: 'none', borderRadius: 8, padding: '8px 12px', cursor: deleting ? 'not-allowed' : 'pointer' }}>
+          <button onClick={() => onDelete(room)} disabled={deleting} style={{ padding: '8px 10px', borderRadius: 8, border: '1px solid #FECACA', background: '#FEF2F2', color: '#DC2626', cursor: deleting ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', transition: 'all 0.15s' }}
+            onMouseEnter={e => { e.currentTarget.style.background = '#FEE2E2'; e.currentTarget.style.borderColor = '#FCA5A5' }}
+            onMouseLeave={e => { e.currentTarget.style.background = '#FEF2F2'; e.currentTarget.style.borderColor = '#FECACA' }}>
             <FiTrash2 size={13} />
           </button>
         </div>
@@ -305,22 +583,603 @@ function RoomCard({ room, onEdit, onDelete, onToggle, deleting }) {
   )
 }
 
-// ─── Room modal (add / edit) ──────────────────────────────
-const ROOM_TYPES = [
-  { value: 'family',    label: 'عائلية' },
-  { value: 'standard',  label: 'عادية' },
-  { value: 'deluxe',    label: 'ديلوكس' },
-  { value: 'suite',     label: 'جناح' },
-  { value: 'penthouse', label: 'بنتهاوس' },
-]
+/* ─────────────────────────────────────────────────────────────
+   Availability tab
+───────────────────────────────────────────────────────────── */
+function AvailabilityTab({ rooms, bookings, loading }) {
+  const today    = new Date().toISOString().split('T')[0]
+  const tomorrow = new Date(Date.now() + 86400000).toISOString().split('T')[0]
+  const [from, setFrom] = useState(today)
+  const [to,   setTo]   = useState(tomorrow)
 
-function RoomModal({ room, onClose }) {
+  const setRange = d => { setFrom(new Date().toISOString().split('T')[0]); setTo(new Date(Date.now() + d * 86400000).toISOString().split('T')[0]) }
+  const getBooking = room => bookings.find(b => {
+    if (b.roomId !== room.id || ['cancelled', 'checked-out'].includes(b.status)) return false
+    const bIn  = b.checkIn?.toDate  ? b.checkIn.toDate()  : new Date(b.checkIn)
+    const bOut = b.checkOut?.toDate ? b.checkOut.toDate() : new Date(b.checkOut)
+    return bIn < new Date(to) && bOut > new Date(from)
+  })
+  const fmtD = d => { try { return (d?.toDate ? d.toDate() : new Date(d)).toLocaleDateString('ar-SY', { day: 'numeric', month: 'short' }) } catch { return '—' } }
+
+  if (loading) return <PageLoader />
+
+  const withStatus = rooms.map(r => ({ room: r, booking: getBooking(r) }))
+  const occupied   = withStatus.filter(x => !!x.booking)
+  const available  = withStatus.filter(x => !x.booking && x.room.active !== false)
+  const inactive   = withStatus.filter(x => !x.booking && x.room.active === false)
+
+  return (
+    <div style={{ maxWidth: 1000, display: 'flex', flexDirection: 'column', gap: 20 }}>
+      {/* Date picker panel */}
+      <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #E5E7EB', padding: '20px 20px', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 16 }}>
+          <FiCalendar size={14} color="#6B7280" />
+          <span style={{ fontSize: 13, fontWeight: 700, color: '#374151' }}>تحديد الفترة الزمنية</span>
+        </div>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'flex-end' }}>
+          <div>
+            <label style={smallLbl}>من</label>
+            <input type="date" value={from} onChange={e => setFrom(e.target.value)} style={fieldStyle} />
+          </div>
+          <div>
+            <label style={smallLbl}>إلى</label>
+            <input type="date" value={to} min={from} onChange={e => setTo(e.target.value)} style={fieldStyle} />
+          </div>
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+            {[['اليوم', 1], ['٣ أيام', 3], ['أسبوع', 7], ['شهر', 30]].map(([l, d]) => (
+              <button key={d} onClick={() => setRange(d)} style={{ padding: '8px 14px', borderRadius: 8, border: '1px solid #E5E7EB', background: '#F9FAFB', color: '#374151', fontSize: 12, fontFamily: 'Cairo, sans-serif', fontWeight: 600, cursor: 'pointer', transition: 'all 0.15s' }}
+                onMouseEnter={e => { e.currentTarget.style.borderColor = '#3d5a3a'; e.currentTarget.style.color = '#3d5a3a' }}
+                onMouseLeave={e => { e.currentTarget.style.borderColor = '#E5E7EB'; e.currentTarget.style.color = '#374151' }}>
+                {l}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Summary row */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10 }}>
+        {[
+          { label: 'متاحة',   v: available.length, c: '#15803d', bg: '#f0fdf4', border: '#bbf7d0' },
+          { label: 'محجوزة',  v: occupied.length,  c: '#1d4ed8', bg: '#eff6ff', border: '#bfdbfe' },
+          { label: 'مخفية',   v: inactive.length,  c: '#6b7280', bg: '#F9FAFB', border: '#E5E7EB' },
+          { label: 'الإجمالي',v: rooms.length,     c: '#374151', bg: '#fff',    border: '#E5E7EB' },
+        ].map(s => (
+          <div key={s.label} style={{ background: s.bg, border: `1px solid ${s.border}`, borderRadius: 10, padding: '14px 16px', textAlign: 'center' }}>
+            <p style={{ fontSize: 24, fontWeight: 700, color: s.c, lineHeight: 1, marginBottom: 4 }}>{s.v}</p>
+            <p style={{ fontSize: 12, color: s.c, opacity: 0.7, fontWeight: 600 }}>{s.label}</p>
+          </div>
+        ))}
+      </div>
+
+      {/* Occupied rooms */}
+      {occupied.length > 0 && (
+        <AvailSection title={`الغرف المحجوزة (${occupied.length})`} color="#1d4ed8">
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 10 }}>
+            {occupied.map(({ room, booking }) => (
+              <div key={room.id} style={{ background: '#fff', borderRadius: 10, border: '1px solid #BFDBFE', padding: '14px 16px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                  <p style={{ fontSize: 13, fontWeight: 700, color: '#111827' }}>{room.nameAr}</p>
+                  <StatusPill status={booking.status} />
+                </div>
+                <p style={{ fontSize: 11, color: '#9CA3AF', marginBottom: 10 }}>غرفة {room.number} · الطابق {room.floor}{room.type ? ` · ${room.type}` : ''}</p>
+                <div style={{ background: '#EFF6FF', borderRadius: 8, padding: '10px 12px', fontSize: 12 }}>
+                  <p style={{ fontWeight: 700, color: '#1E40AF', marginBottom: 3 }}>{booking.guestName}</p>
+                  <p style={{ color: '#3B82F6', marginBottom: 3 }}>{booking.guestPhone}</p>
+                  <p style={{ color: '#93C5FD', fontSize: 11 }}>{fmtD(booking.checkIn)} ← {fmtD(booking.checkOut)} · {booking.guests} أشخاص</p>
+                  {booking.totalPrice && <p style={{ color: '#1D4ED8', fontWeight: 700, marginTop: 4 }}>${booking.totalPrice}</p>}
+                </div>
+              </div>
+            ))}
+          </div>
+        </AvailSection>
+      )}
+
+      {/* Available rooms */}
+      {available.length > 0 && (
+        <AvailSection title={`الغرف المتاحة (${available.length})`} color="#15803d">
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 8 }}>
+            {available.map(({ room }) => (
+              <div key={room.id} style={{ background: '#fff', borderRadius: 10, border: '1px solid #BBF7D0', padding: '12px 14px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                  <p style={{ fontSize: 13, fontWeight: 700, color: '#111827' }}>{room.nameAr}</p>
+                  <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#22c55e', flexShrink: 0 }} />
+                </div>
+                <p style={{ fontSize: 11, color: '#9CA3AF' }}>غرفة {room.number} · {room.capacity} أشخاص</p>
+                {room.type && <p style={{ fontSize: 11, color: '#D1D5DB', marginTop: 2 }}>{room.type}</p>}
+                <p style={{ fontSize: 12, fontWeight: 700, color: '#3d5a3a', marginTop: 6 }}>{room.price ? `$${room.price}/ليلة` : 'عند الطلب'}</p>
+              </div>
+            ))}
+          </div>
+        </AvailSection>
+      )}
+
+      {inactive.length > 0 && (
+        <AvailSection title={`مخفية (${inactive.length})`} color="#9CA3AF">
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+            {inactive.map(({ room }) => (
+              <div key={room.id} style={{ background: '#F9FAFB', borderRadius: 8, border: '1px solid #E5E7EB', padding: '8px 14px', opacity: 0.7 }}>
+                <p style={{ fontSize: 12, fontWeight: 600, color: '#6B7280' }}>{room.nameAr} · غرفة {room.number}</p>
+              </div>
+            ))}
+          </div>
+        </AvailSection>
+      )}
+    </div>
+  )
+}
+
+function AvailSection({ title, color, children }) {
+  return (
+    <div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+        <div style={{ width: 10, height: 10, borderRadius: '50%', background: color, flexShrink: 0 }} />
+        <p style={{ fontSize: 13, fontWeight: 700, color }}>{title}</p>
+      </div>
+      {children}
+    </div>
+  )
+}
+
+/* ─────────────────────────────────────────────────────────────
+   Bookings tab  (table layout)
+───────────────────────────────────────────────────────────── */
+function BookingsTab({ bookings, loading }) {
+  const [statusF,  setStatusF]  = useState('all')
+  const [search,   setSearch]   = useState('')
+  const [updating, setUpdating] = useState(null)
+  const [deleting, setDel]      = useState(null)
+  const [expanded, setExpanded] = useState(null)
+
+  const filtered = bookings.filter(b => {
+    const q = search.toLowerCase()
+    return (statusF === 'all' || b.status === statusF)
+      && (!search || b.guestName?.includes(search) || b.guestPhone?.includes(search)
+          || b.roomNameAr?.includes(search) || b.roomNumber?.includes(search))
+  })
+
+  const changeStatus = async (id, status) => {
+    setUpdating(id)
+    try { await updateDoc(doc(db, 'bookings', id), { status }) }
+    catch { alert('فشل التحديث') }
+    finally { setUpdating(null) }
+  }
+
+  const handleDelete = async b => {
+    if (!confirm(`حذف حجز ${b.guestName}؟`)) return
+    setDel(b.id)
+    try { await deleteDoc(doc(db, 'bookings', b.id)) }
+    catch { alert('فشل الحذف') }
+    finally { setDel(null) }
+  }
+
+  const fmtD = d => { try { return (d?.toDate ? d.toDate() : new Date(d)).toLocaleDateString('ar-SY', { day: 'numeric', month: 'short', year: '2-digit' }) } catch { return '—' } }
+
+  if (loading) return <PageLoader />
+
+  return (
+    <div style={{ maxWidth: 1100, display: 'flex', flexDirection: 'column', gap: 16 }}>
+      {/* Filters */}
+      <div style={{ background: '#fff', borderRadius: 10, border: '1px solid #E5E7EB', padding: '12px 16px', display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
+        <div style={{ position: 'relative', flex: 1, minWidth: 220 }}>
+          <FiSearch size={14} style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', color: '#9CA3AF', pointerEvents: 'none' }} />
+          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="بحث باسم الضيف، الهاتف، أو رقم الغرفة..."
+            style={{ ...filterInp, paddingRight: 36 }} />
+        </div>
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+          {[['all', 'الكل'], ...Object.entries(STATUS).map(([k, v]) => [k, v.label])].map(([k, l]) => {
+            const active = statusF === k
+            return (
+              <button key={k} onClick={() => setStatusF(k)} style={{
+                padding: '6px 14px', borderRadius: 8, border: '1px solid', fontSize: 12, fontFamily: 'Cairo, sans-serif', fontWeight: 600, cursor: 'pointer', transition: 'all 0.15s',
+                background: active ? '#1C2B1C' : '#F9FAFB',
+                color: active ? '#fff' : '#6B7280',
+                borderColor: active ? '#1C2B1C' : '#E5E7EB',
+              }}>{l} {k !== 'all' && <span style={{ opacity: 0.65 }}>({bookings.filter(b => b.status === k).length})</span>}</button>
+            )
+          })}
+        </div>
+      </div>
+
+      <p style={{ fontSize: 12, color: '#9CA3AF' }}>{filtered.length} حجز</p>
+
+      {filtered.length === 0 ? (
+        <Empty icon={<FiBookOpen size={28} />} text="لا توجد حجوزات تطابق البحث" />
+      ) : (
+        <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #E5E7EB', overflow: 'hidden', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <thead>
+              <tr style={{ borderBottom: '1px solid #F3F4F6', background: '#FAFAFA' }}>
+                {['#', 'الضيف', 'الغرفة', 'الوصول', 'المغادرة', 'الليالي', 'المبلغ', 'الحالة', 'إجراءات'].map(h => (
+                  <th key={h} style={{ padding: '10px 14px', textAlign: 'right', fontSize: 11, fontWeight: 700, color: '#9CA3AF', letterSpacing: '0.04em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map((b, i) => {
+                const nights = b.nights || Math.max(1, Math.ceil((new Date(b.checkOut?.toDate?.() || b.checkOut) - new Date(b.checkIn?.toDate?.() || b.checkIn)) / 86400000))
+                const isExp  = expanded === b.id
+                return (
+                  <>
+                    <tr key={b.id} style={{ borderBottom: '1px solid #F9FAFB', transition: 'background 0.1s', cursor: 'pointer' }}
+                      onMouseEnter={e => e.currentTarget.style.background = '#FAFAFA'}
+                      onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                      onClick={() => setExpanded(isExp ? null : b.id)}>
+                      <td style={{ padding: '12px 14px' }}>
+                        <code style={{ fontSize: 11, background: '#F3F4F6', color: '#6B7280', padding: '2px 6px', borderRadius: 5, fontFamily: 'monospace' }}>
+                          {b.id.slice(0, 6).toUpperCase()}
+                        </code>
+                      </td>
+                      <td style={{ padding: '12px 14px' }}>
+                        <p style={{ fontSize: 13, fontWeight: 600, color: '#111827', marginBottom: 1 }}>{b.guestName}</p>
+                        <p style={{ fontSize: 11, color: '#9CA3AF' }}>{b.guestPhone}</p>
+                      </td>
+                      <td style={{ padding: '12px 14px', fontSize: 13, color: '#374151', whiteSpace: 'nowrap' }}>
+                        {b.roomNameAr}<span style={{ color: '#9CA3AF', marginRight: 4 }}>#{b.roomNumber}</span>
+                      </td>
+                      <td style={{ padding: '12px 14px', fontSize: 12, color: '#6B7280', whiteSpace: 'nowrap' }}>{fmtD(b.checkIn)}</td>
+                      <td style={{ padding: '12px 14px', fontSize: 12, color: '#6B7280', whiteSpace: 'nowrap' }}>{fmtD(b.checkOut)}</td>
+                      <td style={{ padding: '12px 14px', fontSize: 13, fontWeight: 600, color: '#374151', textAlign: 'center' }}>{nights}</td>
+                      <td style={{ padding: '12px 14px', fontSize: 13, fontWeight: 700, color: '#111827', whiteSpace: 'nowrap' }}>
+                        {b.totalPrice != null ? `$${b.totalPrice}` : <span style={{ color: '#9CA3AF', fontWeight: 400, fontSize: 12 }}>عند الطلب</span>}
+                      </td>
+                      <td style={{ padding: '12px 14px' }} onClick={e => e.stopPropagation()}>
+                        <select value={b.status || 'confirmed'} onChange={e => changeStatus(b.id, e.target.value)} disabled={updating === b.id}
+                          style={{ fontSize: 11, fontWeight: 700, padding: '4px 8px', borderRadius: 6, border: `1px solid ${STATUS[b.status]?.border || '#E5E7EB'}`, background: STATUS[b.status]?.bg || '#F9FAFB', color: STATUS[b.status]?.color || '#374151', cursor: 'pointer', outline: 'none', fontFamily: 'Cairo, sans-serif', opacity: updating === b.id ? 0.5 : 1 }}>
+                          {Object.entries(STATUS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
+                        </select>
+                      </td>
+                      <td style={{ padding: '12px 14px' }} onClick={e => e.stopPropagation()}>
+                        <div style={{ display: 'flex', gap: 4 }}>
+                          <button onClick={() => setExpanded(isExp ? null : b.id)} style={{ padding: '5px 7px', borderRadius: 6, border: '1px solid #E5E7EB', background: '#F9FAFB', color: '#6B7280', cursor: 'pointer' }}>
+                            <FiChevronDown size={13} style={{ transform: isExp ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />
+                          </button>
+                          <button onClick={() => handleDelete(b)} disabled={deleting === b.id} style={{ padding: '5px 7px', borderRadius: 6, border: '1px solid #FECACA', background: '#FEF2F2', color: '#DC2626', cursor: 'pointer' }}>
+                            <FiTrash2 size={13} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                    {isExp && (
+                      <tr key={b.id + '-exp'} style={{ background: '#FAFAFA', borderBottom: '1px solid #F3F4F6' }}>
+                        <td colSpan={9} style={{ padding: '12px 20px' }}>
+                          <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap', fontSize: 13 }}>
+                            {b.guestEmail && <InfoItem icon={<FiMail size={13} />} label="البريد" value={b.guestEmail} />}
+                            {b.notes      && <InfoItem icon={<FiMessageSquare size={13} />} label="ملاحظات" value={b.notes} />}
+                            {b.source     && <InfoItem icon={<FiSliders size={13} />} label="المصدر" value={SOURCE_LABELS[b.source] || b.source} />}
+                            <InfoItem icon={<FiClock size={13} />} label="تاريخ الحجز" value={fmtD(b.createdAt)} />
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  )
+}
+
+/* ─────────────────────────────────────────────────────────────
+   New Booking tab
+───────────────────────────────────────────────────────────── */
+function NewBookingTab({ rooms, bookings, onDone }) {
+  const today    = new Date().toISOString().split('T')[0]
+  const tomorrow = new Date(Date.now() + 86400000).toISOString().split('T')[0]
+
+  const [checkIn,  setCheckIn]  = useState(today)
+  const [checkOut, setCheckOut] = useState(tomorrow)
+  const [guests,   setGuests]   = useState(2)
+  const [roomId,   setRoomId]   = useState('')
+  const [roomQ,    setRoomQ]    = useState('')
+  const [form,     setForm]     = useState({ guestName: '', guestPhone: '', guestEmail: '', notes: '', source: 'phone', status: 'confirmed', priceOverride: '' })
+  const [saving,   setSaving]   = useState(false)
+  const [error,    setError]    = useState('')
+  const [success,  setSuccess]  = useState('')
+  const [notify,   setNotify]   = useState(true)
+
+  const set = (k, v) => setForm(p => ({ ...p, [k]: v }))
+  const nights = Math.max(1, Math.ceil((new Date(checkOut) - new Date(checkIn)) / 86400000))
+
+  const isAvailable = rid => {
+    if (!checkIn || !checkOut) return true
+    const f = new Date(checkIn), t = new Date(checkOut)
+    return !bookings.some(b => {
+      if (b.roomId !== rid || ['cancelled', 'checked-out'].includes(b.status)) return false
+      const bIn  = b.checkIn?.toDate  ? b.checkIn.toDate()  : new Date(b.checkIn)
+      const bOut = b.checkOut?.toDate ? b.checkOut.toDate() : new Date(b.checkOut)
+      return bIn < t && bOut > f
+    })
+  }
+
+  const selectedRoom  = rooms.find(r => r.id === roomId)
+  const autoPrice     = selectedRoom?.price ? selectedRoom.price * nights : null
+  const totalPrice    = form.priceOverride !== '' ? (parseFloat(form.priceOverride) || null) : autoPrice
+
+  const displayRooms  = rooms.filter(r => r.active !== false && (!roomQ || r.nameAr?.includes(roomQ) || r.number?.includes(roomQ) || r.type?.toLowerCase().includes(roomQ.toLowerCase())))
+
+  const handleSubmit = async () => {
+    if (!roomId)                { setError('يرجى اختيار غرفة'); return }
+    if (!form.guestName.trim()) { setError('يرجى إدخال اسم الضيف'); return }
+    if (!form.guestPhone.trim()){ setError('يرجى إدخال رقم الهاتف'); return }
+    if (!isAvailable(roomId))   { setError('الغرفة المختارة محجوزة في هذه الفترة'); return }
+
+    setSaving(true); setError('')
+    try {
+      const room = selectedRoom
+      const docRef = await addDoc(collection(db, 'bookings'), {
+        roomId: room.id, roomNumber: room.number,
+        roomNameEn: room.nameEn || room.nameAr, roomNameAr: room.nameAr,
+        checkIn, checkOut, nights, guests: parseInt(guests), totalPrice,
+        guestName: form.guestName.trim(), guestPhone: form.guestPhone.trim(),
+        guestEmail: form.guestEmail.trim(), notes: form.notes.trim(),
+        source: form.source, status: form.status,
+        createdAt: Timestamp.now(), createdBy: 'admin',
+      })
+      if (notify) {
+        sendWhatsAppNotification({
+          bookingId: docRef.id, roomId: room.id, roomNumber: room.number,
+          roomNameEn: room.nameEn || room.nameAr, roomNameAr: room.nameAr,
+          checkIn, checkOut, guests: parseInt(guests), totalPrice,
+          guestName: form.guestName.trim(), guestPhone: form.guestPhone.trim(),
+          guestEmail: form.guestEmail.trim(), notes: form.notes.trim(),
+        }, 'ar')
+      }
+      setSuccess(`تم إنشاء الحجز — رقم: ${docRef.id.slice(0, 8).toUpperCase()}`)
+      setRoomId(''); setForm({ guestName: '', guestPhone: '', guestEmail: '', notes: '', source: 'phone', status: 'confirmed', priceOverride: '' })
+      setCheckIn(today); setCheckOut(tomorrow); setGuests(2)
+    } catch (e) { setError('فشل إنشاء الحجز: ' + e.message) }
+    finally { setSaving(false) }
+  }
+
+  return (
+    <div style={{ maxWidth: 980 }}>
+      {/* Page header */}
+      <div style={{ marginBottom: 24 }}>
+        <h2 style={{ fontSize: 18, fontWeight: 700, color: '#111827', marginBottom: 4 }}>إنشاء حجز جديد</h2>
+        <p style={{ fontSize: 13, color: '#9CA3AF' }}>لحجوزات الهاتف، الحضور الشخصي، أو أي طلب خارج الموقع</p>
+      </div>
+
+      {success && (
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: 10, padding: '12px 16px', marginBottom: 20 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <FiCheckSquare size={16} color="#15803d" />
+            <span style={{ fontSize: 13, fontWeight: 600, color: '#15803d' }}>{success}</span>
+          </div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button onClick={onDone} style={{ fontSize: 12, background: '#15803d', color: '#fff', border: 'none', borderRadius: 7, padding: '6px 14px', fontFamily: 'Cairo, sans-serif', fontWeight: 700, cursor: 'pointer' }}>عرض الحجوزات</button>
+            <button onClick={() => setSuccess('')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#6B7280', padding: '4px' }}><FiX size={16} /></button>
+          </div>
+        </div>
+      )}
+
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 300px', gap: 20 }}>
+        {/* Left: form */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+
+          {/* Step 1 */}
+          <FormCard step={1} title="تفاصيل الإقامة">
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
+              <div>
+                <label style={smallLbl}>تاريخ الوصول</label>
+                <input type="date" value={checkIn} onChange={e => { setCheckIn(e.target.value); if (e.target.value >= checkOut) setCheckOut(new Date(new Date(e.target.value).getTime() + 86400000).toISOString().split('T')[0]) }} style={fieldStyle} />
+              </div>
+              <div>
+                <label style={smallLbl}>تاريخ المغادرة</label>
+                <input type="date" value={checkOut} min={checkIn} onChange={e => setCheckOut(e.target.value)} style={fieldStyle} />
+              </div>
+              <div>
+                <label style={smallLbl}>عدد الأشخاص</label>
+                <input type="number" value={guests} min={1} max={20} onChange={e => setGuests(e.target.value)} style={fieldStyle} />
+              </div>
+              <div>
+                <label style={smallLbl}>عدد الليالي</label>
+                <div style={{ ...fieldStyle, background: '#F9FAFB', color: '#374151', fontWeight: 700, display: 'flex', alignItems: 'center' }}>{nights} ليلة</div>
+              </div>
+            </div>
+          </FormCard>
+
+          {/* Step 2 */}
+          <FormCard step={2} title="اختيار الغرفة">
+            <div style={{ position: 'relative', marginBottom: 12 }}>
+              <FiSearch size={14} style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', color: '#9CA3AF', pointerEvents: 'none' }} />
+              <input value={roomQ} onChange={e => setRoomQ(e.target.value)} placeholder="بحث بالاسم، الرقم، أو النوع..."
+                style={{ ...fieldStyle, paddingRight: 36 }} />
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 8, maxHeight: 280, overflowY: 'auto', paddingLeft: 2 }}>
+              {displayRooms.map(room => {
+                const avail    = isAvailable(room.id)
+                const selected = roomId === room.id
+                return (
+                  <button key={room.id} onClick={() => avail && setRoomId(room.id)} disabled={!avail} style={{
+                    display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', borderRadius: 10,
+                    border: `1.5px solid ${selected ? '#3d5a3a' : avail ? '#E5E7EB' : '#F3F4F6'}`,
+                    background: selected ? '#F0F7F0' : avail ? '#fff' : '#FAFAFA',
+                    cursor: avail ? 'pointer' : 'not-allowed', opacity: avail ? 1 : 0.5,
+                    textAlign: 'right', transition: 'all 0.15s', fontFamily: 'Cairo, sans-serif',
+                  }}>
+                    <div style={{ width: 48, height: 36, borderRadius: 7, overflow: 'hidden', background: '#F3F4F6', flexShrink: 0 }}>
+                      {room.images?.[0]
+                        ? <img src={room.images[0]} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                        : <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><FiImage size={14} color="#D1D5DB" /></div>}
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <p style={{ fontSize: 12, fontWeight: 700, color: selected ? '#1a3a1a' : '#111827', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{room.nameAr}</p>
+                      <p style={{ fontSize: 11, color: '#9CA3AF' }}>غرفة {room.number} · {room.capacity} أشخاص</p>
+                    </div>
+                    <div style={{ flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 3 }}>
+                      {selected && <FiCheck size={14} color="#3d5a3a" />}
+                      <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 6px', borderRadius: 4, background: avail ? '#F0FDF4' : '#FEF2F2', color: avail ? '#15803d' : '#B91C1C' }}>
+                        {avail ? 'متاحة' : 'محجوزة'}
+                      </span>
+                    </div>
+                  </button>
+                )
+              })}
+            </div>
+          </FormCard>
+
+          {/* Step 3 */}
+          <FormCard step={3} title="معلومات الضيف">
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              <div>
+                <label style={smallLbl}>اسم الضيف <Req /></label>
+                <div style={{ position: 'relative' }}>
+                  <FiUser size={13} style={{ position: 'absolute', right: 11, top: '50%', transform: 'translateY(-50%)', color: '#9CA3AF', pointerEvents: 'none' }} />
+                  <input value={form.guestName} onChange={e => set('guestName', e.target.value)} placeholder="الاسم الكامل" style={{ ...fieldStyle, paddingRight: 32 }} />
+                </div>
+              </div>
+              <div>
+                <label style={smallLbl}>رقم الهاتف <Req /></label>
+                <div style={{ position: 'relative' }}>
+                  <FiPhone size={13} style={{ position: 'absolute', right: 11, top: '50%', transform: 'translateY(-50%)', color: '#9CA3AF', pointerEvents: 'none' }} />
+                  <input value={form.guestPhone} onChange={e => set('guestPhone', e.target.value)} placeholder="+963..." type="tel" style={{ ...fieldStyle, paddingRight: 32 }} />
+                </div>
+              </div>
+              <div>
+                <label style={smallLbl}>البريد الإلكتروني</label>
+                <div style={{ position: 'relative' }}>
+                  <FiMail size={13} style={{ position: 'absolute', right: 11, top: '50%', transform: 'translateY(-50%)', color: '#9CA3AF', pointerEvents: 'none' }} />
+                  <input value={form.guestEmail} onChange={e => set('guestEmail', e.target.value)} placeholder="اختياري" type="email" style={{ ...fieldStyle, paddingRight: 32 }} />
+                </div>
+              </div>
+              <div>
+                <label style={smallLbl}>مصدر الحجز</label>
+                <select value={form.source} onChange={e => set('source', e.target.value)} style={fieldStyle}>
+                  {Object.entries(SOURCE_LABELS).map(([k, l]) => <option key={k} value={k}>{l}</option>)}
+                </select>
+              </div>
+              <div style={{ gridColumn: '1 / -1' }}>
+                <label style={smallLbl}>ملاحظات خاصة</label>
+                <div style={{ position: 'relative' }}>
+                  <FiMessageSquare size={13} style={{ position: 'absolute', right: 11, top: 11, color: '#9CA3AF', pointerEvents: 'none' }} />
+                  <textarea value={form.notes} onChange={e => set('notes', e.target.value)} rows={3} placeholder="طلبات خاصة أو ملاحظات..."
+                    style={{ ...fieldStyle, paddingRight: 32, resize: 'vertical', lineHeight: 1.6 }} />
+                </div>
+              </div>
+            </div>
+          </FormCard>
+        </div>
+
+        {/* Right: summary */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14, position: 'sticky', top: 80, alignSelf: 'flex-start' }}>
+          <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #E5E7EB', overflow: 'hidden', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
+            <div style={{ background: '#1C2B1C', padding: '14px 16px' }}>
+              <p style={{ fontSize: 11, fontWeight: 700, color: 'rgba(255,255,255,0.4)', letterSpacing: '0.06em', textTransform: 'uppercase' }}>ملخص الحجز</p>
+            </div>
+
+            {/* Room preview */}
+            <div style={{ padding: '14px 16px', borderBottom: '1px solid #F3F4F6' }}>
+              {selectedRoom ? (
+                <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                  <div style={{ width: 52, height: 40, borderRadius: 8, overflow: 'hidden', background: '#F3F4F6', flexShrink: 0 }}>
+                    {selectedRoom.images?.[0]
+                      ? <img src={selectedRoom.images[0]} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                      : <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><FiImage size={16} color="#D1D5DB" /></div>}
+                  </div>
+                  <div>
+                    <p style={{ fontSize: 13, fontWeight: 700, color: '#111827' }}>{selectedRoom.nameAr}</p>
+                    <p style={{ fontSize: 11, color: '#9CA3AF' }}>غرفة {selectedRoom.number} · الطابق {selectedRoom.floor}</p>
+                  </div>
+                </div>
+              ) : (
+                <div style={{ textAlign: 'center', padding: '12px 0', color: '#D1D5DB', fontSize: 12 }}>
+                  <FiLayers size={20} style={{ margin: '0 auto 6px' }} />
+                  <p>لم تُختر غرفة بعد</p>
+                </div>
+              )}
+            </div>
+
+            {/* Details */}
+            <div style={{ padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: 8, borderBottom: '1px solid #F3F4F6' }}>
+              {[
+                ['الوصول', checkIn],
+                ['المغادرة', checkOut],
+                [`الليالي`, `${nights} ليلة`],
+                ['الأشخاص', `${guests} شخص`],
+                ...(form.guestName ? [['الضيف', form.guestName]] : []),
+              ].map(([k, v]) => (
+                <div key={k} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontSize: 12, color: '#9CA3AF' }}>{k}</span>
+                  <span style={{ fontSize: 12, fontWeight: 600, color: '#374151' }}>{v}</span>
+                </div>
+              ))}
+            </div>
+
+            {/* Price */}
+            <div style={{ padding: '12px 16px', borderBottom: '1px solid #F3F4F6' }}>
+              <label style={smallLbl}>السعر الإجمالي ($)</label>
+              <input type="number" value={form.priceOverride} onChange={e => set('priceOverride', e.target.value)} min={0}
+                placeholder={autoPrice != null ? String(autoPrice) : 'عند الطلب'}
+                style={fieldStyle} />
+              {autoPrice != null && form.priceOverride === '' && (
+                <p style={{ fontSize: 11, color: '#9CA3AF', marginTop: 5 }}>
+                  ${selectedRoom.price} × {nights} ليالٍ = <strong style={{ color: '#374151' }}>${autoPrice}</strong>
+                </p>
+              )}
+              {totalPrice != null && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 10, paddingTop: 10, borderTop: '1px solid #F3F4F6' }}>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: '#111827' }}>الإجمالي</span>
+                  <span style={{ fontSize: 18, fontWeight: 700, color: '#3d5a3a' }}>${totalPrice}</span>
+                </div>
+              )}
+            </div>
+
+            {/* Status */}
+            <div style={{ padding: '12px 16px', borderBottom: '1px solid #F3F4F6' }}>
+              <label style={smallLbl}>حالة الحجز</label>
+              <select value={form.status} onChange={e => set('status', e.target.value)} style={fieldStyle}>
+                {Object.entries(STATUS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
+              </select>
+            </div>
+
+            {/* WhatsApp toggle */}
+            <div style={{ padding: '12px 16px', borderBottom: '1px solid #F3F4F6', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <span style={{ fontSize: 13, color: '#374151' }}>إشعار واتساب</span>
+              <button onClick={() => setNotify(n => !n)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: notify ? '#15803d' : '#9CA3AF', display: 'flex', alignItems: 'center', transition: 'color 0.2s' }}>
+                {notify ? <FiToggleRight size={24} /> : <FiToggleLeft size={24} />}
+              </button>
+            </div>
+
+            {/* Error */}
+            {error && (
+              <div style={{ margin: '0 16px 12px', display: 'flex', alignItems: 'center', gap: 6, background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 8, padding: '8px 10px' }}>
+                <FiAlertCircle size={13} color="#dc2626" style={{ flexShrink: 0 }} />
+                <span style={{ fontSize: 12, color: '#b91c1c' }}>{error}</span>
+              </div>
+            )}
+
+            {/* Submit */}
+            <div style={{ padding: '14px 16px' }}>
+              <button onClick={handleSubmit} disabled={saving || !roomId || !form.guestName || !form.guestPhone} style={{
+                width: '100%', background: (!roomId || !form.guestName || !form.guestPhone || saving) ? '#E5E7EB' : '#1C2B1C',
+                color: (!roomId || !form.guestName || !form.guestPhone || saving) ? '#9CA3AF' : '#fff',
+                border: 'none', borderRadius: 10, padding: '12px 0', fontWeight: 700, fontSize: 14,
+                fontFamily: 'Cairo, sans-serif', cursor: (!roomId || !form.guestName || !form.guestPhone || saving) ? 'not-allowed' : 'pointer',
+                transition: 'all 0.2s', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+              }}>
+                {saving ? <><FiRefreshCw size={14} style={{ animation: 'spin 1s linear infinite' }} /> جارٍ الحفظ...</> : <><FiCheckSquare size={15} /> تأكيد الحجز</>}
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+/* ─────────────────────────────────────────────────────────────
+   Room Form Page  (full-page replacement for the old modal)
+───────────────────────────────────────────────────────────── */
+function RoomFormPage({ room, onBack }) {
   const isNew = !room
-  const fileRef = useRef()
 
   const [form, setForm] = useState({
     number:      room?.number      ?? '',
-    type:        room?.type        ?? 'family',
+    type:        room?.type        ?? '',
     nameAr:      room?.nameAr      ?? '',
     nameEn:      room?.nameEn      ?? '',
     descAr:      room?.descAr      ?? '',
@@ -334,343 +1193,571 @@ function RoomModal({ room, onClose }) {
     featured:    room?.featured    ?? false,
     active:      room?.active      !== false,
   })
-  const [images, setImages]       = useState(room?.images ?? [])
-  const [urlInput, setUrlInput]   = useState('')
-  const [uploading, setUploading] = useState(false)
-  const [saving, setSaving]       = useState(false)
-  const [error, setError]         = useState('')
+  const [images, setImages] = useState(room?.images ?? [])
+  const [saving, setSaving] = useState(false)
+  const [error,  setError]  = useState('')
 
-  const set = (k, v) => setForm(p => ({ ...p, [k]: v }))
-
+  const set    = (k, v) => setForm(p => ({ ...p, [k]: v }))
   const roomId = room?.id ?? `room-${form.number}`
-
-  const handleUpload = async (e) => {
-    const files = Array.from(e.target.files)
-    if (!files.length) return
-    if (!form.number) { setError('أدخل رقم الغرفة أولاً قبل رفع الصور'); return }
-    setUploading(true); setError('')
-    try {
-      for (const file of files) {
-        const storageRef = ref(storage, `rooms/room-${form.number}/${Date.now()}_${file.name}`)
-        await uploadBytes(storageRef, file)
-        const url = await getDownloadURL(storageRef)
-        setImages(prev => [...prev, url])
-      }
-    } catch (err) {
-      setError('فشل رفع الصورة: ' + err.message)
-    } finally {
-      setUploading(false)
-      e.target.value = ''
-    }
-  }
-
-  const addUrl = () => {
-    const url = urlInput.trim()
-    if (!url) return
-    setImages(prev => [...prev, url])
-    setUrlInput('')
-  }
-
-  const removeImage = (idx) => setImages(prev => prev.filter((_, i) => i !== idx))
 
   const handleSave = async () => {
     if (!form.number || !form.nameAr || !form.capacity || !form.bedsAr) {
-      setError('الحقول المطلوبة: رقم الغرفة، الاسم بالعربي، عدد الأشخاص، وصف الأسرة')
-      return
+      setError('الحقول المطلوبة: رقم الغرفة، الاسم بالعربي، عدد الأشخاص، تفاصيل الأسرة'); return
     }
     setSaving(true); setError('')
     try {
-      const id    = roomId
-      const floor = parseInt(form.number[0]) || 1
-      const data  = {
-        number:      form.number.trim(),
-        floor,
-        type:        form.type,
-        nameAr:      form.nameAr.trim(),
-        nameEn:      form.nameEn.trim() || form.nameAr.trim(),
-        descAr:      form.descAr.trim(),
-        descEn:      form.descEn.trim(),
-        capacity:    parseInt(form.capacity) || 1,
-        bedsAr:      form.bedsAr.trim(),
-        beds:        form.beds.trim() || form.bedsAr.trim(),
-        price:       form.price !== '' && form.price !== null ? parseFloat(form.price) : null,
-        amenitiesAr: form.amenitiesAr.split('،').concat(form.amenitiesAr.split(',')).map(s => s.trim()).filter(Boolean),
+      await setDoc(doc(db, 'rooms', roomId), {
+        number: form.number.trim(), floor: parseInt(form.number[0]) || 1,
+        type: form.type.trim(), nameAr: form.nameAr.trim(),
+        nameEn: form.nameEn.trim() || form.nameAr.trim(),
+        descAr: form.descAr.trim(), descEn: form.descEn.trim(),
+        capacity: parseInt(form.capacity) || 1,
+        bedsAr: form.bedsAr.trim(), beds: form.beds.trim() || form.bedsAr.trim(),
+        price: form.price !== '' ? parseFloat(form.price) : null,
+        amenitiesAr: form.amenitiesAr.split(/[،,]/).map(s => s.trim()).filter(Boolean),
         amenities:   form.amenities.split(',').map(s => s.trim()).filter(Boolean),
-        images,
-        featured:    form.featured,
-        active:      form.active,
-        updatedAt:   Timestamp.now(),
-      }
-      if (isNew) data.createdAt = Timestamp.now()
-
-      await setDoc(doc(db, 'rooms', id), data, { merge: !isNew })
-      onClose()
-    } catch (err) {
-      setError('فشل الحفظ: ' + err.message)
-    } finally {
-      setSaving(false)
-    }
+        images, featured: form.featured, active: form.active,
+        updatedAt: Timestamp.now(),
+        ...(isNew ? { createdAt: Timestamp.now() } : {}),
+      }, { merge: !isNew })
+      onBack()
+    } catch (e) { setError('فشل الحفظ: ' + e.message) }
+    finally { setSaving(false) }
   }
 
+  const focusStyle = e => (e.target.style.borderColor = '#3d5a3a')
+  const blurStyle  = e => (e.target.style.borderColor = '#E5E7EB')
+
   return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', zIndex: 200, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: '20px 16px', overflowY: 'auto' }}>
-      <div style={{ background: '#fff', borderRadius: 16, width: '100%', maxWidth: 720, boxShadow: '0 8px 40px rgba(0,0,0,0.2)', marginBottom: 20 }}>
-        {/* Header */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '20px 24px', borderBottom: '1px solid #E8E0D0' }}>
-          <h2 style={{ fontSize: 18, fontWeight: 700, color: '#1C1C14', fontFamily: 'Cairo, sans-serif' }}>
-            {isNew ? 'إضافة غرفة جديدة' : `تعديل غرفة ${room.nameAr}`}
-          </h2>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#7A7860', padding: 6 }}>
+    <div style={{ maxWidth: 1100 }}>
+
+      {/* ── Page header ── */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 28 }}>
+        <button onClick={onBack}
+          style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 8, border: '1px solid #E5E7EB', background: '#fff', color: '#374151', fontSize: 12, fontFamily: 'Cairo, sans-serif', fontWeight: 600, cursor: 'pointer', transition: 'background 0.15s', flexShrink: 0 }}
+          onMouseEnter={e => e.currentTarget.style.background = '#F3F4F6'}
+          onMouseLeave={e => e.currentTarget.style.background = '#fff'}>
+          <FiChevronRight size={14} /> رجوع إلى الغرف
+        </button>
+        <div style={{ width: 1, height: 20, background: '#E5E7EB', flexShrink: 0 }} />
+        <div style={{ flex: 1 }}>
+          <h2 style={{ fontSize: 17, fontWeight: 700, color: '#111827' }}>{isNew ? 'إضافة غرفة جديدة' : `تعديل: ${room.nameAr}`}</h2>
+          {!isNew && <p style={{ fontSize: 12, color: '#9CA3AF', marginTop: 2 }}>غرفة {room.number}</p>}
+        </div>
+        <button onClick={handleSave} disabled={saving}
+          style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '9px 22px', borderRadius: 9, background: saving ? '#9CA3AF' : '#1C2B1C', color: '#fff', border: 'none', fontSize: 13, fontFamily: 'Cairo, sans-serif', fontWeight: 700, cursor: saving ? 'not-allowed' : 'pointer', transition: 'background 0.15s', flexShrink: 0 }}>
+          {saving
+            ? <><FiRefreshCw size={13} style={{ animation: 'spin 1s linear infinite' }} /> جارٍ الحفظ...</>
+            : <><FiCheck size={14} /> {isNew ? 'إضافة الغرفة' : 'حفظ التغييرات'}</>}
+        </button>
+      </div>
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+
+        {/* ── Section 1: Basic info ── */}
+        <RFSection step="1" title="المعلومات الأساسية">
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14 }}>
+            <ModalField label="رقم الغرفة *">
+              <input value={form.number} onChange={e => set('number', e.target.value)} placeholder="101" style={fieldStyle} onFocus={focusStyle} onBlur={blurStyle} />
+            </ModalField>
+            <ModalField label="نوع الغرفة">
+              <input value={form.type} onChange={e => set('type', e.target.value)} placeholder="عائلية، ديلوكس..." style={fieldStyle} onFocus={focusStyle} onBlur={blurStyle} />
+            </ModalField>
+            <ModalField label="عدد الأشخاص *">
+              <input type="number" value={form.capacity} onChange={e => set('capacity', e.target.value)} min={1} max={20} style={fieldStyle} onFocus={focusStyle} onBlur={blurStyle} />
+            </ModalField>
+            <ModalField label="السعر الليلي $">
+              <input type="number" value={form.price} onChange={e => set('price', e.target.value)} placeholder="فارغ = عند الطلب" min={0} style={fieldStyle} onFocus={focusStyle} onBlur={blurStyle} />
+            </ModalField>
+          </div>
+          <div style={{ display: 'flex', gap: 12, marginTop: 6, flexWrap: 'wrap' }}>
+            {[['featured', 'غرفة مميزة'], ['active', 'غرفة نشطة (ظاهرة للزوار)']].map(([k, l]) => (
+              <label key={k} style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 13, userSelect: 'none', padding: '9px 14px', borderRadius: 8, border: `1px solid ${form[k] ? '#86efac' : '#E5E7EB'}`, background: form[k] ? '#f0fdf4' : '#F9FAFB', transition: 'all 0.15s', fontFamily: 'Cairo, sans-serif' }}>
+                <input type="checkbox" checked={form[k]} onChange={e => set(k, e.target.checked)} style={{ accentColor: '#3d5a3a', width: 14, height: 14, flexShrink: 0 }} />
+                <span style={{ fontWeight: form[k] ? 600 : 400, color: form[k] ? '#3d5a3a' : '#6B7280' }}>{l}</span>
+              </label>
+            ))}
+          </div>
+        </RFSection>
+
+        {/* ── Section 2: Arabic content ── */}
+        <RFSection step="2" title="المحتوى بالعربي">
+          <ModalField label="اسم الغرفة *">
+            <input value={form.nameAr} onChange={e => set('nameAr', e.target.value)} placeholder="شقة ١٠١" style={fieldStyle} onFocus={focusStyle} onBlur={blurStyle} />
+          </ModalField>
+          <ModalField label="وصف الغرفة">
+            <textarea value={form.descAr} onChange={e => set('descAr', e.target.value)} rows={3} style={{ ...fieldStyle, resize: 'vertical', lineHeight: 1.7 }} placeholder="وصف قصير عن الغرفة..." onFocus={focusStyle} onBlur={blurStyle} />
+          </ModalField>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+            <ModalField label="تفاصيل الأسرة *">
+              <input value={form.bedsAr} onChange={e => set('bedsAr', e.target.value)} placeholder="سرير مزدوج + ٣ أسرة" style={fieldStyle} onFocus={focusStyle} onBlur={blurStyle} />
+            </ModalField>
+            <ModalField label="المرافق (مفصولة بفاصلة عربية)">
+              <input value={form.amenitiesAr} onChange={e => set('amenitiesAr', e.target.value)} placeholder="واي فاي، تكييف، تلفاز" style={fieldStyle} onFocus={focusStyle} onBlur={blurStyle} />
+            </ModalField>
+          </div>
+        </RFSection>
+
+        {/* ── Section 3: English content (optional) ── */}
+        <RFSection step="3" title="المحتوى بالإنجليزي" optional>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+            <ModalField label="Room Name">
+              <input value={form.nameEn} onChange={e => set('nameEn', e.target.value)} placeholder="Apartment 101" style={fieldStyle} onFocus={focusStyle} onBlur={blurStyle} />
+            </ModalField>
+            <ModalField label="Bed Details">
+              <input value={form.beds} onChange={e => set('beds', e.target.value)} placeholder="1 Double + 3 Singles" style={fieldStyle} onFocus={focusStyle} onBlur={blurStyle} />
+            </ModalField>
+          </div>
+          <ModalField label="Description">
+            <textarea value={form.descEn} onChange={e => set('descEn', e.target.value)} rows={2} style={{ ...fieldStyle, resize: 'vertical', lineHeight: 1.7 }} placeholder="Short description..." onFocus={focusStyle} onBlur={blurStyle} />
+          </ModalField>
+          <ModalField label="Amenities (comma separated)">
+            <input value={form.amenities} onChange={e => set('amenities', e.target.value)} placeholder="WiFi, AC, TV" style={fieldStyle} onFocus={focusStyle} onBlur={blurStyle} />
+          </ModalField>
+        </RFSection>
+
+        {/* ── Section 4: Images ── */}
+        <ImageManager
+          images={images}
+          setImages={setImages}
+          roomNumber={form.number}
+          onError={msg => setError(msg)}
+        />
+
+        {/* Error banner */}
+        {error && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 10, padding: '12px 16px' }}>
+            <FiAlertCircle size={15} color="#dc2626" style={{ flexShrink: 0 }} />
+            <span style={{ fontSize: 13, color: '#b91c1c' }}>{error}</span>
+          </div>
+        )}
+
+        {/* Footer actions */}
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, paddingBottom: 16 }}>
+          <button onClick={onBack}
+            style={{ padding: '10px 22px', borderRadius: 9, border: '1px solid #E5E7EB', background: '#fff', color: '#374151', fontSize: 13, fontFamily: 'Cairo, sans-serif', fontWeight: 600, cursor: 'pointer', transition: 'background 0.15s' }}
+            onMouseEnter={e => e.currentTarget.style.background = '#F3F4F6'}
+            onMouseLeave={e => e.currentTarget.style.background = '#fff'}>
+            إلغاء
+          </button>
+          <button onClick={handleSave} disabled={saving}
+            style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '10px 26px', borderRadius: 9, background: saving ? '#9CA3AF' : '#1C2B1C', color: '#fff', border: 'none', fontSize: 13, fontFamily: 'Cairo, sans-serif', fontWeight: 700, cursor: saving ? 'not-allowed' : 'pointer', transition: 'background 0.15s' }}>
+            {saving
+              ? <><FiRefreshCw size={13} style={{ animation: 'spin 1s linear infinite' }} /> جارٍ الحفظ...</>
+              : <><FiCheck size={14} /> {isNew ? 'إضافة الغرفة' : 'حفظ التغييرات'}</>}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+/* Numbered section card for the room form */
+function RFSection({ step, title, optional, children }) {
+  return (
+    <div style={{ background: '#fff', borderRadius: 14, border: '1px solid #E5E7EB', overflow: 'hidden', boxShadow: '0 1px 4px rgba(0,0,0,0.04)' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px 20px', borderBottom: '1px solid #F3F4F6', background: '#FAFAFA' }}>
+        <div style={{ width: 26, height: 26, borderRadius: 8, background: '#1C2B1C', color: '#86efac', fontSize: 12, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+          {step}
+        </div>
+        <span style={{ fontSize: 14, fontWeight: 700, color: '#111827', flex: 1 }}>{title}</span>
+        {optional && (
+          <span style={{ fontSize: 11, color: '#9CA3AF', background: '#F3F4F6', padding: '3px 10px', borderRadius: 100, fontWeight: 500, border: '1px solid #E5E7EB' }}>اختياري</span>
+        )}
+      </div>
+      <div style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+        {children}
+      </div>
+    </div>
+  )
+}
+
+/* ─────────────────────────────────────────────────────────────
+   Image Manager  — grid layout with hover-overlay actions
+───────────────────────────────────────────────────────────── */
+function ImageManager({ images, setImages, roomNumber, onError }) {
+  const fileRef = useRef()
+  const [uploading,  setUploading]  = useState(false)
+  const [uploadProg, setUploadProg] = useState({ done: 0, total: 0 })
+  const [preview,    setPreview]    = useState(null)
+
+  const handleUpload = async e => {
+    const files = Array.from(e.target.files)
+    if (!files.length) return
+    if (!roomNumber) { onError('أدخل رقم الغرفة أولاً'); return }
+    setUploading(true)
+    setUploadProg({ done: 0, total: files.length })
+    onError('')
+    try {
+      const uploaded = await Promise.all(files.map(async file => {
+        const compressed = await compressImage(file)
+        const safeName   = compressed.name.replace(/[^\w.\-]+/g, '_')
+        const sRef       = ref(storage, `rooms/room-${roomNumber}/${Date.now()}_${safeName}`)
+        await uploadBytes(sRef, compressed)
+        const url = await getDownloadURL(sRef)
+        setUploadProg(p => ({ ...p, done: p.done + 1 }))
+        return url
+      }))
+      setImages(p => [...p, ...uploaded])
+    } catch (err) { onError('فشل رفع الصورة: ' + err.message) }
+    finally { setUploading(false); e.target.value = '' }
+  }
+
+  const makeCover = idx => setImages(p => { const a = [...p]; const [img] = a.splice(idx, 1); return [img, ...a] })
+  const remove    = idx => setImages(p => p.filter((_, i) => i !== idx))
+  const moveUp    = idx => setImages(p => {
+    if (idx <= 0) return p
+    const a = [...p]; [a[idx - 1], a[idx]] = [a[idx], a[idx - 1]]; return a
+  })
+  const moveDown  = idx => setImages(p => {
+    if (idx >= p.length - 1) return p
+    const a = [...p]; [a[idx], a[idx + 1]] = [a[idx + 1], a[idx]]; return a
+  })
+
+  /* drag-and-drop reorder */
+  const dragFrom = useRef(null)
+  const [dragOver, setDragOver] = useState(null)
+
+  const onDragStart = idx => { dragFrom.current = idx }
+  const onDragOver  = (e, idx) => { e.preventDefault(); setDragOver(idx) }
+  const onDrop      = (e, idx) => {
+    e.preventDefault()
+    const from = dragFrom.current
+    if (from !== null && from !== idx) {
+      setImages(p => {
+        const a = [...p]
+        const [moved] = a.splice(from, 1)
+        a.splice(idx, 0, moved)
+        return a
+      })
+    }
+    dragFrom.current = null; setDragOver(null)
+  }
+  const onDragEnd = () => { dragFrom.current = null; setDragOver(null) }
+
+  const pct = uploadProg.total ? Math.round(uploadProg.done / uploadProg.total * 100) : 0
+
+  return (
+    <>
+      <div style={{ background: '#fff', borderRadius: 14, border: '1px solid #E5E7EB', overflow: 'hidden', boxShadow: '0 1px 4px rgba(0,0,0,0.04)' }}>
+
+        {/* Section header */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px 20px', borderBottom: '1px solid #F3F4F6', background: '#FAFAFA' }}>
+          <div style={{ width: 26, height: 26, borderRadius: 8, background: '#1C2B1C', color: '#86efac', fontSize: 12, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>4</div>
+          <div style={{ flex: 1 }}>
+            <span style={{ fontSize: 14, fontWeight: 700, color: '#111827' }}>صور الغرفة</span>
+            {images.length > 0 && (
+              <span style={{ fontSize: 12, color: '#9CA3AF', marginRight: 10 }}>
+                {images.length} {images.length === 1 ? 'صورة' : 'صور'} · رتّب باستخدام الأسهم ↑↓ أو السحب · ⭐ لتغيير الغلاف
+              </span>
+            )}
+          </div>
+          <input ref={fileRef} type="file" accept="image/*" multiple onChange={handleUpload} style={{ display: 'none' }} />
+          <button onClick={() => fileRef.current?.click()} disabled={uploading}
+            style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 16px', borderRadius: 8, background: uploading ? '#9CA3AF' : '#1C2B1C', color: '#fff', border: 'none', fontSize: 13, fontFamily: 'Cairo, sans-serif', fontWeight: 600, cursor: uploading ? 'not-allowed' : 'pointer', transition: 'background 0.15s', flexShrink: 0 }}>
+            <FiUpload size={13} />
+            {uploading ? `${uploadProg.done}/${uploadProg.total} جارٍ الرفع` : 'رفع صور'}
+          </button>
+        </div>
+
+        {/* Upload progress bar */}
+        {uploading && (
+          <div style={{ padding: '10px 20px', background: '#f0fdf4', borderBottom: '1px solid #bbf7d0', display: 'flex', alignItems: 'center', gap: 12 }}>
+            <div style={{ flex: 1, height: 5, background: '#dcfce7', borderRadius: 100, overflow: 'hidden' }}>
+              <div style={{ height: '100%', background: '#16a34a', borderRadius: 100, width: pct + '%', transition: 'width 0.3s ease' }} />
+            </div>
+            <span style={{ fontSize: 12, color: '#166534', fontWeight: 700, whiteSpace: 'nowrap' }}>{pct}%</span>
+            <span style={{ fontSize: 12, color: '#166534', whiteSpace: 'nowrap' }}>({uploadProg.done}/{uploadProg.total})</span>
+          </div>
+        )}
+
+        {/* Image area */}
+        <div style={{ padding: '20px' }}>
+          {images.length === 0 ? (
+
+            /* Empty / drop zone */
+            <div onClick={() => fileRef.current?.click()}
+              style={{ border: '2px dashed #D1D5DB', borderRadius: 14, padding: '56px 20px', textAlign: 'center', cursor: 'pointer', transition: 'all 0.2s', background: '#FAFAFA' }}
+              onMouseEnter={e => { e.currentTarget.style.borderColor = '#3d5a3a'; e.currentTarget.style.background = '#f0fdf4' }}
+              onMouseLeave={e => { e.currentTarget.style.borderColor = '#D1D5DB'; e.currentTarget.style.background = '#FAFAFA' }}>
+              <div style={{ width: 56, height: 56, borderRadius: 14, background: '#F3F4F6', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 14px' }}>
+                <FiImage size={26} color="#9CA3AF" />
+              </div>
+              <p style={{ fontSize: 15, fontWeight: 700, color: '#374151', marginBottom: 6 }}>لم تُضف صور بعد</p>
+              <p style={{ fontSize: 13, color: '#9CA3AF', marginBottom: 20 }}>JPG · PNG · WEBP · يمكن اختيار أكثر من صورة دفعة واحدة</p>
+              <div style={{ display: 'inline-flex', alignItems: 'center', gap: 7, padding: '9px 20px', borderRadius: 9, background: '#1C2B1C', color: '#fff', fontSize: 13, fontWeight: 600, fontFamily: 'Cairo, sans-serif' }}>
+                <FiUpload size={13} /> اختر صوراً
+              </div>
+            </div>
+
+          ) : (
+
+            /* Image grid */
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 14 }}>
+              {images.map((url, i) => (
+                <ImageCard
+                  key={url + i}
+                  url={url}
+                  index={i}
+                  total={images.length}
+                  isCover={i === 0}
+                  isDragOver={dragOver === i}
+                  onMakeCover={() => makeCover(i)}
+                  onRemove={() => remove(i)}
+                  onPreview={() => setPreview(url)}
+                  onMoveUp={() => moveUp(i)}
+                  onMoveDown={() => moveDown(i)}
+                  onDragStart={() => onDragStart(i)}
+                  onDragOver={e => onDragOver(e, i)}
+                  onDrop={e => onDrop(e, i)}
+                  onDragEnd={onDragEnd}
+                />
+              ))}
+
+              {/* Add more card */}
+              <button onClick={() => fileRef.current?.click()} disabled={uploading}
+                style={{ aspectRatio: '4/3', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8, borderRadius: 10, border: '2px dashed #D1D5DB', background: '#FAFAFA', color: '#9CA3AF', fontSize: 12, fontFamily: 'Cairo, sans-serif', cursor: uploading ? 'not-allowed' : 'pointer', transition: 'all 0.2s' }}
+                onMouseEnter={e => { if (!uploading) { e.currentTarget.style.borderColor = '#3d5a3a'; e.currentTarget.style.color = '#3d5a3a'; e.currentTarget.style.background = '#f0fdf4' } }}
+                onMouseLeave={e => { e.currentTarget.style.borderColor = '#D1D5DB'; e.currentTarget.style.color = '#9CA3AF'; e.currentTarget.style.background = '#FAFAFA' }}>
+                <FiPlus size={22} />
+                <span>إضافة صور</span>
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Lightbox */}
+      {preview && (
+        <div onClick={() => setPreview(null)}
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.92)', zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <img src={preview} alt=""
+            style={{ maxWidth: '88vw', maxHeight: '86vh', objectFit: 'contain', borderRadius: 10, boxShadow: '0 8px 40px rgba(0,0,0,0.5)' }}
+            onClick={e => e.stopPropagation()} />
+          <button onClick={() => setPreview(null)}
+            style={{ position: 'absolute', top: 18, right: 18, background: 'rgba(255,255,255,0.15)', border: 'none', color: '#fff', borderRadius: '50%', width: 44, height: 44, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', backdropFilter: 'blur(4px)' }}>
             <FiX size={20} />
           </button>
         </div>
-
-        <div style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 28 }}>
-          {/* Section 1: Basic */}
-          <Section title="معلومات أساسية">
-            <Row>
-              <Field label="رقم الغرفة *" required>
-                <input style={inp} value={form.number} onChange={e => set('number', e.target.value)} placeholder="مثال: 101" />
-              </Field>
-              <Field label="نوع الغرفة *">
-                <select style={inp} value={form.type} onChange={e => set('type', e.target.value)}>
-                  {ROOM_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
-                </select>
-              </Field>
-              <Field label="عدد الأشخاص *">
-                <input type="number" style={inp} value={form.capacity} onChange={e => set('capacity', e.target.value)} placeholder="5" min="1" max="20" />
-              </Field>
-              <Field label="السعر الليلي $ (اتركه فارغاً إذا عند الطلب)">
-                <input type="number" style={inp} value={form.price} onChange={e => set('price', e.target.value)} placeholder="اتركه فارغاً = عند الطلب" min="0" />
-              </Field>
-            </Row>
-            <Row>
-              <Field label="">
-                <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 14, color: '#1C1C14', userSelect: 'none' }}>
-                  <input type="checkbox" checked={form.featured} onChange={e => set('featured', e.target.checked)} />
-                  غرفة مميزة (تظهر في الصفحة الرئيسية)
-                </label>
-              </Field>
-              <Field label="">
-                <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 14, color: '#1C1C14', userSelect: 'none' }}>
-                  <input type="checkbox" checked={form.active} onChange={e => set('active', e.target.checked)} />
-                  غرفة نشطة (تظهر للزوار)
-                </label>
-              </Field>
-            </Row>
-          </Section>
-
-          {/* Section 2: Arabic content */}
-          <Section title="المحتوى بالعربي">
-            <Field label="اسم الغرفة بالعربي *">
-              <input style={inp} value={form.nameAr} onChange={e => set('nameAr', e.target.value)} placeholder="مثال: شقة ١٠١" />
-            </Field>
-            <Field label="وصف الغرفة بالعربي">
-              <textarea style={{ ...inp, minHeight: 90, resize: 'vertical', lineHeight: 1.7 }} value={form.descAr} onChange={e => set('descAr', e.target.value)} placeholder="وصف مختصر للشقة..." />
-            </Field>
-            <Field label="تفاصيل الأسرة بالعربي *">
-              <input style={inp} value={form.bedsAr} onChange={e => set('bedsAr', e.target.value)} placeholder="مثال: سرير مزدوج + ٣ أسرة مفردة" />
-            </Field>
-            <Field label="المرافق والخدمات بالعربي (مفصولة بفاصلة)">
-              <input style={inp} value={form.amenitiesAr} onChange={e => set('amenitiesAr', e.target.value)} placeholder="واي فاي، تكييف، تلفاز، مطبخ، حمام، صالون" />
-            </Field>
-          </Section>
-
-          {/* Section 3: English content */}
-          <Section title="المحتوى بالإنجليزي (اختياري)">
-            <Field label="Room Name (English)">
-              <input style={inp} value={form.nameEn} onChange={e => set('nameEn', e.target.value)} placeholder="e.g. Apartment 101" />
-            </Field>
-            <Field label="Description (English)">
-              <textarea style={{ ...inp, minHeight: 90, resize: 'vertical', lineHeight: 1.7 }} value={form.descEn} onChange={e => set('descEn', e.target.value)} placeholder="Short room description..." />
-            </Field>
-            <Field label="Bed Details (English)">
-              <input style={inp} value={form.beds} onChange={e => set('beds', e.target.value)} placeholder="e.g. 1 Double Bed + 3 Single Beds" />
-            </Field>
-            <Field label="Amenities, comma-separated (English)">
-              <input style={inp} value={form.amenities} onChange={e => set('amenities', e.target.value)} placeholder="WiFi, Air Conditioning, TV, Kitchenette, Bathroom" />
-            </Field>
-          </Section>
-
-          {/* Section 4: Images */}
-          <Section title="الصور">
-            {/* Thumbnails */}
-            {images.length > 0 && (
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginBottom: 16 }}>
-                {images.map((url, i) => (
-                  <div key={i} style={{ position: 'relative', width: 90, height: 70, borderRadius: 8, overflow: 'hidden', border: '2px solid #E8E0D0' }}>
-                    <img src={url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                    <button onClick={() => removeImage(i)} style={{ position: 'absolute', top: 3, right: 3, background: 'rgba(0,0,0,0.6)', color: '#fff', border: 'none', borderRadius: '50%', width: 20, height: 20, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0 }}>
-                      <FiX size={11} />
-                    </button>
-                    {i === 0 && <span style={{ position: 'absolute', bottom: 3, left: 3, background: '#3d5a3a', color: '#fff', fontSize: 9, fontWeight: 700, padding: '1px 5px', borderRadius: 4 }}>رئيسية</span>}
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {/* Upload */}
-            <input ref={fileRef} type="file" accept="image/*" multiple onChange={handleUpload} style={{ display: 'none' }} />
-            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-              <button onClick={() => fileRef.current?.click()} disabled={uploading} style={{ display: 'flex', alignItems: 'center', gap: 7, background: '#3d5a3a', color: '#fff', border: 'none', borderRadius: 9, padding: '9px 16px', cursor: uploading ? 'not-allowed' : 'pointer', fontSize: 13, fontFamily: 'Cairo, sans-serif', fontWeight: 600, opacity: uploading ? 0.6 : 1 }}>
-                <FiUpload size={14} /> {uploading ? 'جارٍ الرفع...' : 'رفع صورة'}
-              </button>
-            </div>
-
-            {/* URL input */}
-            <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
-              <input style={{ ...inp, flex: 1 }} value={urlInput} onChange={e => setUrlInput(e.target.value)} placeholder="أو أضف رابط صورة مباشراً..." onKeyDown={e => e.key === 'Enter' && addUrl()} />
-              <button onClick={addUrl} style={{ background: '#f5f0e8', color: '#3d5a3a', border: '1.5px solid #3d5a3a', borderRadius: 8, padding: '0 14px', cursor: 'pointer', fontSize: 13, fontFamily: 'Cairo, sans-serif', fontWeight: 600 }}>إضافة</button>
-            </div>
-          </Section>
-
-          {/* Error */}
-          {error && <p style={{ color: '#dc2626', fontSize: 13, display: 'flex', gap: 6, alignItems: 'center' }}><FiAlertCircle size={14} />{error}</p>}
-        </div>
-
-        {/* Footer */}
-        <div style={{ padding: '16px 24px', borderTop: '1px solid #E8E0D0', display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
-          <button onClick={onClose} style={{ background: '#f5f0e8', color: '#5a5544', border: '1px solid #D4C9B8', borderRadius: 9, padding: '9px 22px', cursor: 'pointer', fontSize: 14, fontFamily: 'Cairo, sans-serif', fontWeight: 600 }}>
-            إلغاء
-          </button>
-          <button onClick={handleSave} disabled={saving} style={{ display: 'flex', alignItems: 'center', gap: 7, background: '#3d5a3a', color: '#fff', border: 'none', borderRadius: 9, padding: '9px 22px', cursor: saving ? 'not-allowed' : 'pointer', fontSize: 14, fontFamily: 'Cairo, sans-serif', fontWeight: 700, opacity: saving ? 0.7 : 1 }}>
-            {saving ? 'جارٍ الحفظ...' : <><FiCheck size={15} /> حفظ التغييرات</>}
-          </button>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-// ─── Bookings tab ─────────────────────────────────────────
-function BookingsTab({ bookings, loading, rooms }) {
-  const [statusFilter, setStatusFilter] = useState('all')
-  const [updating, setUpdating]         = useState(null)
-
-  const roomMap = Object.fromEntries(rooms.map(r => [r.id, r]))
-
-  const filtered = statusFilter === 'all'
-    ? bookings
-    : bookings.filter(b => b.status === statusFilter)
-
-  const changeStatus = async (id, status) => {
-    setUpdating(id)
-    try { await updateDoc(doc(db, 'bookings', id), { status }) }
-    catch { alert('فشل التحديث') }
-    finally { setUpdating(null) }
-  }
-
-  const fmtDate = (d) => {
-    try {
-      const date = d?.toDate ? d.toDate() : new Date(d)
-      return date.toLocaleDateString('ar-SY', { day: 'numeric', month: 'short', year: 'numeric' })
-    } catch { return '-' }
-  }
-
-  const stats = Object.entries(STATUS).map(([k, v]) => ({
-    key: k, label: v.label, color: v.color, bg: v.bg,
-    count: bookings.filter(b => b.status === k).length,
-  }))
-
-  if (loading) return <Loader />
-
-  return (
-    <div>
-      {/* Stats row */}
-      <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 20 }}>
-        {stats.map(s => (
-          <div key={s.key} style={{ background: s.bg, border: `1.5px solid ${s.color}30`, borderRadius: 10, padding: '10px 20px', display: 'flex', flexDirection: 'column', gap: 2, minWidth: 110, cursor: 'pointer' }} onClick={() => setStatusFilter(s.key === statusFilter ? 'all' : s.key)}>
-            <span style={{ fontSize: 24, fontWeight: 700, color: s.color }}>{s.count}</span>
-            <span style={{ fontSize: 12, color: s.color, fontWeight: 600 }}>{s.label}</span>
-          </div>
-        ))}
-      </div>
-
-      {/* Filter */}
-      <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
-        {[['all', 'الكل'], ...Object.entries(STATUS).map(([k, v]) => [k, v.label])].map(([k, l]) => (
-          <button key={k} onClick={() => setStatusFilter(k)} style={{ background: statusFilter === k ? '#3d5a3a' : '#fff', color: statusFilter === k ? '#fff' : '#5a5544', border: '1.5px solid', borderColor: statusFilter === k ? '#3d5a3a' : '#D4C9B8', borderRadius: 100, padding: '5px 14px', cursor: 'pointer', fontSize: 13, fontFamily: 'Cairo, sans-serif' }}>
-            {l}
-          </button>
-        ))}
-      </div>
-
-      {filtered.length === 0 ? (
-        <div style={{ textAlign: 'center', padding: '60px 0', color: '#7A7860' }}>لا توجد حجوزات</div>
-      ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          {filtered.map(b => {
-            const s = STATUS[b.status] || STATUS.confirmed
-            const nights = b.nights || Math.ceil((new Date(b.checkOut?.toDate?.() || b.checkOut) - new Date(b.checkIn?.toDate?.() || b.checkIn)) / 86400000)
-            return (
-              <div key={b.id} style={{ background: '#fff', borderRadius: 12, border: '1px solid #E8E0D0', padding: '16px 20px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12 }}>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4, flex: 1 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-                      <code style={{ fontSize: 12, background: '#f5f0e8', padding: '2px 8px', borderRadius: 5, color: '#3d5a3a', fontFamily: 'monospace' }}>#{b.id.slice(0, 8).toUpperCase()}</code>
-                      <span style={{ background: s.bg, color: s.color, fontSize: 12, fontWeight: 700, padding: '2px 10px', borderRadius: 100 }}>{s.label}</span>
-                      {b.totalPrice != null && <span style={{ fontSize: 13, fontWeight: 700, color: '#1C1C14' }}>${b.totalPrice}</span>}
-                    </div>
-                    <p style={{ fontWeight: 700, fontSize: 15, color: '#1C1C14', margin: 0 }}>
-                      {b.roomNameAr} ({b.roomNumber}) · {b.guests} أشخاص · {nights} ليلة
-                    </p>
-                    <p style={{ fontSize: 13, color: '#7A7860', margin: 0 }}>
-                      {fmtDate(b.checkIn)} ← {fmtDate(b.checkOut)}
-                    </p>
-                    <p style={{ fontSize: 13, color: '#5a5544', margin: 0 }}>
-                      {b.guestName} · {b.guestPhone}
-                      {b.guestEmail ? ` · ${b.guestEmail}` : ''}
-                    </p>
-                    {b.notes && <p style={{ fontSize: 12, color: '#7A7860', margin: 0, fontStyle: 'italic' }}>📝 {b.notes}</p>}
-                    <p style={{ fontSize: 11, color: '#bbb', margin: 0 }}>{fmtDate(b.createdAt)}</p>
-                  </div>
-                  {/* Status changer */}
-                  <select
-                    value={b.status || 'confirmed'}
-                    onChange={e => changeStatus(b.id, e.target.value)}
-                    disabled={updating === b.id}
-                    style={{ ...inp, width: 'auto', fontSize: 13, cursor: 'pointer', background: s.bg, color: s.color, fontWeight: 700, borderColor: s.color + '60', paddingLeft: 8, paddingRight: 8 }}
-                  >
-                    {Object.entries(STATUS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
-                  </select>
-                </div>
-              </div>
-            )
-          })}
-        </div>
       )}
+    </>
+  )
+}
+
+/* Single image card — drag-and-drop + always-visible reorder controls */
+function ImageCard({ url, index, total, isCover, isDragOver, onMakeCover, onRemove, onPreview, onMoveUp, onMoveDown, onDragStart, onDragOver, onDrop, onDragEnd }) {
+  const [hov, setHov] = useState(false)
+  const isFirst = index === 0
+  const isLast  = index === total - 1
+
+  return (
+    <div
+      draggable
+      onDragStart={onDragStart}
+      onDragOver={onDragOver}
+      onDrop={onDrop}
+      onDragEnd={onDragEnd}
+      onMouseEnter={() => setHov(true)}
+      onMouseLeave={() => setHov(false)}
+      style={{
+        position: 'relative', aspectRatio: '4/3', borderRadius: 12, overflow: 'hidden',
+        border: isDragOver ? '2px dashed #3d5a3a' : `2px solid ${isCover ? '#86efac' : '#E5E7EB'}`,
+        background: isDragOver ? '#f0fdf4' : '#F3F4F6',
+        cursor: 'grab', transition: 'border-color 0.15s, transform 0.15s, box-shadow 0.15s',
+        transform: isDragOver ? 'scale(1.02)' : 'scale(1)',
+        boxShadow: hov && !isDragOver ? '0 6px 16px rgba(0,0,0,0.10)' : '0 1px 3px rgba(0,0,0,0.04)',
+      }}>
+
+      <img src={url} alt="" loading={index < 3 ? 'eager' : 'lazy'} decoding="async"
+        style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block', pointerEvents: 'none' }} />
+
+      {/* Top-left: position number, or cover badge if first */}
+      <div style={{
+        position: 'absolute', top: 8, left: 8,
+        display: 'flex', alignItems: 'center', gap: 4,
+        background: isCover ? '#1C2B1C' : 'rgba(0,0,0,0.6)',
+        color: isCover ? '#86efac' : '#fff',
+        fontSize: 11, fontWeight: 700, padding: '4px 9px', borderRadius: 6,
+        pointerEvents: 'none', fontFamily: 'Cairo, sans-serif',
+        backdropFilter: 'blur(3px)',
+      }}>
+        {isCover
+          ? <><FiStar size={10} /> غلاف</>
+          : <>#{index + 1}</>}
+      </div>
+
+      {/* Top-right: drag handle hint */}
+      <div style={{
+        position: 'absolute', top: 8, right: 8,
+        background: 'rgba(0,0,0,0.5)', borderRadius: 6,
+        width: 24, height: 24, display: 'flex', alignItems: 'center', justifyContent: 'center',
+        pointerEvents: 'none', backdropFilter: 'blur(3px)',
+      }}>
+        <FiMenu size={12} color="#fff" />
+      </div>
+
+      {/* Bottom action bar — ALWAYS visible, no hover required */}
+      <div style={{
+        position: 'absolute', bottom: 0, left: 0, right: 0,
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6,
+        padding: '8px 8px 7px',
+        background: 'linear-gradient(to top, rgba(0,0,0,0.78) 35%, rgba(0,0,0,0))',
+      }}>
+        {/* Reorder arrows */}
+        <div style={{ display: 'flex', gap: 4 }}>
+          <ImgBtn onClick={onMoveUp}   disabled={isFirst} title="نقل إلى الأمام"><FiChevronUp   size={14} /></ImgBtn>
+          <ImgBtn onClick={onMoveDown} disabled={isLast}  title="نقل إلى الخلف"><FiChevronDown size={14} /></ImgBtn>
+        </div>
+        {/* Action buttons */}
+        <div style={{ display: 'flex', gap: 4 }}>
+          {!isCover && <ImgBtn onClick={onMakeCover} accent title="جعلها صورة الغلاف"><FiStar  size={14} /></ImgBtn>}
+          <ImgBtn onClick={onPreview} title="معاينة"><FiEye    size={14} /></ImgBtn>
+          <ImgBtn onClick={onRemove}  danger title="حذف"><FiTrash2 size={14} /></ImgBtn>
+        </div>
+      </div>
     </div>
   )
 }
 
-// ─── Small helpers ────────────────────────────────────────
-function Section({ title, children }) {
+/* Icon button used inside the image card action bar */
+function ImgBtn({ children, onClick, disabled, danger, accent, title }) {
+  const bg = disabled ? 'rgba(255,255,255,0.12)'
+           : danger   ? 'rgba(239, 68, 68, 0.95)'
+           : accent   ? 'rgba(245, 158, 11, 0.95)'
+           :            'rgba(255,255,255,0.95)'
+  const fg = disabled              ? 'rgba(255,255,255,0.4)'
+           : (danger || accent)    ? '#fff'
+           :                         '#1C2B1C'
   return (
-    <div>
-      <h3 style={{ fontSize: 13, fontWeight: 700, color: '#7A7860', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 14, paddingBottom: 8, borderBottom: '1px solid #E8E0D0' }}>{title}</h3>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>{children}</div>
+    <button
+      onClick={e => { e.stopPropagation(); if (!disabled) onClick() }}
+      disabled={disabled}
+      title={title}
+      style={{
+        width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center',
+        borderRadius: 6, border: 'none',
+        cursor: disabled ? 'not-allowed' : 'pointer',
+        background: bg, color: fg,
+        backdropFilter: 'blur(4px)', transition: 'transform 0.12s, background 0.15s',
+      }}
+      onMouseEnter={e => { if (!disabled) e.currentTarget.style.transform = 'scale(1.12)' }}
+      onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1)' }}>
+      {children}
+    </button>
+  )
+}
+
+/* ─────────────────────────────────────────────────────────────
+   Shared style objects
+───────────────────────────────────────────────────────────── */
+const fieldStyle = {
+  width: '100%', padding: '9px 12px', border: '1px solid #E5E7EB', borderRadius: 8,
+  fontSize: 13, fontFamily: 'Cairo, sans-serif', color: '#111827', background: '#fff',
+  outline: 'none', boxSizing: 'border-box', transition: 'border-color 0.15s',
+}
+
+const filterInp = {
+  ...fieldStyle, background: '#F9FAFB',
+}
+
+const smallLbl = {
+  display: 'block', fontSize: 11, fontWeight: 700, color: '#6B7280',
+  marginBottom: 6, letterSpacing: '0.02em',
+}
+
+/* ─────────────────────────────────────────────────────────────
+   Shared components
+───────────────────────────────────────────────────────────── */
+function StatusPill({ status }) {
+  const s = STATUS[status] || STATUS.confirmed
+  return (
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11, fontWeight: 700, padding: '3px 9px', borderRadius: 6, background: s.bg, color: s.color, border: `1px solid ${s.border}`, whiteSpace: 'nowrap' }}>
+      <span style={{ width: 5, height: 5, borderRadius: '50%', background: s.color, flexShrink: 0 }} />
+      {s.label}
+    </span>
+  )
+}
+
+function Btn({ children, onClick, disabled, variant = 'primary', icon }) {
+  const isPrimary = variant === 'primary'
+  return (
+    <button onClick={onClick} disabled={disabled} style={{
+      display: 'inline-flex', alignItems: 'center', gap: 6,
+      padding: '8px 16px', borderRadius: 8, fontSize: 13, fontFamily: 'Cairo, sans-serif', fontWeight: 600, cursor: disabled ? 'not-allowed' : 'pointer', transition: 'all 0.15s', opacity: disabled ? 0.5 : 1, whiteSpace: 'nowrap',
+      background: isPrimary ? '#1C2B1C' : '#F9FAFB',
+      color:      isPrimary ? '#fff'     : '#374151',
+      border:     isPrimary ? 'none'     : '1px solid #E5E7EB',
+    }}>{icon}{children}</button>
+  )
+}
+
+function FormCard({ step, title, children }) {
+  return (
+    <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #E5E7EB', overflow: 'hidden', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 16px', borderBottom: '1px solid #F3F4F6', background: '#FAFAFA' }}>
+        <div style={{ width: 22, height: 22, borderRadius: '50%', background: '#1C2B1C', color: '#86efac', fontSize: 11, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>{step}</div>
+        <span style={{ fontSize: 13, fontWeight: 700, color: '#374151' }}>{title}</span>
+      </div>
+      <div style={{ padding: '16px 16px' }}>{children}</div>
     </div>
   )
 }
 
-function Row({ children }) {
-  return <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 12 }}>{children}</div>
-}
-
-function Field({ label, children }) {
+function ModalGroup({ title, children }) {
   return (
     <div>
-      {label && <label style={lbl}>{label}</label>}
+      <p style={{ fontSize: 11, fontWeight: 700, color: '#9CA3AF', letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 12, paddingBottom: 8, borderBottom: '1px solid #F3F4F6' }}>{title}</p>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>{children}</div>
+    </div>
+  )
+}
+
+function ModalField({ label, children }) {
+  return (
+    <div>
+      <label style={smallLbl}>{label}</label>
       {children}
     </div>
   )
 }
 
-function Loader({ full }) {
+function InfoItem({ icon, label, value }) {
   return (
-    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: full ? '100vh' : 200 }}>
-      <div style={{ width: 36, height: 36, border: '3px solid #E8E0D0', borderTopColor: '#3d5a3a', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
+    <div style={{ display: 'flex', alignItems: 'flex-start', gap: 6 }}>
+      <span style={{ color: '#9CA3AF', marginTop: 1 }}>{icon}</span>
+      <span style={{ color: '#9CA3AF', marginLeft: 2 }}>{label}:</span>
+      <span style={{ color: '#374151', fontWeight: 500 }}>{value}</span>
+    </div>
+  )
+}
+
+function Empty({ icon, text }) {
+  return (
+    <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #E5E7EB', padding: '60px 20px', textAlign: 'center', color: '#D1D5DB' }}>
+      <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 12 }}>{icon}</div>
+      <p style={{ fontSize: 13, color: '#9CA3AF' }}>{text}</p>
+    </div>
+  )
+}
+
+function PageLoader() {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '80px 0' }}>
+      <div style={{ width: 32, height: 32, border: '2.5px solid #E5E7EB', borderTopColor: '#3d5a3a', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
       <style>{`@keyframes spin { to { transform: rotate(360deg) } }`}</style>
     </div>
   )
+}
+
+function FullLoader() {
+  return (
+    <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#F4F6F4' }}>
+      <div style={{ width: 36, height: 36, border: '2.5px solid #E5E7EB', borderTopColor: '#3d5a3a', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
+      <style>{`@keyframes spin { to { transform: rotate(360deg) } }`}</style>
+    </div>
+  )
+}
+
+function Req() {
+  return <span style={{ color: '#EF4444', marginRight: 2 }}>*</span>
 }

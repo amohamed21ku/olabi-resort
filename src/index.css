@@ -2,6 +2,18 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ─── Admin panel utility classes ──────────────────────── */
+@layer components {
+  .adm-input {
+    @apply w-full px-3 py-2.5 rounded-xl border border-gray-200 bg-gray-50 text-sm
+           focus:outline-none focus:ring-2 focus:ring-[#3d5a3a]/20 focus:border-[#3d5a3a]
+           transition-colors font-[Cairo,sans-serif];
+  }
+  .form-lbl {
+    @apply block text-xs font-semibold text-gray-500 mb-1.5;
+  }
+}
+
 /* ─── Design Tokens ─────────────────────────────────── */
 :root {
   --cream:           #FDF8F2;
@@ -33,6 +45,12 @@
   --shadow-card: 0 2px 12px rgba(0,0,0,0.08);
 
   --header-h: 72px;
+}
+
+/* ─── Gallery shimmer skeleton ──────────────────────── */
+@keyframes gallery-shimmer {
+  0%   { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
 }
 
 /* ─── Reset ─────────────────────────────────────────── */
