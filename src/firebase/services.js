@@ -1,22 +1,63 @@
 import {
   collection, doc, addDoc, getDocs, getDoc, setDoc, updateDoc, deleteDoc,
-  query, where, orderBy, Timestamp,
+  query, where, orderBy, Timestamp, runTransaction,
 } from 'firebase/firestore'
 import { db } from './config'
 
+export class RoomUnavailableError extends Error {
+  constructor(message = 'ROOM_UNAVAILABLE') {
+    super(message)
+    this.name = 'RoomUnavailableError'
+    this.code = 'ROOM_UNAVAILABLE'
+  }
+}
+
 // ─── WhatsApp config ──────────────────────────────────────
-// Replace with the hotel's WhatsApp number (international format, no + or spaces)
-const HOTEL_WHATSAPP = '963XXXXXXXXX'
+// Hotel's WhatsApp number (international format, no + or spaces)
+const HOTEL_WHATSAPP = '905528957541'
 
 // ─── Bookings ─────────────────────────────────────────────
 
 export async function createBooking(bookingData) {
-  const docRef = await addDoc(collection(db, 'bookings'), {
-    ...bookingData,
-    status: 'confirmed',
-    createdAt: Timestamp.now(),
+  const { roomId, checkIn, checkOut } = bookingData
+  if (!roomId || !checkIn || !checkOut) throw new Error('INVALID_BOOKING_DATA')
+
+  const reqIn  = new Date(checkIn)
+  const reqOut = new Date(checkOut)
+  if (!(reqIn < reqOut)) throw new Error('INVALID_DATES')
+
+  const roomRef    = doc(db, 'rooms', roomId)
+  const bookingRef = doc(collection(db, 'bookings'))
+
+  // Transaction on the room doc serialises concurrent bookings for the same room:
+  // if two clients race, Firestore retries the loser, which re-runs the conflict
+  // query and sees the freshly-committed booking.
+  await runTransaction(db, async (tx) => {
+    const roomSnap = await tx.get(roomRef)
+    if (!roomSnap.exists()) throw new Error('ROOM_NOT_FOUND')
+
+    const snap = await getDocs(query(
+      collection(db, 'bookings'),
+      where('roomId', '==', roomId),
+    ))
+    const conflict = snap.docs.some(d => {
+      const b = d.data()
+      if (['cancelled', 'checked-out'].includes(b.status)) return false
+      const bIn  = b.checkIn.toDate  ? b.checkIn.toDate()  : new Date(b.checkIn)
+      const bOut = b.checkOut.toDate ? b.checkOut.toDate() : new Date(b.checkOut)
+      return bIn < reqOut && bOut > reqIn
+    })
+    if (conflict) throw new RoomUnavailableError()
+
+    tx.update(roomRef, { lastBookingAt: Timestamp.now() })
+    tx.set(bookingRef, {
+      ...bookingData,
+      status: 'pending',
+      createdAt: Timestamp.now(),
+    })
   })
-  return docRef.id
+
+  return bookingRef.id
 }
 
 export async function getBookingById(bookingId) {

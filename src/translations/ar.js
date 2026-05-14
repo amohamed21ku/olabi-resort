@@ -86,7 +86,7 @@ export const ar = {
   booking_emailPlaceholder: 'بريدك@الإلكتروني.com',
   booking_next:       'متابعة',
   booking_back:       'رجوع',
-  booking_confirm:    'تأكيد الحجز',
+  booking_confirm:    'إرسال الطلب عبر واتساب',
   booking_confirming: 'جارٍ المعالجة...',
   booking_policies:   'سياسة الإلغاء والشروط',
   booking_policy1:    'إلغاء مجاني حتى 48 ساعة قبل تسجيل الوصول',
@@ -94,8 +94,8 @@ export const ar = {
   booking_policy3:    'الدفع عند الوصول (نقداً أو بطاقة)',
 
   // Confirmation page
-  confirm_title:    'تم تأكيد الحجز!',
-  confirm_subtitle: 'إقامتك في منتجع العلبي مؤكدة. تم إرسال التفاصيل عبر واتساب.',
+  confirm_title:    'تم استلام طلب الحجز',
+  confirm_subtitle: 'شكراً لك! استلمنا طلب حجزك وسنقوم بتأكيده معك في أقرب وقت ممكن عبر واتساب.',
   confirm_id:       'رقم الحجز',
   confirm_backHome: 'العودة للرئيسية',
   confirm_viewRooms: 'تصفح الغرف الأخرى',

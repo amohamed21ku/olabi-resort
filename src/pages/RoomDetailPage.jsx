@@ -330,7 +330,7 @@ function ImageGallery({ images, name }) {
 
 export default function RoomDetailPage() {
   const { roomId } = useParams()
-  const [searchParams] = useSearchParams()
+  const [searchParams, setSearchParams] = useSearchParams()
   const { language, isRTL } = useLanguage()
   const navigate = useNavigate()
   const tr = (key) => t(language, key)
@@ -341,6 +341,25 @@ export default function RoomDetailPage() {
   const checkIn  = searchParams.get('checkIn')  || ''
   const checkOut = searchParams.get('checkOut') || ''
   const guests   = searchParams.get('guests')   || '2'
+
+  const today = new Date().toISOString().split('T')[0]
+
+  const updateDate = (key, value) => {
+    const next = new URLSearchParams(searchParams)
+    if (!value) {
+      next.delete(key)
+    } else {
+      next.set(key, value)
+      if (key === 'checkIn') {
+        const currentOut = searchParams.get('checkOut') || ''
+        if (!currentOut || currentOut <= value) {
+          const bumped = new Date(new Date(value).getTime() + 86400000)
+          next.set('checkOut', bumped.toISOString().split('T')[0])
+        }
+      }
+    }
+    setSearchParams(next, { replace: true })
+  }
 
   const [available, setAvailable]    = useState(null)
   const [checkingAvail, setChecking] = useState(false)
@@ -504,22 +523,29 @@ export default function RoomDetailPage() {
                 )}
               </div>
 
-              {/* Dates display */}
-              {checkIn && checkOut ? (
-                <div style={{ padding: '20px 24px', borderBottom: '1px solid var(--sand)' }}>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                    {[{ label: tr('booking_checkIn'), date: checkIn }, { label: tr('booking_checkOut'), date: checkOut }].map(({ label, date }) => (
-                      <div key={label}>
-                        <p style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 700, textTransform: 'uppercase', marginBottom: 4, letterSpacing: '0.5px' }}>{label}</p>
-                        <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--ink)', display: 'flex', alignItems: 'center', gap: 5 }}>
-                          <FiCalendar size={13} style={{ color: 'var(--terracotta)' }} />
-                          {new Date(date).toLocaleDateString(isRTL ? 'ar-SY' : 'en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
-                        </p>
-                      </div>
-                    ))}
-                  </div>
+              {/* Editable dates */}
+              <div style={{ padding: '20px 24px', borderBottom: '1px solid var(--sand)' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                  {[
+                    { key: 'checkIn',  label: tr('booking_checkIn'),  value: checkIn,  min: today },
+                    { key: 'checkOut', label: tr('booking_checkOut'), value: checkOut, min: checkIn || today },
+                  ].map(({ key, label, value, min }) => (
+                    <div key={key}>
+                      <label style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 700, textTransform: 'uppercase', marginBottom: 6, letterSpacing: '0.5px', display: 'flex', alignItems: 'center', gap: 5 }}>
+                        <FiCalendar size={11} style={{ color: 'var(--terracotta)' }} />
+                        {label}
+                      </label>
+                      <input
+                        type="date"
+                        value={value}
+                        min={min}
+                        onChange={e => updateDate(key, e.target.value)}
+                        style={{ padding: '10px 12px', border: '1.5px solid var(--border)', borderRadius: 'var(--radius-md)', fontSize: 14, color: 'var(--ink)', background: '#f9f8f6', outline: 'none', width: '100%', boxSizing: 'border-box', fontFamily: 'inherit', cursor: 'pointer' }}
+                      />
+                    </div>
+                  ))}
                 </div>
-              ) : null}
+              </div>
 
               {/* Availability */}
               {checkIn && checkOut && (

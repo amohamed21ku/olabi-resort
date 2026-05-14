@@ -1,14 +1,14 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useParams, useSearchParams, useNavigate, Link } from 'react-router-dom'
 import { useLanguage } from '../App'
 import { t } from '../translations'
 import { useRoom } from '../hooks/useRooms'
-import { createBooking, sendWhatsAppNotification } from '../firebase/services'
+import { createBooking, sendWhatsAppNotification, checkAvailability } from '../firebase/services'
 import { FiArrowLeft, FiArrowRight, FiCheck, FiAlertCircle } from 'react-icons/fi'
 
 export default function BookingPage() {
   const { roomId }      = useParams()
-  const [searchParams]  = useSearchParams()
+  const [searchParams, setSearchParams] = useSearchParams()
   const { language, isRTL } = useLanguage()
   const navigate        = useNavigate()
   const tr = (key) => t(language, key)
@@ -17,20 +17,58 @@ export default function BookingPage() {
   const BackIcon    = isRTL ? FiArrowRight : FiArrowLeft
   const ForwardIcon = isRTL ? FiArrowLeft  : FiArrowRight
 
-  const checkIn   = searchParams.get('checkIn')  || new Date().toISOString().split('T')[0]
-  const checkOut  = searchParams.get('checkOut') || new Date(Date.now() + 86400000).toISOString().split('T')[0]
+  const today     = new Date().toISOString().split('T')[0]
+  const tomorrow  = new Date(Date.now() + 86400000).toISOString().split('T')[0]
   const guestsStr = searchParams.get('guests') || '2'
   const guests    = parseInt(guestsStr, 10)
 
-  const nights     = Math.max(1, Math.ceil((new Date(checkOut) - new Date(checkIn)) / 86400000))
-  const totalPrice = (room && room.price) ? room.price * nights : null
+  const [checkIn,  setCheckIn]    = useState(searchParams.get('checkIn')  || today)
+  const [checkOut, setCheckOut]   = useState(searchParams.get('checkOut') || tomorrow)
+  const [step, setStep]           = useState(1)
+  const [submitting, setSubmit]   = useState(false)
+  const [error, setError]         = useState('')
+  const [form, setForm]           = useState({ guestName: '', guestPhone: '', guestEmail: '', notes: '' })
+  const [available, setAvailable] = useState(null)   // null = unknown, true/false once checked
+  const [checkingAvail, setChecking] = useState(false)
 
-  const [step, setStep]         = useState(1)
-  const [submitting, setSubmit] = useState(false)
-  const [error, setError]       = useState('')
-  const [form, setForm]         = useState({ guestName: '', guestPhone: '', guestEmail: '', notes: '' })
+  const nights      = Math.max(1, Math.ceil((new Date(checkOut) - new Date(checkIn)) / 86400000))
+  const totalPrice  = (room && room.price) ? room.price * nights : null
+  const minCheckOut = new Date(new Date(checkIn).getTime() + 86400000).toISOString().split('T')[0]
 
   const setField = (key, val) => setForm(prev => ({ ...prev, [key]: val }))
+
+  const handleCheckInChange = (val) => {
+    if (!val) return
+    setCheckIn(val)
+    if (new Date(val) >= new Date(checkOut)) {
+      setCheckOut(new Date(new Date(val).getTime() + 86400000).toISOString().split('T')[0])
+    }
+    setError('')
+  }
+  const handleCheckOutChange = (val) => {
+    if (!val) return
+    if (new Date(val) > new Date(checkIn)) {
+      setCheckOut(val)
+      setError('')
+    }
+  }
+
+  useEffect(() => {
+    setSearchParams({ checkIn, checkOut, guests: guestsStr }, { replace: true })
+  }, [checkIn, checkOut])
+
+  useEffect(() => {
+    if (!room || !checkIn || !checkOut) return
+    setChecking(true)
+    checkAvailability(room.id, checkIn, checkOut)
+      .then(v => setAvailable(v))
+      .catch(() => setAvailable(true))
+      .finally(() => setChecking(false))
+  }, [room?.id, checkIn, checkOut])
+
+  const unavailableMsg = isRTL
+    ? 'هذه الغرفة محجوزة في التواريخ المختارة. يرجى اختيار تواريخ أخرى أو غرفة أخرى.'
+    : 'This room is already booked for the selected dates. Please choose different dates or another room.'
 
   const formatDate = (d) => new Date(d).toLocaleDateString(
     isRTL ? 'ar-SY' : 'en-GB',
@@ -71,6 +109,7 @@ export default function BookingPage() {
   const handleConfirm = async () => {
     if (!form.guestName.trim())  { setError(tr('required_field') + ' — ' + tr('booking_name'));  return }
     if (!form.guestPhone.trim()) { setError(tr('required_field') + ' — ' + tr('booking_phone')); return }
+    if (available === false) { setError(unavailableMsg); return }
     setError('')
     setSubmit(true)
     try {
@@ -98,7 +137,12 @@ export default function BookingPage() {
       navigate(`/confirmation/${bookingId}`)
     } catch (err) {
       console.error(err)
-      setError(tr('error_generic'))
+      if (err?.code === 'ROOM_UNAVAILABLE' || err?.message === 'ROOM_UNAVAILABLE') {
+        setAvailable(false)
+        setError(unavailableMsg)
+      } else {
+        setError(tr('error_generic'))
+      }
       setSubmit(false)
     }
   }
@@ -144,9 +188,62 @@ export default function BookingPage() {
               </span>
             </div>
 
+            {/* Editable stay dates — always visible across all steps */}
+            <div style={{ background: 'var(--white)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: '16px 18px', marginBottom: 24 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                  {isRTL ? 'تواريخ الإقامة' : 'Stay dates'}
+                </span>
+                <span style={{ fontSize: 12, color: 'var(--muted)' }}>
+                  {nights} {tr('detail_nights')}
+                </span>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <div>
+                  <label className="form-label" style={{ fontSize: 12 }}>{tr('booking_checkIn')}</label>
+                  <input
+                    type="date"
+                    value={checkIn}
+                    min={today}
+                    onChange={e => handleCheckInChange(e.target.value)}
+                    className="form-input"
+                    style={{ padding: '10px 12px', fontSize: 14 }}
+                  />
+                </div>
+                <div>
+                  <label className="form-label" style={{ fontSize: 12 }}>{tr('booking_checkOut')}</label>
+                  <input
+                    type="date"
+                    value={checkOut}
+                    min={minCheckOut}
+                    onChange={e => handleCheckOutChange(e.target.value)}
+                    className="form-input"
+                    style={{ padding: '10px 12px', fontSize: 14 }}
+                  />
+                </div>
+              </div>
+            </div>
+
             <h1 style={{ fontSize: 26, fontWeight: 700, color: 'var(--ink)', marginBottom: 28, fontFamily: isRTL ? 'var(--font-ar)' : 'var(--font-heading)' }}>
               {tr('booking_title')}
             </h1>
+
+            {available === false && (
+              <div style={{ background: '#FDECEA', border: '1px solid #F44336', color: '#8B1A10', borderRadius: 'var(--radius-md)', padding: '14px 18px', marginBottom: 24, display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+                <FiAlertCircle size={18} style={{ flexShrink: 0, marginTop: 2 }} />
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  <span style={{ fontSize: 14, lineHeight: 1.6 }}>{unavailableMsg}</span>
+                  <Link to="/rooms" className="btn btn-outline btn-sm" style={{ alignSelf: 'flex-start' }}>
+                    {isRTL ? 'تصفح غرف أخرى' : 'Browse other rooms'}
+                  </Link>
+                </div>
+              </div>
+            )}
+            {checkingAvail && (
+              <div style={{ background: 'var(--linen)', border: '1px solid var(--sand)', color: 'var(--muted)', borderRadius: 'var(--radius-md)', padding: '10px 14px', marginBottom: 20, fontSize: 13 }}>
+                {tr('avail_checking')}
+              </div>
+            )}
 
             {/* Step 1: Review */}
             {step === 1 && (
@@ -187,7 +284,12 @@ export default function BookingPage() {
                   ))}
                 </div>
 
-                <button className="btn btn-primary btn-lg" onClick={() => setStep(2)} style={{ justifyContent: 'center', gap: 8 }}>
+                <button
+                  className="btn btn-primary btn-lg"
+                  onClick={() => setStep(2)}
+                  disabled={available === false || checkingAvail}
+                  style={{ justifyContent: 'center', gap: 8, opacity: (available === false || checkingAvail) ? 0.55 : 1, cursor: (available === false || checkingAvail) ? 'not-allowed' : 'pointer' }}
+                >
                   {tr('booking_next')} <ForwardIcon size={16} />
                 </button>
               </div>
@@ -246,12 +348,17 @@ export default function BookingPage() {
                 </div>
                 <p style={{ fontSize: 13, color: 'var(--muted)', lineHeight: 1.7 }}>
                   {isRTL
-                    ? 'بالضغط على "تأكيد الحجز" سيتم تسجيل حجزك وإرسال تفاصيله إلى واتساب المنتجع.'
-                    : 'By clicking "Confirm Booking" your reservation will be saved and details sent to the resort\'s WhatsApp.'
+                    ? 'بالضغط على "إرسال الطلب" سيتم تسجيل طلب حجزك وفتح محادثة واتساب لإرسال التفاصيل إلى المنتجع، وسنقوم بتأكيد الحجز معك في أقرب وقت ممكن.'
+                    : 'By clicking "Send Request" your booking request will be saved and WhatsApp will open to send the details to the resort. We will confirm your booking with you as soon as possible.'
                   }
                 </p>
                 {error && <div style={{ display: 'flex', gap: 8, color: 'var(--terracotta)', fontSize: 14, alignItems: 'center' }}><FiAlertCircle size={15} />{error}</div>}
-                <button className="btn btn-primary btn-lg" onClick={handleConfirm} disabled={submitting} style={{ justifyContent: 'center', opacity: submitting ? 0.7 : 1, cursor: submitting ? 'not-allowed' : 'pointer' }}>
+                <button
+                  className="btn btn-primary btn-lg"
+                  onClick={handleConfirm}
+                  disabled={submitting || available === false}
+                  style={{ justifyContent: 'center', opacity: (submitting || available === false) ? 0.7 : 1, cursor: (submitting || available === false) ? 'not-allowed' : 'pointer' }}
+                >
                   {submitting ? tr('booking_confirming') : tr('booking_confirm')}
                 </button>
               </div>

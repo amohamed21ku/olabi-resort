@@ -316,7 +316,7 @@ function DashboardTab({ rooms, bookings, setTab }) {
   ]
 
   return (
-    <div style={{ maxWidth: 1100, display: 'flex', flexDirection: 'column', gap: 24 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
       {/* KPI cards */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16 }}>
         {kpis.map(k => (
@@ -465,7 +465,7 @@ function RoomsTab({ rooms, bookings, loading, onAdd, onEdit, onSeed, seeding }) 
   ]
 
   return (
-    <div style={{ maxWidth: 1100, display: 'flex', flexDirection: 'column', gap: 20 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
       {/* Chips */}
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
         {chips.map(c => (
@@ -609,7 +609,7 @@ function AvailabilityTab({ rooms, bookings, loading }) {
   const inactive   = withStatus.filter(x => !x.booking && x.room.active === false)
 
   return (
-    <div style={{ maxWidth: 1000, display: 'flex', flexDirection: 'column', gap: 20 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
       {/* Date picker panel */}
       <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #E5E7EB', padding: '20px 20px', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 16 }}>
@@ -758,7 +758,7 @@ function BookingsTab({ bookings, loading }) {
   if (loading) return <PageLoader />
 
   return (
-    <div style={{ maxWidth: 1100, display: 'flex', flexDirection: 'column', gap: 16 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       {/* Filters */}
       <div style={{ background: '#fff', borderRadius: 10, border: '1px solid #E5E7EB', padding: '12px 16px', display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
         <div style={{ position: 'relative', flex: 1, minWidth: 220 }}>
@@ -936,7 +936,7 @@ function NewBookingTab({ rooms, bookings, onDone }) {
   }
 
   return (
-    <div style={{ maxWidth: 980 }}>
+    <div>
       {/* Page header */}
       <div style={{ marginBottom: 24 }}>
         <h2 style={{ fontSize: 18, fontWeight: 700, color: '#111827', marginBottom: 4 }}>إنشاء حجز جديد</h2>
@@ -1229,7 +1229,7 @@ function RoomFormPage({ room, onBack }) {
   const blurStyle  = e => (e.target.style.borderColor = '#E5E7EB')
 
   return (
-    <div style={{ maxWidth: 1100 }}>
+    <div>
 
       {/* ── Page header ── */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 28 }}>

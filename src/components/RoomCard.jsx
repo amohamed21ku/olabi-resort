@@ -134,9 +134,19 @@ export default function RoomCard({ room, checkIn, checkOut, guests, availability
 
         {/* CTAs */}
         <div style={{ display: 'flex', gap: 10, marginTop: 'auto' }}>
-          <Link to={bookHref} className="btn btn-primary btn-sm" style={{ flex: 1, justifyContent: 'center' }}>
-            {tr('rooms_bookNow')}
-          </Link>
+          {availability === false ? (
+            <button
+              className="btn btn-sm"
+              disabled
+              style={{ flex: 1, justifyContent: 'center', background: 'var(--linen)', color: 'var(--muted)', border: '1.5px solid var(--border)', cursor: 'not-allowed' }}
+            >
+              {tr('avail_unavailable')}
+            </button>
+          ) : (
+            <Link to={bookHref} className="btn btn-primary btn-sm" style={{ flex: 1, justifyContent: 'center' }}>
+              {tr('rooms_bookNow')}
+            </Link>
+          )}
           <Link to={detailHref} className="btn btn-outline btn-sm card-cta-details" style={{ gap: 6 }}>
             {tr('rooms_details')}
             <ArrowIcon size={14} />

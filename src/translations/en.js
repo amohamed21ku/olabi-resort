@@ -86,7 +86,7 @@ export const en = {
   booking_emailPlaceholder: 'your@email.com',
   booking_next:       'Continue',
   booking_back:       'Back',
-  booking_confirm:    'Confirm Booking',
+  booking_confirm:    'Send Request via WhatsApp',
   booking_confirming: 'Processing...',
   booking_policies:   'Cancellation & Policies',
   booking_policy1:    'Free cancellation up to 48 hours before check-in',
@@ -94,8 +94,8 @@ export const en = {
   booking_policy3:    'Payment on arrival (cash or card)',
 
   // Confirmation page
-  confirm_title:    'Booking Confirmed!',
-  confirm_subtitle: 'Your stay at Olabi Resort is confirmed. We\'ve sent the details to WhatsApp.',
+  confirm_title:    'Booking Request Received',
+  confirm_subtitle: 'Thank you! We received your booking request and will confirm it with you as soon as possible via WhatsApp.',
   confirm_id:       'Booking ID',
   confirm_backHome: 'Back to Home',
   confirm_viewRooms: 'Browse Other Rooms',
