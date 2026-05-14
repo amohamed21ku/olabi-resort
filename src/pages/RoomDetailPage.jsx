@@ -397,7 +397,7 @@ export default function RoomDetailPage() {
   const totalPrice = room.price ? room.price * nights : null
 
   return (
-    <div style={{ background: 'var(--cream)', paddingBottom: 80, minHeight: '100vh' }}>
+    <div style={{ background: 'var(--cream)', paddingTop: 'var(--header-h)', paddingBottom: 80, minHeight: '100vh' }}>
       {/* Back link */}
       <div style={{ background: 'var(--white)', borderBottom: '1px solid var(--sand)', padding: '16px 0' }}>
         <div className="container">
