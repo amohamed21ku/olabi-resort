@@ -432,24 +432,57 @@ input, select, textarea { font-family: inherit; }
   .search-bar-field label {
     display: none !important;
   }
-  /* Shorter inputs — defeat iOS Safari's intrinsic min-width on date/select widgets
-     so the input never forces the field wider than the form. -webkit-min-logical-width
-     is the specific iOS knob; without it, input[type=date] refuses to shrink below
-     its locale-formatted content. */
+  /* Unify date/select sizing — iOS Safari's native chrome gives input[type=date]
+     and <select> different intrinsic heights, so equal CSS padding produces unequal
+     visual height. Strip native appearance and pin an explicit height so all three
+     fields render the same. */
   .search-bar-form input,
   .search-bar-form select {
-    padding: 10px 12px !important;
+    height: 44px !important;
+    padding: 0 36px 0 12px !important;
     font-size: 14px !important;
+    line-height: 44px !important;
     max-width: 100% !important;
     width: 100% !important;
     min-width: 0 !important;
     -webkit-min-logical-width: 0 !important;
     box-sizing: border-box !important;
+    -webkit-appearance: none !important;
+    -moz-appearance: none !important;
+    appearance: none !important;
+    background-color: #f9f8f6 !important;
+    background-repeat: no-repeat !important;
+    background-position: right 12px center !important;
+    background-size: 16px !important;
+    position: relative;
   }
-  /* Let the iOS date widget's inner value shrink to whatever space is available */
+  /* Calendar icon for date inputs (replaces stripped native widget) */
+  .search-bar-form input[type="date"] {
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%237A7860' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><rect x='3' y='4' width='18' height='18' rx='2' ry='2'/><line x1='16' y1='2' x2='16' y2='6'/><line x1='8' y1='2' x2='8' y2='6'/><line x1='3' y1='10' x2='21' y2='10'/></svg>") !important;
+  }
+  /* Chevron for select (replaces stripped native arrow) */
+  .search-bar-form select {
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%237A7860' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'/></svg>") !important;
+  }
+  /* Hide the now-redundant inner spacer that iOS Safari adds to date inputs */
   .search-bar-form input[type="date"]::-webkit-date-and-time-value {
     min-width: 0;
     text-align: start;
+    line-height: 44px;
+  }
+  .search-bar-form input[type="date"]::-webkit-calendar-picker-indicator {
+    opacity: 0;
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    cursor: pointer;
+  }
+  /* RTL: flip icon to the start (left in Arabic) and swap padding */
+  .rtl .search-bar-form input,
+  .rtl .search-bar-form select {
+    padding: 0 12px 0 36px !important;
+    background-position: left 12px center !important;
   }
   /* Shorter search button */
   .search-bar-submit {
