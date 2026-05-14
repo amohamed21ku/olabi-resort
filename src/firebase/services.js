@@ -29,10 +29,11 @@ export async function getBookingsForRoom(roomId) {
   const q = query(
     collection(db, 'bookings'),
     where('roomId', '==', roomId),
-    where('status', '!=', 'cancelled'),
   )
   const snap = await getDocs(q)
-  return snap.docs.map(d => ({ id: d.id, ...d.data() }))
+  return snap.docs
+    .map(d => ({ id: d.id, ...d.data() }))
+    .filter(b => !['cancelled', 'checked-out'].includes(b.status))
 }
 
 export async function getAllBookings() {
