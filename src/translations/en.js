@@ -118,14 +118,14 @@ export const en = {
   dir_hours_dam:  '5–6 hours',
   dir_hours_lat:  '60 km - about 1.5 hours',
   dir_address:    'Kasab, Latakia Governorate, Syria',
-  dir_phone:      '+963 41 XXX XXXX',
+  dir_phone:      '+963956883006',
   dir_email:      'info@olabiresort.com',
 
   // Footer
   footer_tagline: 'Your mountain escape in the heart of Syria',
   footer_links:   'Quick Links',
   footer_contact: 'Contact Us',
-  footer_rights:  '© 2025 Olabi Resort. All rights reserved.',
+  footer_rights:  '© 2026 Olabi Resort. All rights reserved.',
   footer_privacy: 'Privacy Policy',
 
   // Common

@@ -118,7 +118,7 @@ export const ar = {
   dir_hours_dam:  '5–6 ساعات',
   dir_hours_lat:  '60 كم - حوالي 1.5 ساعة',
   dir_address:    'كسب، محافظة اللاذقية، سوريا',
-  dir_phone:      '963 41 XXX XXXX+',
+  dir_phone:      '+963956883006',
   dir_email:      'info@olabiresort.com',
 
   // Footer
