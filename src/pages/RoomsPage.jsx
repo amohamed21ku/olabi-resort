@@ -21,10 +21,12 @@ export default function RoomsPage() {
   const [availability, setAvailability]   = useState({})
   const [checkingAvail, setCheckingAvail] = useState(false)
 
-  const filtered = rooms.filter(r => {
-    if (guests > 0 && r.capacity < guests) return false
-    return true
-  })
+  const filtered = rooms
+    .filter(r => {
+      if (guests > 0 && r.capacity < guests) return false
+      return true
+    })
+    .sort((a, b) => a.capacity - b.capacity)
 
   const runAvailabilityCheck = useCallback(async () => {
     if (!checkIn || !checkOut || filtered.length === 0) return

@@ -32,6 +32,8 @@ export default function RoomCard({ room, checkIn, checkOut, guests, availability
   }
   const tc = typeColors[room.type] || typeColors.standard
 
+  const isLargerThanRequested = guests && room.capacity > guests
+
   return (
     <div
       style={{
@@ -78,6 +80,25 @@ export default function RoomCard({ room, checkIn, checkOut, guests, availability
             border: '2px solid white', boxShadow: '0 1px 4px rgba(0,0,0,0.2)',
           }} />
         )}
+        {/* Capacity badge — always visible so room size is clear at a glance */}
+        <span style={{
+          position: 'absolute', bottom: 12, [isRTL ? 'right' : 'left']: 12,
+          background: isLargerThanRequested ? '#1A3A7A' : 'rgba(0,0,0,0.7)',
+          color: '#fff',
+          padding: '5px 11px',
+          borderRadius: '100px',
+          fontSize: 12,
+          fontWeight: 700,
+          display: 'flex',
+          alignItems: 'center',
+          gap: 5,
+          backdropFilter: 'blur(4px)',
+          boxShadow: '0 2px 6px rgba(0,0,0,0.2)',
+          fontFamily: isRTL ? 'var(--font-ar)' : undefined,
+        }}>
+          <FiUsers size={13} />
+          {room.capacity} {tr('rooms_guests')}
+        </span>
       </Link>
 
       {/* Content */}
@@ -105,9 +126,6 @@ export default function RoomCard({ room, checkIn, checkOut, guests, availability
 
         {/* Meta */}
         <div className="card-meta-room" style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
-          <span style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 13, color: 'var(--muted)' }}>
-            <FiUsers size={13} />{room.capacity} {tr('rooms_guests')}
-          </span>
           {room.size && (
             <span style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 13, color: 'var(--muted)' }}>
               <FiMaximize2 size={13} />{room.size} {tr('rooms_size')}
