@@ -14,7 +14,7 @@ export class RoomUnavailableError extends Error {
 
 // ─── WhatsApp config ──────────────────────────────────────
 // Hotel's WhatsApp number (international format, no + or spaces)
-const HOTEL_WHATSAPP = '905528957541'
+const HOTEL_WHATSAPP = '963956883006'
 
 // ─── Bookings ─────────────────────────────────────────────
 
@@ -49,7 +49,6 @@ export async function createBooking(bookingData) {
     })
     if (conflict) throw new RoomUnavailableError()
 
-    tx.update(roomRef, { lastBookingAt: Timestamp.now() })
     tx.set(bookingRef, {
       ...bookingData,
       status: 'pending',

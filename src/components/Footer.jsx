@@ -71,7 +71,7 @@ export default function Footer() {
               {[
                 { Icon: FaInstagram, href: '#' },
                 { Icon: FaFacebook, href: '#' },
-                { Icon: FaWhatsapp, href: 'https://wa.me/963XXXXXXXXX' },
+                { Icon: FaWhatsapp, href: 'https://wa.me/963956883006' },
               ].map(({ Icon, href }, i) => (
                 <a key={i} href={href} target="_blank" rel="noopener noreferrer" style={{
                   width: 36, height: 36,
