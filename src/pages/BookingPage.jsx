@@ -3,7 +3,7 @@ import { useParams, useSearchParams, useNavigate, Link } from 'react-router-dom'
 import { useLanguage } from '../App'
 import { t } from '../translations'
 import { useRoom } from '../hooks/useRooms'
-import { createBooking, sendWhatsAppNotification, checkAvailability } from '../firebase/services'
+import { createBooking, buildWhatsAppUrl, checkAvailability } from '../firebase/services'
 import { FiArrowLeft, FiArrowRight, FiCheck, FiAlertCircle } from 'react-icons/fi'
 
 export default function BookingPage() {
@@ -111,6 +111,11 @@ export default function BookingPage() {
     if (!form.guestPhone.trim()) { setError(tr('required_field') + ' — ' + tr('booking_phone')); return }
     if (available === false) { setError(unavailableMsg); return }
     setError('')
+
+    // Open the WhatsApp tab synchronously inside the click handler so mobile
+    // browsers keep the user-gesture trust and don't block the popup after await.
+    const waTab = window.open('about:blank', '_blank')
+
     setSubmit(true)
     try {
       const bookingId = await createBooking({
@@ -125,7 +130,7 @@ export default function BookingPage() {
         guestEmail: form.guestEmail.trim(),
         notes:      form.notes.trim(),
       })
-      sendWhatsAppNotification({
+      const waUrl = buildWhatsAppUrl({
         bookingId, roomId: room.id, roomNumber: room.number,
         roomNameEn: room.nameEn, roomNameAr: room.nameAr,
         checkIn, checkOut, guests, totalPrice,
@@ -134,9 +139,16 @@ export default function BookingPage() {
         guestEmail: form.guestEmail.trim(),
         notes:      form.notes.trim(),
       }, language)
+      if (waTab && !waTab.closed) {
+        waTab.location.href = waUrl
+      } else {
+        window.location.href = waUrl
+        return
+      }
       navigate(`/confirmation/${bookingId}`)
     } catch (err) {
       console.error(err)
+      if (waTab && !waTab.closed) waTab.close()
       if (err?.code === 'ROOM_UNAVAILABLE' || err?.message === 'ROOM_UNAVAILABLE') {
         setAvailable(false)
         setError(unavailableMsg)

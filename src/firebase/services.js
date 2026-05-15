@@ -130,7 +130,7 @@ export async function firestoreDeleteRoom(id) {
 
 // ─── WhatsApp notification ─────────────────────────────────
 
-export function sendWhatsAppNotification(booking, language = 'ar') {
+export function buildWhatsAppUrl(booking, language = 'ar') {
   const checkInStr  = new Date(booking.checkIn).toLocaleDateString(
     language === 'ar' ? 'ar-SY' : 'en-GB',
     { year: 'numeric', month: 'long', day: 'numeric' }
@@ -149,38 +149,42 @@ export function sendWhatsAppNotification(booking, language = 'ar') {
   let message
   if (language === 'ar') {
     message =
-      `🏨 *طلب حجز جديد - منتجع العلبي*\n\n` +
-      `🔖 رقم الحجز: ${booking.bookingId}\n` +
-      `🛏 الغرفة: ${booking.roomNameAr} (${booking.roomNumber})\n` +
-      `📅 الوصول: ${checkInStr}\n` +
-      `📅 المغادرة: ${checkOutStr}\n` +
-      `🌙 عدد الليالي: ${nights}\n` +
-      `👤 الضيوف: ${booking.guests}\n\n` +
-      `👨‍💼 *معلومات الضيف*\n` +
+      `*طلب حجز جديد - منتجع العلبي* 🏨\n\n` +
+      `رقم الحجز: ${booking.bookingId}\n` +
+      `الغرفة: ${booking.roomNameAr} (${booking.roomNumber})\n` +
+      `الوصول: ${checkInStr}\n` +
+      `المغادرة: ${checkOutStr}\n` +
+      `عدد الليالي: ${nights}\n` +
+      `الضيوف: ${booking.guests}\n\n` +
+      `*معلومات الضيف*\n` +
       `الاسم: ${booking.guestName}\n` +
       `الهاتف: ${booking.guestPhone}\n` +
       `البريد: ${booking.guestEmail || 'لم يُذكر'}\n\n` +
-      `💰 الإجمالي: ${priceStr}\n\n` +
-      `${booking.notes ? `📝 ملاحظات: ${booking.notes}\n\n` : ''}` +
+      `الإجمالي: ${priceStr}\n\n` +
+      `${booking.notes ? `ملاحظات: ${booking.notes}\n\n` : ''}` +
       `يرجى تأكيد الحجز.`
   } else {
     message =
-      `🏨 *New Booking Request - Olabi Resort*\n\n` +
-      `🔖 Booking ID: ${booking.bookingId}\n` +
-      `🛏 Room: ${booking.roomNameEn} (${booking.roomNumber})\n` +
-      `📅 Check-in: ${checkInStr}\n` +
-      `📅 Check-out: ${checkOutStr}\n` +
-      `🌙 Nights: ${nights}\n` +
-      `👤 Guests: ${booking.guests}\n\n` +
-      `👨‍💼 *Guest Info*\n` +
+      `*New Booking Request - Olabi Resort* 🏨\n\n` +
+      `Booking ID: ${booking.bookingId}\n` +
+      `Room: ${booking.roomNameEn} (${booking.roomNumber})\n` +
+      `Check-in: ${checkInStr}\n` +
+      `Check-out: ${checkOutStr}\n` +
+      `Nights: ${nights}\n` +
+      `Guests: ${booking.guests}\n\n` +
+      `*Guest Info*\n` +
       `Name: ${booking.guestName}\n` +
       `Phone: ${booking.guestPhone}\n` +
       `Email: ${booking.guestEmail || 'Not provided'}\n\n` +
-      `💰 Total: ${priceStrEn}\n\n` +
-      `${booking.notes ? `📝 Notes: ${booking.notes}\n\n` : ''}` +
+      `Total: ${priceStrEn}\n\n` +
+      `${booking.notes ? `Notes: ${booking.notes}\n\n` : ''}` +
       `Please confirm this booking.`
   }
 
-  const url = `https://wa.me/${HOTEL_WHATSAPP}?text=${encodeURIComponent(message)}`
+  return `https://wa.me/${HOTEL_WHATSAPP}?text=${encodeURIComponent(message)}`
+}
+
+export function sendWhatsAppNotification(booking, language = 'ar') {
+  const url = buildWhatsAppUrl(booking, language)
   window.open(url, '_blank', 'noopener,noreferrer')
 }

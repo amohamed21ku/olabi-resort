@@ -17,7 +17,10 @@
       "Bash(curl -s --max-time 15 https://olabi-resort.vercel.app/assets/index-BbyW3r3z.css)",
       "Bash(grep -o \"search-bar[^,{}@]*\")",
       "Bash(curl -s --max-time 15 https://olabi-resort.vercel.app/)",
-      "Bash(curl -s --max-time 15 https://olabi-resort.vercel.app/assets/index-CgRCrB4o.css)"
+      "Bash(curl -s --max-time 15 https://olabi-resort.vercel.app/assets/index-CgRCrB4o.css)",
+      "PowerShell($bytes = [System.IO.File]::ReadAllBytes\\(\"c:\\\\Users\\\\bodys\\\\Desktop\\\\Work\\\\olabi-resort\\\\src\\\\firebase\\\\services.js\"\\); $bytes.Length; $bytes[0..10] -join ',')",
+      "PowerShell($content = [System.IO.File]::ReadAllText\\(\"c:\\\\Users\\\\bodys\\\\Desktop\\\\Work\\\\olabi-resort\\\\src\\\\firebase\\\\services.js\", [System.Text.Encoding]::UTF8\\); $idx = $content.IndexOf\\(\"طلب حجز\"\\); $idx; $content.Substring\\($idx-3, 20\\))",
+      "PowerShell($bytes = [System.IO.File]::ReadAllBytes\\(\"c:\\\\Users\\\\bodys\\\\Desktop\\\\Work\\\\olabi-resort\\\\src\\\\firebase\\\\services.js\"\\); $idx = 5128; \\($bytes[$idx..\\($idx+10\\)] | ForEach-Object { $_.ToString\\(\"X2\"\\) }\\) -join ' ')"
     ],
     "deny": [],
     "ask": [],
