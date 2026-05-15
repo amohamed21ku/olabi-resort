@@ -1,5 +1,5 @@
 import { initializeApp } from 'firebase/app'
-import { getFirestore } from 'firebase/firestore'
+import { initializeFirestore } from 'firebase/firestore'
 import { getAuth } from 'firebase/auth'
 import { getStorage } from 'firebase/storage'
 
@@ -14,6 +14,12 @@ const firebaseConfig = {
 }
 
 const app = initializeApp(firebaseConfig)
-export const db      = getFirestore(app)
+
+// Auto-detect long polling fixes Firestore failures on mobile networks and iOS
+// Safari where the default WebChannel streaming transport is blocked or breaks
+// mid-request, causing transactions to throw "unavailable" / generic errors.
+export const db      = initializeFirestore(app, {
+  experimentalAutoDetectLongPolling: true,
+})
 export const auth    = getAuth(app)
 export const storage = getStorage(app)

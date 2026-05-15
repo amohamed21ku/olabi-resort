@@ -112,13 +112,15 @@ export default function BookingPage() {
     if (available === false) { setError(unavailableMsg); return }
     setError('')
 
-    // Open the WhatsApp tab synchronously inside the click handler so mobile
-    // browsers keep the user-gesture trust and don't block the popup after await.
+    // Pre-open a tab synchronously inside the click handler to preserve the
+    // user-gesture on mobile. May return null if the browser blocked the popup.
     const waTab = window.open('about:blank', '_blank')
 
     setSubmit(true)
+
+    let bookingId
     try {
-      const bookingId = await createBooking({
+      bookingId = await createBooking({
         roomId:     room.id,
         roomNumber: room.number,
         roomNameEn: room.nameEn,
@@ -130,33 +132,47 @@ export default function BookingPage() {
         guestEmail: form.guestEmail.trim(),
         notes:      form.notes.trim(),
       })
-      const waUrl = buildWhatsAppUrl({
-        bookingId, roomId: room.id, roomNumber: room.number,
-        roomNameEn: room.nameEn, roomNameAr: room.nameAr,
-        checkIn, checkOut, guests, totalPrice,
-        guestName:  form.guestName.trim(),
-        guestPhone: form.guestPhone.trim(),
-        guestEmail: form.guestEmail.trim(),
-        notes:      form.notes.trim(),
-      }, language)
-      if (waTab && !waTab.closed) {
-        waTab.location.href = waUrl
-      } else {
-        window.location.href = waUrl
-        return
-      }
-      navigate(`/confirmation/${bookingId}`)
     } catch (err) {
-      console.error(err)
-      if (waTab && !waTab.closed) waTab.close()
+      console.error('createBooking failed:', err?.code, err?.message, err)
+      try { if (waTab && !waTab.closed) waTab.close() } catch {}
       if (err?.code === 'ROOM_UNAVAILABLE' || err?.message === 'ROOM_UNAVAILABLE') {
         setAvailable(false)
         setError(unavailableMsg)
       } else {
-        setError(tr('error_generic'))
+        // Surface the Firestore error code (e.g. "unavailable", "permission-denied")
+        // so mobile users can report what actually went wrong.
+        const code = err?.code || err?.message
+        setError(code ? `${tr('error_generic')} [${code}]` : tr('error_generic'))
       }
       setSubmit(false)
+      return
     }
+
+    // Booking succeeded. Try to open WhatsApp, but never let a redirect failure
+    // surface as a generic error — the booking is already saved.
+    const waUrl = buildWhatsAppUrl({
+      bookingId, roomId: room.id, roomNumber: room.number,
+      roomNameEn: room.nameEn, roomNameAr: room.nameAr,
+      checkIn, checkOut, guests, totalPrice,
+      guestName:  form.guestName.trim(),
+      guestPhone: form.guestPhone.trim(),
+      guestEmail: form.guestEmail.trim(),
+      notes:      form.notes.trim(),
+    }, language)
+
+    try {
+      if (waTab && !waTab.closed) {
+        waTab.location.href = waUrl
+        navigate(`/confirmation/${bookingId}`)
+        return
+      }
+    } catch (e) {
+      console.error('WhatsApp tab redirect failed', e)
+      try { waTab.close() } catch {}
+    }
+
+    // Popup blocked or redirect threw — fall back to navigating the current tab.
+    window.location.href = waUrl
   }
 
   const steps = [tr('booking_step1'), tr('booking_step2'), tr('booking_step3')]
