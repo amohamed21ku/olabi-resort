@@ -127,7 +127,9 @@ export default function BookingPage() {
         guestEmail: form.guestEmail.trim(),
         notes:      form.notes.trim(),
       })
-      navigate(`/confirmation/${id}`)
+      // Confirmation page handles the WhatsApp redirect (with a brief delay so
+      // the user sees their booking number first). The ?wa=1 flag opts in.
+      navigate(`/confirmation/${id}?wa=1`)
     } catch (err) {
       console.error('createBooking failed:', err?.code, err?.message, err)
       if (err?.code === 'ROOM_UNAVAILABLE' || err?.message === 'ROOM_UNAVAILABLE') {

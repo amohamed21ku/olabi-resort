@@ -1,17 +1,23 @@
-import { useEffect, useState } from 'react'
-import { useParams, Link } from 'react-router-dom'
+import { useEffect, useRef, useState } from 'react'
+import { useParams, useSearchParams, Link } from 'react-router-dom'
 import { useLanguage } from '../App'
 import { t } from '../translations'
 import { getBookingById, buildWhatsAppUrl, formatBookingNumber } from '../firebase/services'
 import { FiCheck, FiHome, FiMessageCircle } from 'react-icons/fi'
 
+const AUTO_OPEN_DELAY_MS = 3000
+
 export default function ConfirmationPage() {
   const { bookingId }   = useParams()
+  const [searchParams, setSearchParams] = useSearchParams()
   const { language, isRTL } = useLanguage()
   const tr = (key) => t(language, key)
 
   const [booking, setBooking] = useState(null)
   const [loading, setLoading] = useState(true)
+  const shouldAutoOpen = searchParams.get('wa') === '1'
+  const [countdown, setCountdown] = useState(shouldAutoOpen ? Math.ceil(AUTO_OPEN_DELAY_MS / 1000) : 0)
+  const redirectedRef = useRef(false)
 
   useEffect(() => {
     getBookingById(bookingId)
@@ -19,6 +25,34 @@ export default function ConfirmationPage() {
       .catch(() => {})
       .finally(() => setLoading(false))
   }, [bookingId])
+
+  // Auto-redirect to WhatsApp once after the booking loads (only if ?wa=1
+  // was set by the booking flow). Strip the flag from the URL so a back-press
+  // from WhatsApp doesn't re-trigger the redirect loop.
+  useEffect(() => {
+    if (!shouldAutoOpen || !booking || redirectedRef.current) return
+
+    setSearchParams({}, { replace: true })
+
+    let remaining = Math.ceil(AUTO_OPEN_DELAY_MS / 1000)
+    setCountdown(remaining)
+    const tick = setInterval(() => {
+      remaining -= 1
+      setCountdown(remaining)
+      if (remaining <= 0) clearInterval(tick)
+    }, 1000)
+
+    const timer = setTimeout(() => {
+      redirectedRef.current = true
+      const waUrl = buildWhatsAppUrl({ ...booking, bookingId }, language)
+      const waTab = window.open(waUrl, '_blank', 'noopener,noreferrer')
+      if (!waTab || waTab.closed || typeof waTab.closed === 'undefined') {
+        window.location.href = waUrl
+      }
+    }, AUTO_OPEN_DELAY_MS)
+
+    return () => { clearTimeout(timer); clearInterval(tick) }
+  }, [booking, shouldAutoOpen, bookingId, language, setSearchParams])
 
   const formatDate = (d) => {
     try {
@@ -142,6 +176,26 @@ export default function ConfirmationPage() {
               </div>
             )}
 
+            {/* Auto-open notice */}
+            {shouldAutoOpen && booking && countdown > 0 && (
+              <div style={{
+                background: 'var(--olive-light)',
+                border: '1px solid var(--olive)',
+                borderRadius: 'var(--radius-md)',
+                padding: '12px 16px',
+                marginBottom: '16px',
+                fontSize: '13px',
+                color: 'var(--olive-dark)',
+                textAlign: 'center',
+                lineHeight: 1.6,
+              }}>
+                {isRTL
+                  ? `سيتم تحويلك إلى واتساب خلال ${countdown} ثانية...`
+                  : `Opening WhatsApp in ${countdown} second${countdown === 1 ? '' : 's'}...`
+                }
+              </div>
+            )}
+
             {/* Action buttons */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
               {booking && (
@@ -153,7 +207,10 @@ export default function ConfirmationPage() {
                   style={{ justifyContent: 'center', gap: '8px', textDecoration: 'none' }}
                 >
                   <FiMessageCircle size={18} />
-                  {tr('confirm_whatsapp')}
+                  {shouldAutoOpen && countdown > 0
+                    ? (isRTL ? 'فتح واتساب الآن' : 'Open WhatsApp Now')
+                    : tr('confirm_whatsapp')
+                  }
                 </a>
               )}
               <Link to="/" className="btn btn-outline btn-lg" style={{ justifyContent: 'center', gap: '8px' }}>
