@@ -18,6 +18,24 @@ const HOTEL_WHATSAPP = '963956883006'
 
 // ─── Bookings ─────────────────────────────────────────────
 
+// Format an integer booking number as a 4-digit string: 1 → "0001".
+export function formatBookingNumber(n) {
+  if (n == null) return ''
+  return String(n).padStart(4, '0')
+}
+
+// Read the highest existing bookingNumber and return the next one.
+// Concurrent calls may collide (rare for low-volume); doc IDs stay unique.
+export async function getNextBookingNumber() {
+  const snap = await getDocs(collection(db, 'bookings'))
+  let max = 0
+  snap.docs.forEach(d => {
+    const n = d.data().bookingNumber
+    if (typeof n === 'number' && n > max) max = n
+  })
+  return max + 1
+}
+
 export async function createBooking(bookingData) {
   const { roomId, checkIn, checkOut } = bookingData
   if (!roomId || !checkIn || !checkOut) throw new Error('INVALID_BOOKING_DATA')
@@ -28,10 +46,8 @@ export async function createBooking(bookingData) {
 
   const roomRef    = doc(db, 'rooms', roomId)
   const bookingRef = doc(collection(db, 'bookings'))
+  const bookingNumber = await getNextBookingNumber()
 
-  // Transaction on the room doc serialises concurrent bookings for the same room:
-  // if two clients race, Firestore retries the loser, which re-runs the conflict
-  // query and sees the freshly-committed booking.
   await runTransaction(db, async (tx) => {
     const roomSnap = await tx.get(roomRef)
     if (!roomSnap.exists()) throw new Error('ROOM_NOT_FOUND')
@@ -51,12 +67,13 @@ export async function createBooking(bookingData) {
 
     tx.set(bookingRef, {
       ...bookingData,
+      bookingNumber,
       status: 'pending',
       createdAt: Timestamp.now(),
     })
   })
 
-  return bookingRef.id
+  return { id: bookingRef.id, bookingNumber }
 }
 
 export async function getBookingById(bookingId) {
@@ -145,11 +162,15 @@ export function buildWhatsAppUrl(booking, language = 'ar') {
   const priceStr = booking.totalPrice != null ? `$${booking.totalPrice}` : 'سيُحدد لاحقاً'
   const priceStrEn = booking.totalPrice != null ? `$${booking.totalPrice}` : 'To be confirmed'
 
+  const bookingRef = booking.bookingNumber != null
+    ? `#${formatBookingNumber(booking.bookingNumber)}`
+    : booking.bookingId
+
   let message
   if (language === 'ar') {
     message =
       `*طلب حجز جديد - منتجع العلبي* 🏨\n\n` +
-      `رقم الحجز: ${booking.bookingId}\n` +
+      `رقم الحجز: ${bookingRef}\n` +
       `الغرفة: ${booking.roomNameAr} (${booking.roomNumber})\n` +
       `الوصول: ${checkInStr}\n` +
       `المغادرة: ${checkOutStr}\n` +
@@ -165,7 +186,7 @@ export function buildWhatsAppUrl(booking, language = 'ar') {
   } else {
     message =
       `*New Booking Request - Olabi Resort* 🏨\n\n` +
-      `Booking ID: ${booking.bookingId}\n` +
+      `Booking ID: ${bookingRef}\n` +
       `Room: ${booking.roomNameEn} (${booking.roomNumber})\n` +
       `Check-in: ${checkInStr}\n` +
       `Check-out: ${checkOutStr}\n` +

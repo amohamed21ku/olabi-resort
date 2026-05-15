@@ -7,7 +7,7 @@ import {
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage'
 import { auth, db, storage } from '../firebase/config'
 import { seedRooms } from '../firebase/seed'
-import { sendWhatsAppNotification } from '../firebase/services'
+import { sendWhatsAppNotification, getNextBookingNumber, formatBookingNumber } from '../firebase/services'
 import { compressImage } from '../utils/imageCompress'
 import {
   FiLogOut, FiEdit2, FiTrash2, FiPlus, FiUpload, FiX, FiCheck,
@@ -806,8 +806,8 @@ function BookingsTab({ bookings, loading }) {
                       onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
                       onClick={() => setExpanded(isExp ? null : b.id)}>
                       <td style={{ padding: '12px 14px' }}>
-                        <code style={{ fontSize: 11, background: '#F3F4F6', color: '#6B7280', padding: '2px 6px', borderRadius: 5, fontFamily: 'monospace' }}>
-                          {b.id.slice(0, 6).toUpperCase()}
+                        <code style={{ fontSize: 12, background: '#F3F4F6', color: '#6B7280', padding: '2px 8px', borderRadius: 5, fontFamily: 'monospace', fontWeight: 600 }}>
+                          #{b.bookingNumber != null ? formatBookingNumber(b.bookingNumber) : b.id.slice(0, 6).toUpperCase()}
                         </code>
                       </td>
                       <td style={{ padding: '12px 14px' }}>
@@ -910,6 +910,7 @@ function NewBookingTab({ rooms, bookings, onDone }) {
     setSaving(true); setError('')
     try {
       const room = selectedRoom
+      const bookingNumber = await getNextBookingNumber()
       const docRef = await addDoc(collection(db, 'bookings'), {
         roomId: room.id, roomNumber: room.number,
         roomNameEn: room.nameEn || room.nameAr, roomNameAr: room.nameAr,
@@ -917,18 +918,20 @@ function NewBookingTab({ rooms, bookings, onDone }) {
         guestName: form.guestName.trim(), guestPhone: form.guestPhone.trim(),
         guestEmail: form.guestEmail.trim(), notes: form.notes.trim(),
         source: form.source, status: form.status,
+        bookingNumber,
         createdAt: Timestamp.now(), createdBy: 'admin',
       })
       if (notify) {
         sendWhatsAppNotification({
-          bookingId: docRef.id, roomId: room.id, roomNumber: room.number,
+          bookingId: docRef.id, bookingNumber,
+          roomId: room.id, roomNumber: room.number,
           roomNameEn: room.nameEn || room.nameAr, roomNameAr: room.nameAr,
           checkIn, checkOut, guests: parseInt(guests), totalPrice,
           guestName: form.guestName.trim(), guestPhone: form.guestPhone.trim(),
           guestEmail: form.guestEmail.trim(), notes: form.notes.trim(),
         }, 'ar')
       }
-      setSuccess(`تم إنشاء الحجز — رقم: ${docRef.id.slice(0, 8).toUpperCase()}`)
+      setSuccess(`تم إنشاء الحجز — رقم: #${formatBookingNumber(bookingNumber)}`)
       setRoomId(''); setForm({ guestName: '', guestPhone: '', guestEmail: '', notes: '', source: 'phone', status: 'confirmed', priceOverride: '' })
       setCheckIn(today); setCheckOut(tomorrow); setGuests(2)
     } catch (e) { setError('فشل إنشاء الحجز: ' + e.message) }

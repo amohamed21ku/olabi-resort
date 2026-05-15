@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { useLanguage } from '../App'
 import { t } from '../translations'
-import { getBookingById, sendWhatsAppNotification } from '../firebase/services'
+import { getBookingById, buildWhatsAppUrl, formatBookingNumber } from '../firebase/services'
 import { FiCheck, FiHome, FiMessageCircle } from 'react-icons/fi'
 
 export default function ConfirmationPage() {
@@ -103,16 +103,17 @@ export default function ConfirmationPage() {
                 {tr('confirm_id')}
               </span>
               <code style={{
-                fontSize: '13px',
+                fontSize: '15px',
                 fontWeight: 700,
                 color: 'var(--terracotta)',
                 fontFamily: 'monospace',
                 background: 'var(--white)',
-                padding: '4px 10px',
+                padding: '4px 12px',
                 borderRadius: 'var(--radius-sm)',
                 border: '1px solid var(--border)',
+                letterSpacing: '0.5px',
               }}>
-                #{bookingId?.slice(0, 8).toUpperCase()}
+                #{booking?.bookingNumber != null ? formatBookingNumber(booking.bookingNumber) : bookingId?.slice(0, 8).toUpperCase()}
               </code>
             </div>
 
@@ -144,14 +145,16 @@ export default function ConfirmationPage() {
             {/* Action buttons */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
               {booking && (
-                <button
+                <a
+                  href={buildWhatsAppUrl({ ...booking, bookingId }, language)}
+                  target="_blank"
+                  rel="noopener noreferrer"
                   className="btn btn-olive btn-lg"
-                  onClick={() => sendWhatsAppNotification({ ...booking, bookingId }, language)}
-                  style={{ justifyContent: 'center', gap: '8px' }}
+                  style={{ justifyContent: 'center', gap: '8px', textDecoration: 'none' }}
                 >
                   <FiMessageCircle size={18} />
                   {tr('confirm_whatsapp')}
-                </button>
+                </a>
               )}
               <Link to="/" className="btn btn-outline btn-lg" style={{ justifyContent: 'center', gap: '8px' }}>
                 <FiHome size={16} />
