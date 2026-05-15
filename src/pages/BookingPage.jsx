@@ -57,6 +57,10 @@ export default function BookingPage() {
     setSearchParams({ checkIn, checkOut, guests: guestsStr }, { replace: true })
   }, [checkIn, checkOut])
 
+  // Reset scroll on step change so users always start at the top of the next step
+  // instead of mid-page where the previous CTA was.
+  useEffect(() => { window.scrollTo(0, 0) }, [step])
+
   useEffect(() => {
     if (!room || !checkIn || !checkOut) return
     setChecking(true)
@@ -194,7 +198,7 @@ export default function BookingPage() {
                   {nights} {tr('detail_nights')}
                 </span>
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              <div className="stay-dates-grid">
                 <div>
                   <label className="form-label" style={{ fontSize: 12 }}>{tr('booking_checkIn')}</label>
                   <input
@@ -203,7 +207,7 @@ export default function BookingPage() {
                     min={today}
                     onChange={e => handleCheckInChange(e.target.value)}
                     className="form-input"
-                    style={{ padding: '10px 12px', fontSize: 14 }}
+                    style={{ padding: '12px 14px' }}
                   />
                 </div>
                 <div>
@@ -214,7 +218,7 @@ export default function BookingPage() {
                     min={minCheckOut}
                     onChange={e => handleCheckOutChange(e.target.value)}
                     className="form-input"
-                    style={{ padding: '10px 12px', fontSize: 14 }}
+                    style={{ padding: '12px 14px' }}
                   />
                 </div>
               </div>
