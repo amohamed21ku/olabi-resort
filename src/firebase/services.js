@@ -103,6 +103,54 @@ export async function updateBookingStatus(bookingId, status) {
   await updateDoc(doc(db, 'bookings', bookingId), { status })
 }
 
+// Extend (or shorten) an existing booking's checkOut date.
+// Validates the new range against other active bookings for the same room
+// inside a transaction so concurrent admin actions can't double-book.
+// Returns the new { nights, totalPrice } so callers can show feedback.
+export async function extendBookingStay(bookingId, newCheckOut) {
+  if (!bookingId || !newCheckOut) throw new Error('INVALID_EXTEND_DATA')
+  const bookingRef = doc(db, 'bookings', bookingId)
+
+  return await runTransaction(db, async (tx) => {
+    const snap = await tx.get(bookingRef)
+    if (!snap.exists()) throw new Error('BOOKING_NOT_FOUND')
+    const b = snap.data()
+
+    const checkInDate = b.checkIn?.toDate ? b.checkIn.toDate() : new Date(b.checkIn)
+    const newOut      = new Date(newCheckOut)
+    if (!(checkInDate < newOut)) throw new Error('INVALID_DATES')
+
+    const others = await getDocs(query(
+      collection(db, 'bookings'),
+      where('roomId', '==', b.roomId),
+    ))
+    const conflict = others.docs.some(d => {
+      if (d.id === bookingId) return false
+      const o = d.data()
+      if (['cancelled', 'checked-out'].includes(o.status)) return false
+      const oIn  = o.checkIn?.toDate  ? o.checkIn.toDate()  : new Date(o.checkIn)
+      const oOut = o.checkOut?.toDate ? o.checkOut.toDate() : new Date(o.checkOut)
+      return oIn < newOut && oOut > checkInDate
+    })
+    if (conflict) throw new RoomUnavailableError()
+
+    const nights = Math.max(1, Math.ceil((newOut - checkInDate) / 86400000))
+    const roomSnap = await tx.get(doc(db, 'rooms', b.roomId))
+    const roomPrice = roomSnap.exists() ? roomSnap.data().price : null
+    const newTotal = (typeof roomPrice === 'number') ? roomPrice * nights : b.totalPrice ?? null
+
+    const checkOutStr = newOut.toISOString().split('T')[0]
+    tx.update(bookingRef, {
+      checkOut:   checkOutStr,
+      nights,
+      totalPrice: newTotal,
+      updatedAt:  Timestamp.now(),
+    })
+
+    return { nights, totalPrice: newTotal, checkOut: checkOutStr }
+  })
+}
+
 // Returns true if the room is available for the given date range
 export async function checkAvailability(roomId, checkIn, checkOut) {
   const bookings = await getBookingsForRoom(roomId)
@@ -207,4 +255,71 @@ export function buildWhatsAppUrl(booking, language = 'ar') {
 export function sendWhatsAppNotification(booking, language = 'ar') {
   const url = buildWhatsAppUrl(booking, language)
   window.open(url, '_blank', 'noopener,noreferrer')
+}
+
+// Normalize phone to wa.me format: digits only, with country code.
+// Heuristic: assume Syrian (+963) when the user enters a local 09xxx number,
+// since the resort's customer base is Syria-first ([[project-olabi-audience]]).
+export function normalizeCustomerPhone(raw) {
+  if (!raw) return ''
+  let digits = String(raw).replace(/[^\d]/g, '')
+  if (digits.startsWith('00')) digits = digits.slice(2)
+  if (digits.startsWith('0') && digits.length === 10 && digits[1] === '9') {
+    digits = '963' + digits.slice(1)
+  }
+  return digits
+}
+
+// Build a WhatsApp URL targeting the customer with a booking-confirmation
+// message from the resort. Used by admin to confirm bookings with guests.
+export function buildCustomerWhatsAppUrl(booking, language = 'ar') {
+  const phone = normalizeCustomerPhone(booking.guestPhone)
+  const checkInStr  = new Date(booking.checkIn?.toDate ? booking.checkIn.toDate() : booking.checkIn).toLocaleDateString(
+    language === 'ar' ? 'ar-SY' : 'en-GB',
+    { year: 'numeric', month: 'long', day: 'numeric' }
+  )
+  const checkOutStr = new Date(booking.checkOut?.toDate ? booking.checkOut.toDate() : booking.checkOut).toLocaleDateString(
+    language === 'ar' ? 'ar-SY' : 'en-GB',
+    { year: 'numeric', month: 'long', day: 'numeric' }
+  )
+  const nights = booking.nights || Math.max(1, Math.ceil(
+    ((booking.checkOut?.toDate ? booking.checkOut.toDate() : new Date(booking.checkOut))
+   - (booking.checkIn?.toDate  ? booking.checkIn.toDate()  : new Date(booking.checkIn))) / 86400000
+  ))
+  const priceStrAr = booking.totalPrice != null ? `$${booking.totalPrice}` : 'سيُحدد لاحقاً'
+  const priceStrEn = booking.totalPrice != null ? `$${booking.totalPrice}` : 'To be confirmed'
+  const ref = booking.bookingNumber != null
+    ? `#${formatBookingNumber(booking.bookingNumber)}`
+    : (booking.id || booking.bookingId || '')
+
+  let message
+  if (language === 'ar') {
+    message =
+      `*منتجع العلبي* 🏨\n\n` +
+      `مرحباً ${booking.guestName || ''}،\n` +
+      `تم تأكيد حجزك. تفاصيل إقامتك:\n\n` +
+      `رقم الحجز: ${ref}\n` +
+      `الغرفة: ${booking.roomNameAr} (${booking.roomNumber})\n` +
+      `الوصول: ${checkInStr}\n` +
+      `المغادرة: ${checkOutStr}\n` +
+      `عدد الليالي: ${nights}\n` +
+      `الإجمالي: ${priceStrAr}\n\n` +
+      `نتطلع لاستقبالك. لأي استفسار يرجى الرد على هذه الرسالة.`
+  } else {
+    message =
+      `*Olabi Resort* 🏨\n\n` +
+      `Hello ${booking.guestName || ''},\n` +
+      `Your booking is confirmed. Stay details:\n\n` +
+      `Booking ID: ${ref}\n` +
+      `Room: ${booking.roomNameEn || booking.roomNameAr} (${booking.roomNumber})\n` +
+      `Check-in: ${checkInStr}\n` +
+      `Check-out: ${checkOutStr}\n` +
+      `Nights: ${nights}\n` +
+      `Total: ${priceStrEn}\n\n` +
+      `We look forward to welcoming you. Reply to this message for any questions.`
+  }
+
+  return phone
+    ? `https://wa.me/${phone}?text=${encodeURIComponent(message)}`
+    : `https://wa.me/?text=${encodeURIComponent(message)}`
 }

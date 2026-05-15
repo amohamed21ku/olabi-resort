@@ -7,7 +7,7 @@ import {
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage'
 import { auth, db, storage } from '../firebase/config'
 import { seedRooms } from '../firebase/seed'
-import { sendWhatsAppNotification, getNextBookingNumber, formatBookingNumber } from '../firebase/services'
+import { getNextBookingNumber, formatBookingNumber, buildCustomerWhatsAppUrl, extendBookingStay } from '../firebase/services'
 import { compressImage } from '../utils/imageCompress'
 import {
   FiLogOut, FiEdit2, FiTrash2, FiPlus, FiUpload, FiX, FiCheck,
@@ -16,7 +16,7 @@ import {
   FiMenu, FiChevronUp, FiChevronDown, FiChevronRight, FiLayers, FiActivity,
   FiCheckSquare, FiSliders, FiDatabase, FiClock, FiDollarSign,
   FiUsers, FiArrowUp, FiArrowDown, FiMoreVertical, FiRefreshCw,
-  FiExternalLink, FiPlusCircle, FiToggleLeft, FiToggleRight,
+  FiExternalLink, FiPlusCircle, FiMessageCircle,
   FiCreditCard, FiStar, FiBell, FiSettings,
 } from 'react-icons/fi'
 
@@ -730,6 +730,8 @@ function BookingsTab({ bookings, loading }) {
   const [updating, setUpdating] = useState(null)
   const [deleting, setDel]      = useState(null)
   const [expanded, setExpanded] = useState(null)
+  const [extending, setExtending] = useState(null)
+  const [extendErr, setExtendErr] = useState('')
 
   const filtered = bookings.filter(b => {
     const q = search.toLowerCase()
@@ -751,6 +753,16 @@ function BookingsTab({ bookings, loading }) {
     try { await deleteDoc(doc(db, 'bookings', b.id)) }
     catch { alert('فشل الحذف') }
     finally { setDel(null) }
+  }
+
+  const handleExtend = async (bookingId, newCheckOut) => {
+    setExtending(bookingId); setExtendErr('')
+    try { await extendBookingStay(bookingId, newCheckOut) }
+    catch (e) {
+      if (e?.code === 'ROOM_UNAVAILABLE') setExtendErr('الغرفة محجوزة في الفترة الجديدة')
+      else setExtendErr('فشل التمديد: ' + (e?.message || ''))
+    }
+    finally { setExtending(null) }
   }
 
   const fmtD = d => { try { return (d?.toDate ? d.toDate() : new Date(d)).toLocaleDateString('ar-SY', { day: 'numeric', month: 'short', year: '2-digit' }) } catch { return '—' } }
@@ -831,6 +843,15 @@ function BookingsTab({ bookings, loading }) {
                       </td>
                       <td style={{ padding: '12px 14px' }} onClick={e => e.stopPropagation()}>
                         <div style={{ display: 'flex', gap: 4 }}>
+                          <a
+                            href={buildCustomerWhatsAppUrl(b, 'ar')}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            title={`تأكيد الحجز مع ${b.guestName} عبر واتساب`}
+                            style={{ padding: '5px 7px', borderRadius: 6, border: '1px solid #BBF7D0', background: '#F0FDF4', color: '#15803d', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', textDecoration: 'none' }}
+                          >
+                            <FiMessageCircle size={13} />
+                          </a>
                           <button onClick={() => setExpanded(isExp ? null : b.id)} style={{ padding: '5px 7px', borderRadius: 6, border: '1px solid #E5E7EB', background: '#F9FAFB', color: '#6B7280', cursor: 'pointer' }}>
                             <FiChevronDown size={13} style={{ transform: isExp ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />
                           </button>
@@ -842,13 +863,19 @@ function BookingsTab({ bookings, loading }) {
                     </tr>
                     {isExp && (
                       <tr key={b.id + '-exp'} style={{ background: '#FAFAFA', borderBottom: '1px solid #F3F4F6' }}>
-                        <td colSpan={9} style={{ padding: '12px 20px' }}>
-                          <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap', fontSize: 13 }}>
+                        <td colSpan={9} style={{ padding: '14px 20px' }}>
+                          <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap', fontSize: 13, marginBottom: 14 }}>
                             {b.guestEmail && <InfoItem icon={<FiMail size={13} />} label="البريد" value={b.guestEmail} />}
                             {b.notes      && <InfoItem icon={<FiMessageSquare size={13} />} label="ملاحظات" value={b.notes} />}
                             {b.source     && <InfoItem icon={<FiSliders size={13} />} label="المصدر" value={SOURCE_LABELS[b.source] || b.source} />}
                             <InfoItem icon={<FiClock size={13} />} label="تاريخ الحجز" value={fmtD(b.createdAt)} />
                           </div>
+                          <ExtendStayControl
+                            booking={b}
+                            busy={extending === b.id}
+                            error={extending === b.id ? extendErr : ''}
+                            onSave={(d) => handleExtend(b.id, d)}
+                          />
                         </td>
                       </tr>
                     )}
@@ -858,6 +885,61 @@ function BookingsTab({ bookings, loading }) {
             </tbody>
           </table>
         </div>
+      )}
+    </div>
+  )
+}
+
+/* ─────────────────────────────────────────────────────────────
+   Inline extend-stay editor (rendered inside the expanded row)
+───────────────────────────────────────────────────────────── */
+function ExtendStayControl({ booking, busy, error, onSave }) {
+  const current = booking.checkOut?.toDate
+    ? booking.checkOut.toDate().toISOString().split('T')[0]
+    : new Date(booking.checkOut).toISOString().split('T')[0]
+  const checkInISO = booking.checkIn?.toDate
+    ? booking.checkIn.toDate().toISOString().split('T')[0]
+    : new Date(booking.checkIn).toISOString().split('T')[0]
+
+  const minDate = new Date(new Date(checkInISO).getTime() + 86400000).toISOString().split('T')[0]
+  const [newOut, setNewOut] = useState(current)
+
+  useEffect(() => { setNewOut(current) }, [current])
+
+  const changed = newOut && newOut !== current
+
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', background: '#fff', border: '1px solid #E5E7EB', borderRadius: 8, flexWrap: 'wrap' }}>
+      <FiCalendar size={14} color="#6B7280" />
+      <span style={{ fontSize: 12, fontWeight: 700, color: '#374151' }}>تمديد الإقامة</span>
+      <span style={{ fontSize: 11, color: '#9CA3AF' }}>المغادرة الحالية: {current}</span>
+      <input
+        type="date"
+        value={newOut}
+        min={minDate}
+        onChange={e => setNewOut(e.target.value)}
+        style={{ ...fieldStyle, padding: '6px 10px', width: 160, fontSize: 12 }}
+      />
+      <button
+        onClick={() => changed && onSave(newOut)}
+        disabled={!changed || busy}
+        style={{
+          padding: '6px 14px', borderRadius: 7, border: 'none', fontSize: 12, fontWeight: 700,
+          fontFamily: 'Cairo, sans-serif',
+          background: (!changed || busy) ? '#E5E7EB' : '#1C2B1C',
+          color:      (!changed || busy) ? '#9CA3AF' : '#fff',
+          cursor:     (!changed || busy) ? 'not-allowed' : 'pointer',
+          display: 'inline-flex', alignItems: 'center', gap: 6,
+        }}
+      >
+        {busy
+          ? <><FiRefreshCw size={12} style={{ animation: 'spin 1s linear infinite' }} /> جارٍ الحفظ...</>
+          : <><FiCheck size={12} /> حفظ</>}
+      </button>
+      {error && (
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12, color: '#b91c1c' }}>
+          <FiAlertCircle size={12} /> {error}
+        </span>
       )}
     </div>
   )
@@ -879,7 +961,6 @@ function NewBookingTab({ rooms, bookings, onDone }) {
   const [saving,   setSaving]   = useState(false)
   const [error,    setError]    = useState('')
   const [success,  setSuccess]  = useState('')
-  const [notify,   setNotify]   = useState(true)
 
   const set = (k, v) => setForm(p => ({ ...p, [k]: v }))
   const nights = Math.max(1, Math.ceil((new Date(checkOut) - new Date(checkIn)) / 86400000))
@@ -911,7 +992,7 @@ function NewBookingTab({ rooms, bookings, onDone }) {
     try {
       const room = selectedRoom
       const bookingNumber = await getNextBookingNumber()
-      const docRef = await addDoc(collection(db, 'bookings'), {
+      await addDoc(collection(db, 'bookings'), {
         roomId: room.id, roomNumber: room.number,
         roomNameEn: room.nameEn || room.nameAr, roomNameAr: room.nameAr,
         checkIn, checkOut, nights, guests: parseInt(guests), totalPrice,
@@ -921,16 +1002,6 @@ function NewBookingTab({ rooms, bookings, onDone }) {
         bookingNumber,
         createdAt: Timestamp.now(), createdBy: 'admin',
       })
-      if (notify) {
-        sendWhatsAppNotification({
-          bookingId: docRef.id, bookingNumber,
-          roomId: room.id, roomNumber: room.number,
-          roomNameEn: room.nameEn || room.nameAr, roomNameAr: room.nameAr,
-          checkIn, checkOut, guests: parseInt(guests), totalPrice,
-          guestName: form.guestName.trim(), guestPhone: form.guestPhone.trim(),
-          guestEmail: form.guestEmail.trim(), notes: form.notes.trim(),
-        }, 'ar')
-      }
       setSuccess(`تم إنشاء الحجز — رقم: #${formatBookingNumber(bookingNumber)}`)
       setRoomId(''); setForm({ guestName: '', guestPhone: '', guestEmail: '', notes: '', source: 'phone', status: 'confirmed', priceOverride: '' })
       setCheckIn(today); setCheckOut(tomorrow); setGuests(2)
@@ -1137,14 +1208,6 @@ function NewBookingTab({ rooms, bookings, onDone }) {
               <select value={form.status} onChange={e => set('status', e.target.value)} style={fieldStyle}>
                 {Object.entries(STATUS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
               </select>
-            </div>
-
-            {/* WhatsApp toggle */}
-            <div style={{ padding: '12px 16px', borderBottom: '1px solid #F3F4F6', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <span style={{ fontSize: 13, color: '#374151' }}>إشعار واتساب</span>
-              <button onClick={() => setNotify(n => !n)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: notify ? '#15803d' : '#9CA3AF', display: 'flex', alignItems: 'center', transition: 'color 0.2s' }}>
-                {notify ? <FiToggleRight size={24} /> : <FiToggleLeft size={24} />}
-              </button>
             </div>
 
             {/* Error */}
