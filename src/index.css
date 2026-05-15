@@ -55,25 +55,22 @@
 
 /* ─── Reset ─────────────────────────────────────────── */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-html { scroll-behavior: smooth; }
-/* Lock the page to vertical scrolling only — no horizontal pan, no
-   pinch-zoom, no iOS rubber-band bounce. */
-html, body {
-  width: 100%;
-  max-width: 100%;
-  overflow-x: hidden;
+html {
+  scroll-behavior: smooth;
+  /* Suppress horizontal pan + iOS rubber-band; keep html as the scroll
+     container so position:sticky and scroll restoration keep working. */
+  overflow-x: clip;
   overscroll-behavior: none;
   -webkit-text-size-adjust: 100%;
-  touch-action: pan-y;
 }
-
 body {
+  max-width: 100%;
+  overflow-x: clip;
   background: var(--cream);
   color: var(--ink);
   font-family: var(--font-body);
   line-height: 1.65;
   -webkit-font-smoothing: antialiased;
-  position: relative;
 }
 
 /* iOS Safari focuses inputs by zooming in when font-size < 16px.
