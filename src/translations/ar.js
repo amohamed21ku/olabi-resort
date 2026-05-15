@@ -95,11 +95,11 @@ export const ar = {
 
   // Confirmation page
   confirm_title:    'تم استلام طلب الحجز',
-  confirm_subtitle: 'شكراً لك! استلمنا طلب حجزك وسنقوم بتأكيده معك في أقرب وقت ممكن عبر واتساب.',
+  confirm_subtitle: 'استلمنا طلب الحجز. لتأكيده، اضغط على "إرسال على واتساب" وسيتم إرسال الرسالة على واتساب.',
   confirm_id:       'رقم الحجز',
   confirm_backHome: 'العودة للرئيسية',
   confirm_viewRooms: 'تصفح الغرف الأخرى',
-  confirm_whatsapp: 'عرض على واتساب',
+  confirm_whatsapp: 'إرسال على واتساب',
 
   // About section
   about_label:    'قصتنا',

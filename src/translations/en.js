@@ -95,11 +95,11 @@ export const en = {
 
   // Confirmation page
   confirm_title:    'Booking Request Received',
-  confirm_subtitle: 'Thank you! We received your booking request and will confirm it with you as soon as possible via WhatsApp.',
+  confirm_subtitle: 'We received your booking request. To confirm it, tap "Send on WhatsApp" and the message will be sent on WhatsApp.',
   confirm_id:       'Booking ID',
   confirm_backHome: 'Back to Home',
   confirm_viewRooms: 'Browse Other Rooms',
-  confirm_whatsapp: 'View on WhatsApp',
+  confirm_whatsapp: 'Send on WhatsApp',
 
   // About section
   about_label:    'Our Story',
