@@ -2,9 +2,9 @@ import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useLanguage } from '../App'
 import { t } from '../translations'
-import { useRooms, useCurrentlyBookedRoomIds } from '../hooks/useRooms'
+import { useRoomVariants } from '../hooks/useRooms'
 import SearchBar from '../components/SearchBar'
-import RoomCard from '../components/RoomCard'
+import TypeCard from '../components/TypeCard'
 import DirectionsMap from '../components/DirectionsMap'
 import { FiPhone, FiMail, FiMapPin, FiChevronDown, FiSearch, FiNavigation, FiChevronLeft, FiChevronRight } from 'react-icons/fi'
 
@@ -130,8 +130,8 @@ function AboutCarousel({ isRTL }) {
 export default function HomePage() {
   const { language, isRTL } = useLanguage()
   const tr = (key) => t(language, key)
-  const { rooms } = useRooms()
-  const featuredRooms = rooms.filter(r => r.featured)
+  const { variants } = useRoomVariants()
+  const visibleVariants = variants.filter(v => v.count > 0)
   const [scrolled, setScrolled] = useState(false)
   const videoRef = useRef(null)
 
@@ -297,8 +297,8 @@ export default function HomePage() {
           </div>
 
           <div className="grid-rooms">
-            {featuredRooms.map(room => (
-              <RoomCard key={room.id} room={room} />
+            {visibleVariants.map(variant => (
+              <TypeCard key={variant.id} variant={variant} />
             ))}
           </div>
 

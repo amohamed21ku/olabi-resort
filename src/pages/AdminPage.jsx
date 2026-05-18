@@ -6,8 +6,15 @@ import {
 } from 'firebase/firestore'
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage'
 import { auth, db, storage } from '../firebase/config'
-import { seedRooms } from '../firebase/seed'
-import { getNextBookingNumber, formatBookingNumber, buildCustomerWhatsAppUrl, extendBookingStay } from '../firebase/services'
+import { seedRooms, CATEGORIES } from '../firebase/seed'
+import { getNextBookingNumber, formatBookingNumber, buildCustomerWhatsAppUrl, extendBookingStay, assignRoomToBooking } from '../firebase/services'
+
+const CATEGORY_OPTIONS = [
+  { value: 'superub', labelAr: 'سوبر' },
+  { value: 'premium', labelAr: 'بريميوم' },
+  { value: 'deluxe',  labelAr: 'ديلوكس' },
+]
+const CATEGORY_LABEL_AR = Object.fromEntries(CATEGORY_OPTIONS.map(o => [o.value, o.labelAr]))
 import { compressImage } from '../utils/imageCompress'
 import {
   FiLogOut, FiEdit2, FiTrash2, FiPlus, FiUpload, FiX, FiCheck,
@@ -51,6 +58,7 @@ const NAV_SECTIONS = [
     items: [
       { id: 'bookings',     label: 'الحجوزات',    Icon: FiBookOpen },
       { id: 'availability', label: 'الإتاحة',     Icon: FiCalendar },
+      { id: 'variants',     label: 'الفئات',       Icon: FiStar },
       { id: 'rooms',        label: 'الغرف',        Icon: FiLayers },
     ],
   },
@@ -140,10 +148,13 @@ function Dashboard({ user }) {
   const [tab, setTab]             = useState('dashboard')
   const [mobileSidebar, setMob]   = useState(false)
   const [rooms, setRooms]         = useState([])
+  const [variants, setVariants]   = useState([])
   const [bookings, setBookings]   = useState([])
   const [loadingR, setLR]         = useState(true)
+  const [loadingV, setLV]         = useState(true)
   const [loadingB, setLB]         = useState(true)
-  const [editingRoom, setEditingRoom] = useState(null) // null = new, object = editing
+  const [editingRoom, setEditingRoom]       = useState(null)
+  const [editingVariant, setEditingVariant] = useState(null)
   const [seeding, setSeeding]         = useState(false)
   const [seedMsg, setSeedMsg]     = useState('')
 
@@ -152,23 +163,33 @@ function Dashboard({ user }) {
     setLR(false)
   }), [])
 
+  useEffect(() => onSnapshot(collection(db, 'variants'), snap => {
+    setVariants(snap.docs.map(d => ({ id: d.id, ...d.data() })))
+    setLV(false)
+  }), [])
+
   useEffect(() => {
     const q = query(collection(db, 'bookings'), orderBy('createdAt', 'desc'))
     return onSnapshot(q, snap => { setBookings(snap.docs.map(d => ({ id: d.id, ...d.data() }))); setLB(false) })
   }, [])
 
   const handleSeed = async () => {
-    if (!confirm('إضافة الـ١٤ غرفة الحقيقية؟')) return
+    if (!confirm('إعادة تهيئة الفئات والغرف؟ (سيُعاد كتابة 5 فئات و14 غرفة)')) return
     setSeeding(true)
-    try { const n = await seedRooms(); setSeedMsg(`تم إضافة ${n} غرفة بنجاح`) }
+    try {
+      const { rooms: nR, variants: nV } = await seedRooms()
+      setSeedMsg(`تم: ${nV} فئة و ${nR} غرفة`)
+    }
     catch (e) { setSeedMsg(`خطأ: ${e.message}`) }
     finally { setSeeding(false); setTimeout(() => setSeedMsg(''), 4000) }
   }
 
   const pending = bookings.filter(b => b.status === 'pending').length
   const navLabel = tab === 'room-form'
-    ? (editingRoom ? `تعديل: ${editingRoom.nameAr}` : 'إضافة غرفة جديدة')
-    : NAV_SECTIONS.flatMap(s => s.items).find(n => n.id === tab)?.label ?? ''
+    ? (editingRoom ? `تعديل غرفة ${editingRoom.number}` : 'إضافة غرفة جديدة')
+    : tab === 'variant-form'
+      ? (editingVariant ? `تعديل: ${editingVariant.nameAr || editingVariant.id}` : 'إضافة فئة جديدة')
+      : NAV_SECTIONS.flatMap(s => s.items).find(n => n.id === tab)?.label ?? ''
 
   return (
     <div dir="rtl" style={{ minHeight: '100vh', background: '#F4F6F4', fontFamily: 'Cairo, sans-serif', display: 'flex' }}>
@@ -284,11 +305,13 @@ function Dashboard({ user }) {
         {/* Content */}
         <main style={{ flex: 1, padding: '28px 28px' }}>
           {tab === 'dashboard'    && <DashboardTab rooms={rooms} bookings={bookings} setTab={setTab} />}
-          {tab === 'rooms'        && <RoomsTab rooms={rooms} bookings={bookings} loading={loadingR} onAdd={() => { setEditingRoom(null); setTab('room-form') }} onEdit={r => { setEditingRoom(r); setTab('room-form') }} onSeed={handleSeed} seeding={seeding} />}
-          {tab === 'room-form'    && <RoomFormPage room={editingRoom} onBack={() => setTab('rooms')} />}
-          {tab === 'availability' && <AvailabilityTab rooms={rooms} bookings={bookings} loading={loadingR || loadingB} />}
-          {tab === 'bookings'     && <BookingsTab bookings={bookings} loading={loadingB} />}
-          {tab === 'new-booking'  && <NewBookingTab rooms={rooms} bookings={bookings} onDone={() => setTab('bookings')} />}
+          {tab === 'variants'     && <VariantsTab variants={variants} rooms={rooms} loading={loadingV || loadingR} onAdd={() => { setEditingVariant(null); setTab('variant-form') }} onEdit={v => { setEditingVariant(v); setTab('variant-form') }} onSeed={handleSeed} seeding={seeding} />}
+          {tab === 'variant-form' && <VariantFormPage variant={editingVariant} onBack={() => setTab('variants')} />}
+          {tab === 'rooms'        && <RoomsTab rooms={rooms} variants={variants} bookings={bookings} loading={loadingR || loadingV} onAdd={() => { setEditingRoom(null); setTab('room-form') }} onEdit={r => { setEditingRoom(r); setTab('room-form') }} onSeed={handleSeed} seeding={seeding} />}
+          {tab === 'room-form'    && <RoomFormPage room={editingRoom} variants={variants} onBack={() => setTab('rooms')} />}
+          {tab === 'availability' && <AvailabilityTab rooms={rooms} variants={variants} bookings={bookings} loading={loadingR || loadingB} />}
+          {tab === 'bookings'     && <BookingsTab bookings={bookings} loading={loadingB} rooms={rooms} />}
+          {tab === 'new-booking'  && <NewBookingTab rooms={rooms} variants={variants} bookings={bookings} onDone={() => setTab('bookings')} />}
         </main>
       </div>
 
@@ -300,17 +323,19 @@ function Dashboard({ user }) {
    Dashboard tab
 ───────────────────────────────────────────────────────────── */
 function DashboardTab({ rooms, bookings, setTab }) {
-  const active   = rooms.filter(r => r.active !== false).length
-  const occupied = bookings.filter(b => ['confirmed', 'checked-in'].includes(b.status)).length
-  const pending  = bookings.filter(b => b.status === 'pending').length
-  const revenue  = bookings.filter(b => b.status !== 'cancelled').reduce((s, b) => s + (b.totalPrice || 0), 0)
-  const recent   = bookings.slice(0, 6)
+  const active     = rooms.filter(r => r.active !== false).length
+  const occupied   = bookings.filter(b => ['confirmed', 'checked-in'].includes(b.status)).length
+  const pending    = bookings.filter(b => b.status === 'pending').length
+  const unassigned = bookings.filter(b => !b.roomId && !['cancelled', 'checked-out'].includes(b.status)).length
+  const revenue    = bookings.filter(b => b.status !== 'cancelled').reduce((s, b) => s + (b.totalPrice || 0), 0)
+  const recent     = bookings.slice(0, 6)
 
   const fmtD = d => { try { return (d?.toDate ? d.toDate() : new Date(d)).toLocaleDateString('ar-SY', { day: 'numeric', month: 'short' }) } catch { return '—' } }
 
   const kpis = [
     { label: 'إجمالي الغرف',    value: rooms.length,  sub: `${active} نشطة`,       Icon: FiLayers,     accent: '#3d5a3a' },
     { label: 'حجوزات نشطة',     value: occupied,      sub: 'ضيف داخل المنتجع',     Icon: FiUsers,      accent: '#1d4ed8' },
+    { label: 'غير معينة',       value: unassigned,    sub: unassigned ? 'تحتاج تعيين غرفة' : 'الكل معين', Icon: FiHome, accent: unassigned ? '#b45309' : '#6b7280' },
     { label: 'بانتظار التأكيد', value: pending,       sub: pending ? 'تحتاج مراجعة' : 'لا يوجد معلق', Icon: FiClock, accent: pending ? '#b45309' : '#6b7280' },
     { label: 'إجمالي الإيرادات',value: `$${revenue.toLocaleString()}`, sub: 'كل الحجوزات غير الملغاة', Icon: FiCreditCard, accent: '#15803d' },
   ]
@@ -318,7 +343,7 @@ function DashboardTab({ rooms, bookings, setTab }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
       {/* KPI cards */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 16 }}>
         {kpis.map(k => (
           <div key={k.label} style={{ background: '#fff', borderRadius: 12, border: '1px solid #E5E7EB', padding: '20px 20px', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 14 }}>
@@ -425,7 +450,7 @@ function DashboardTab({ rooms, bookings, setTab }) {
 /* ─────────────────────────────────────────────────────────────
    Rooms tab
 ───────────────────────────────────────────────────────────── */
-function RoomsTab({ rooms, bookings, loading, onAdd, onEdit, onSeed, seeding }) {
+function RoomsTab({ rooms, variants, bookings, loading, onAdd, onEdit, onSeed, seeding }) {
   const [search,      setSearch]  = useState('')
   const [floorF,      setFloor]   = useState('all')
   const [typeF,       setType]    = useState('all')
@@ -439,14 +464,14 @@ function RoomsTab({ rooms, bookings, loading, onAdd, onEdit, onSeed, seeding }) 
 
   const filtered = rooms.filter(r => {
     const q = search.toLowerCase()
-    return (!search || r.number?.includes(q) || r.nameAr?.includes(search) || r.nameEn?.toLowerCase().includes(q) || r.type?.toLowerCase().includes(q))
+    return (!search || r.number?.includes(q) || r.type?.toLowerCase().includes(q))
       && (floorF  === 'all' || String(r.floor) === String(floorF))
       && (typeF   === 'all' || r.type === typeF)
       && (activeF === 'all' || (activeF === 'active' ? r.active !== false : r.active === false))
   })
 
   const handleDelete = async room => {
-    if (!confirm(`حذف "${room.nameAr}"؟`)) return
+    if (!confirm(`حذف غرفة ${room.number}؟`)) return
     setDel(room.id)
     try { await deleteDoc(doc(db, 'rooms', room.id)) }
     catch (e) { alert(e.message) }
@@ -461,7 +486,6 @@ function RoomsTab({ rooms, bookings, loading, onAdd, onEdit, onSeed, seeding }) 
     { label: 'نشطة',    v: rooms.filter(r => r.active !== false).length,  c: '#15803d', bg: '#f0fdf4' },
     { label: 'مخفية',   v: rooms.filter(r => r.active === false).length,   c: '#b91c1c', bg: '#fef2f2' },
     { label: 'محجوزة',  v: occupiedIds.size,                              c: '#1d4ed8', bg: '#eff6ff' },
-    { label: 'مميزة',   v: rooms.filter(r => r.featured).length,           c: '#b45309', bg: '#fffbeb' },
   ]
 
   return (
@@ -488,8 +512,8 @@ function RoomsTab({ rooms, bookings, loading, onAdd, onEdit, onSeed, seeding }) 
           {floors.filter(f => f !== 'all').map(f => <option key={f} value={f}>الطابق {f}</option>)}
         </select>
         <select value={typeF} onChange={e => setType(e.target.value)} style={filterInp}>
-          <option value="all">كل الأنواع</option>
-          {types.filter(t => t !== 'all').map(t => <option key={t} value={t}>{t}</option>)}
+          <option value="all">كل الفئات</option>
+          {types.filter(t => t !== 'all').map(t => <option key={t} value={t}>{CATEGORY_LABEL_AR[t] || t}</option>)}
         </select>
         <select value={activeF} onChange={e => setActive(e.target.value)} style={filterInp}>
           <option value="all">كل الحالات</option>
@@ -497,7 +521,7 @@ function RoomsTab({ rooms, bookings, loading, onAdd, onEdit, onSeed, seeding }) 
           <option value="inactive">مخفية فقط</option>
         </select>
         <div style={{ display: 'flex', gap: 8, marginRight: 'auto' }}>
-          <Btn onClick={onSeed} disabled={seeding} variant="outline" icon={<FiDatabase size={14} />}>{seeding ? 'جارٍ...' : 'إضافة الـ١٤ غرفة'}</Btn>
+          <Btn onClick={onSeed} disabled={seeding} variant="outline" icon={<FiDatabase size={14} />}>{seeding ? 'جارٍ...' : 'إعادة التهيئة'}</Btn>
           <Btn onClick={onAdd} icon={<FiPlus size={14} />}>إضافة غرفة</Btn>
         </div>
       </div>
@@ -520,40 +544,27 @@ function RoomsTab({ rooms, bookings, loading, onAdd, onEdit, onSeed, seeding }) 
 }
 
 function RoomCard({ room, onEdit, onDelete, onToggle, deleting, isOccupied, booking }) {
+  const variantLabel = CATEGORY_LABEL_AR[room.type] || room.type || '—'
   return (
     <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #E5E7EB', overflow: 'hidden', boxShadow: '0 1px 3px rgba(0,0,0,0.04)', opacity: room.active === false ? 0.65 : 1, transition: 'box-shadow 0.15s' }}
       onMouseEnter={e => e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.08)'}
       onMouseLeave={e => e.currentTarget.style.boxShadow = '0 1px 3px rgba(0,0,0,0.04)'}>
-      {/* Image */}
-      <div style={{ height: 152, background: '#F3F4F6', position: 'relative', overflow: 'hidden' }}>
-        {room.images?.[0]
-          ? <img src={room.images[0]} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-          : <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><FiImage size={28} color="#D1D5DB" /></div>}
-        {/* Badges */}
-        <div style={{ position: 'absolute', top: 10, right: 10 }}>
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11, fontWeight: 600, padding: '3px 9px', borderRadius: 6, background: room.active !== false ? '#f0fdf4' : '#F9FAFB', color: room.active !== false ? '#15803d' : '#6B7280', border: `1px solid ${room.active !== false ? '#bbf7d0' : '#E5E7EB'}` }}>
-            {room.active !== false ? <FiEye size={10} /> : <FiEyeOff size={10} />}
-            {room.active !== false ? 'نشطة' : 'مخفية'}
-          </span>
-        </div>
-        <div style={{ position: 'absolute', top: 10, left: 10, display: 'flex', gap: 4 }}>
-          {isOccupied && <span style={{ fontSize: 11, fontWeight: 600, padding: '3px 9px', borderRadius: 6, background: '#eff6ff', color: '#1d4ed8', border: '1px solid #bfdbfe' }}>محجوزة</span>}
-          {!isOccupied && room.active !== false && <span style={{ fontSize: 11, fontWeight: 600, padding: '3px 9px', borderRadius: 6, background: '#f0fdf4', color: '#15803d', border: '1px solid #bbf7d0' }}>متاحة</span>}
-          {room.featured && <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 11, fontWeight: 600, padding: '3px 9px', borderRadius: 6, background: '#fffbeb', color: '#b45309', border: '1px solid #fde68a' }}><FiStar size={9} />مميزة</span>}
-        </div>
-      </div>
-
       {/* Body */}
-      <div style={{ padding: '14px 16px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 6 }}>
+      <div style={{ padding: '16px 16px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 }}>
           <div>
-            <p style={{ fontSize: 14, fontWeight: 700, color: '#111827', marginBottom: 2 }}>{room.nameAr}</p>
-            <p style={{ fontSize: 12, color: '#9CA3AF' }}>غرفة {room.number} · الطابق {room.floor} · {room.capacity} أشخاص</p>
+            <p style={{ fontSize: 18, fontWeight: 800, color: '#111827', marginBottom: 4 }}>غرفة {room.number}</p>
+            <p style={{ fontSize: 12, color: '#9CA3AF' }}>الطابق {room.floor} · سعة {room.capacity}</p>
           </div>
-          <p style={{ fontSize: 14, fontWeight: 700, color: '#3d5a3a', flexShrink: 0 }}>{room.price ? `$${room.price}` : 'عند الطلب'}</p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'flex-end' }}>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11, fontWeight: 600, padding: '3px 9px', borderRadius: 6, background: room.active !== false ? '#f0fdf4' : '#F9FAFB', color: room.active !== false ? '#15803d' : '#6B7280', border: `1px solid ${room.active !== false ? '#bbf7d0' : '#E5E7EB'}` }}>
+              {room.active !== false ? <FiEye size={10} /> : <FiEyeOff size={10} />}
+              {room.active !== false ? 'نشطة' : 'مخفية'}
+            </span>
+            {isOccupied && <span style={{ fontSize: 11, fontWeight: 600, padding: '3px 9px', borderRadius: 6, background: '#eff6ff', color: '#1d4ed8', border: '1px solid #bfdbfe' }}>محجوزة</span>}
+          </div>
         </div>
-        {room.type && <span style={{ display: 'inline-block', fontSize: 11, fontWeight: 600, color: '#6B7280', background: '#F3F4F6', padding: '2px 8px', borderRadius: 5, marginBottom: 6 }}>{room.type}</span>}
-        {room.bedsAr && <p style={{ fontSize: 12, color: '#9CA3AF', marginBottom: booking ? 10 : 14 }}>{room.bedsAr}</p>}
+        <span style={{ display: 'inline-block', fontSize: 11, fontWeight: 600, color: '#6B7280', background: '#F3F4F6', padding: '3px 10px', borderRadius: 5, marginBottom: 12 }}>{variantLabel} · {room.capacity} أشخاص</span>
         {booking && (
           <div style={{ background: '#F8FAFF', border: '1px solid #DBEAFE', borderRadius: 8, padding: '8px 10px', marginBottom: 12, fontSize: 12 }}>
             <p style={{ fontWeight: 700, color: '#1E40AF', marginBottom: 2 }}>{booking.guestName}</p>
@@ -586,7 +597,14 @@ function RoomCard({ room, onEdit, onDelete, onToggle, deleting, isOccupied, book
 /* ─────────────────────────────────────────────────────────────
    Availability tab
 ───────────────────────────────────────────────────────────── */
-function AvailabilityTab({ rooms, bookings, loading }) {
+function AvailabilityTab({ rooms, variants = [], bookings, loading }) {
+  const variantOf = (room) => variants.find(v =>
+    v.type === room.type && Number(v.capacity) === Number(room.capacity)
+  )
+  const labelFor = (room) => {
+    const v = variantOf(room)
+    return v?.nameAr || `${CATEGORY_LABEL_AR[room.type] || room.type} — ${room.capacity}p`
+  }
   const today    = new Date().toISOString().split('T')[0]
   const tomorrow = new Date(Date.now() + 86400000).toISOString().split('T')[0]
   const [from, setFrom] = useState(today)
@@ -659,10 +677,10 @@ function AvailabilityTab({ rooms, bookings, loading }) {
             {occupied.map(({ room, booking }) => (
               <div key={room.id} style={{ background: '#fff', borderRadius: 10, border: '1px solid #BFDBFE', padding: '14px 16px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                  <p style={{ fontSize: 13, fontWeight: 700, color: '#111827' }}>{room.nameAr}</p>
+                  <p style={{ fontSize: 13, fontWeight: 700, color: '#111827' }}>غرفة {room.number}</p>
                   <StatusPill status={booking.status} />
                 </div>
-                <p style={{ fontSize: 11, color: '#9CA3AF', marginBottom: 10 }}>غرفة {room.number} · الطابق {room.floor}{room.type ? ` · ${room.type}` : ''}</p>
+                <p style={{ fontSize: 11, color: '#9CA3AF', marginBottom: 10 }}>الطابق {room.floor} · {labelFor(room)}</p>
                 <div style={{ background: '#EFF6FF', borderRadius: 8, padding: '10px 12px', fontSize: 12 }}>
                   <p style={{ fontWeight: 700, color: '#1E40AF', marginBottom: 3 }}>{booking.guestName}</p>
                   <p style={{ color: '#3B82F6', marginBottom: 3 }}>{booking.guestPhone}</p>
@@ -682,12 +700,10 @@ function AvailabilityTab({ rooms, bookings, loading }) {
             {available.map(({ room }) => (
               <div key={room.id} style={{ background: '#fff', borderRadius: 10, border: '1px solid #BBF7D0', padding: '12px 14px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-                  <p style={{ fontSize: 13, fontWeight: 700, color: '#111827' }}>{room.nameAr}</p>
+                  <p style={{ fontSize: 13, fontWeight: 700, color: '#111827' }}>غرفة {room.number}</p>
                   <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#22c55e', flexShrink: 0 }} />
                 </div>
-                <p style={{ fontSize: 11, color: '#9CA3AF' }}>غرفة {room.number} · {room.capacity} أشخاص</p>
-                {room.type && <p style={{ fontSize: 11, color: '#D1D5DB', marginTop: 2 }}>{room.type}</p>}
-                <p style={{ fontSize: 12, fontWeight: 700, color: '#3d5a3a', marginTop: 6 }}>{room.price ? `$${room.price}/ليلة` : 'عند الطلب'}</p>
+                <p style={{ fontSize: 11, color: '#9CA3AF' }}>{labelFor(room)} · {room.capacity} أشخاص</p>
               </div>
             ))}
           </div>
@@ -699,7 +715,7 @@ function AvailabilityTab({ rooms, bookings, loading }) {
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
             {inactive.map(({ room }) => (
               <div key={room.id} style={{ background: '#F9FAFB', borderRadius: 8, border: '1px solid #E5E7EB', padding: '8px 14px', opacity: 0.7 }}>
-                <p style={{ fontSize: 12, fontWeight: 600, color: '#6B7280' }}>{room.nameAr} · غرفة {room.number}</p>
+                <p style={{ fontSize: 12, fontWeight: 600, color: '#6B7280' }}>غرفة {room.number} · {labelFor(room)}</p>
               </div>
             ))}
           </div>
@@ -724,7 +740,7 @@ function AvailSection({ title, color, children }) {
 /* ─────────────────────────────────────────────────────────────
    Bookings tab  (table layout)
 ───────────────────────────────────────────────────────────── */
-function BookingsTab({ bookings, loading }) {
+function BookingsTab({ bookings, loading, rooms = [] }) {
   const [statusF,  setStatusF]  = useState('all')
   const [search,   setSearch]   = useState('')
   const [updating, setUpdating] = useState(null)
@@ -732,13 +748,31 @@ function BookingsTab({ bookings, loading }) {
   const [expanded, setExpanded] = useState(null)
   const [extending, setExtending] = useState(null)
   const [extendErr, setExtendErr] = useState('')
+  const [assigning, setAssigning] = useState(null)
+  const [assignErr, setAssignErr] = useState('')
 
   const filtered = bookings.filter(b => {
     const q = search.toLowerCase()
-    return (statusF === 'all' || b.status === statusF)
+    const isUnassigned = !b.roomId
+    const matchesUnassignedFilter = statusF === 'unassigned' ? isUnassigned : true
+    const matchesStatus = statusF === 'all' || statusF === 'unassigned' || b.status === statusF
+    return matchesStatus && matchesUnassignedFilter
       && (!search || b.guestName?.includes(search) || b.guestPhone?.includes(search)
-          || b.roomNameAr?.includes(search) || b.roomNumber?.includes(search))
+          || b.roomNameAr?.includes(search) || b.roomNumber?.includes(search)
+          || b.roomType?.includes(search))
   })
+
+  const handleAssign = async (bookingId, roomId) => {
+    setAssigning(bookingId); setAssignErr('')
+    try { await assignRoomToBooking(bookingId, roomId) }
+    catch (e) {
+      if (e?.code === 'ROOM_UNAVAILABLE')         setAssignErr('الغرفة محجوزة في هذه الفترة')
+      else if (e?.message === 'TYPE_MISMATCH')    setAssignErr('نوع الغرفة لا يطابق فئة الحجز')
+      else if (e?.message === 'CAPACITY_MISMATCH') setAssignErr('سعة الغرفة لا تطابق سعة الحجز')
+      else setAssignErr('فشل التعيين: ' + (e?.message || ''))
+    }
+    finally { setAssigning(null) }
+  }
 
   const changeStatus = async (id, status) => {
     setUpdating(id)
@@ -779,15 +813,24 @@ function BookingsTab({ bookings, loading }) {
             style={{ ...filterInp, paddingRight: 36 }} />
         </div>
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-          {[['all', 'الكل'], ...Object.entries(STATUS).map(([k, v]) => [k, v.label])].map(([k, l]) => {
+          {[
+            ['all', 'الكل'],
+            ['unassigned', 'غير معينة'],
+            ...Object.entries(STATUS).map(([k, v]) => [k, v.label]),
+          ].map(([k, l]) => {
             const active = statusF === k
+            const count = k === 'unassigned'
+              ? bookings.filter(b => !b.roomId && !['cancelled', 'checked-out'].includes(b.status)).length
+              : k === 'all'
+                ? null
+                : bookings.filter(b => b.status === k).length
             return (
               <button key={k} onClick={() => setStatusF(k)} style={{
                 padding: '6px 14px', borderRadius: 8, border: '1px solid', fontSize: 12, fontFamily: 'Cairo, sans-serif', fontWeight: 600, cursor: 'pointer', transition: 'all 0.15s',
-                background: active ? '#1C2B1C' : '#F9FAFB',
-                color: active ? '#fff' : '#6B7280',
-                borderColor: active ? '#1C2B1C' : '#E5E7EB',
-              }}>{l} {k !== 'all' && <span style={{ opacity: 0.65 }}>({bookings.filter(b => b.status === k).length})</span>}</button>
+                background: active ? '#1C2B1C' : (k === 'unassigned' ? '#FFFBEB' : '#F9FAFB'),
+                color: active ? '#fff' : (k === 'unassigned' ? '#b45309' : '#6B7280'),
+                borderColor: active ? '#1C2B1C' : (k === 'unassigned' ? '#FDE68A' : '#E5E7EB'),
+              }}>{l} {count != null && <span style={{ opacity: 0.65 }}>({count})</span>}</button>
             )
           })}
         </div>
@@ -827,7 +870,23 @@ function BookingsTab({ bookings, loading }) {
                         <p style={{ fontSize: 11, color: '#9CA3AF' }}>{b.guestPhone}</p>
                       </td>
                       <td style={{ padding: '12px 14px', fontSize: 13, color: '#374151', whiteSpace: 'nowrap' }}>
-                        {b.roomNameAr}<span style={{ color: '#9CA3AF', marginRight: 4 }}>#{b.roomNumber}</span>
+                        {b.roomId ? (
+                          <>
+                            {b.roomNameAr}<span style={{ color: '#9CA3AF', marginRight: 4 }}>#{b.roomNumber}</span>
+                          </>
+                        ) : (
+                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                            <span style={{ fontSize: 11, fontWeight: 700, color: '#b45309', background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 5, padding: '2px 8px' }}>
+                              غير معين
+                            </span>
+                            {b.roomType && (
+                              <span style={{ fontSize: 12, color: '#6B7280' }}>
+                                {CATEGORY_LABEL_AR[b.roomType] || b.roomType}
+                                {b.roomCapacity ? ` · ${b.roomCapacity} ${b.roomCapacity === 1 ? 'شخص' : 'أشخاص'}` : ''}
+                              </span>
+                            )}
+                          </span>
+                        )}
                       </td>
                       <td style={{ padding: '12px 14px', fontSize: 12, color: '#6B7280', whiteSpace: 'nowrap' }}>{fmtD(b.checkIn)}</td>
                       <td style={{ padding: '12px 14px', fontSize: 12, color: '#6B7280', whiteSpace: 'nowrap' }}>{fmtD(b.checkOut)}</td>
@@ -870,6 +929,16 @@ function BookingsTab({ bookings, loading }) {
                             {b.source     && <InfoItem icon={<FiSliders size={13} />} label="المصدر" value={SOURCE_LABELS[b.source] || b.source} />}
                             <InfoItem icon={<FiClock size={13} />} label="تاريخ الحجز" value={fmtD(b.createdAt)} />
                           </div>
+                          {!b.roomId && (
+                            <AssignRoomControl
+                              booking={b}
+                              rooms={rooms}
+                              bookings={bookings}
+                              busy={assigning === b.id}
+                              error={assigning === b.id ? assignErr : ''}
+                              onAssign={(rid) => handleAssign(b.id, rid)}
+                            />
+                          )}
                           <ExtendStayControl
                             booking={b}
                             busy={extending === b.id}
@@ -946,9 +1015,90 @@ function ExtendStayControl({ booking, busy, error, onSave }) {
 }
 
 /* ─────────────────────────────────────────────────────────────
+   Inline assign-room control (for type-only customer bookings)
+───────────────────────────────────────────────────────────── */
+function AssignRoomControl({ booking, rooms, bookings, busy, error, onAssign }) {
+  const [pick, setPick] = useState('')
+
+  const bIn  = booking.checkIn?.toDate  ? booking.checkIn.toDate()  : new Date(booking.checkIn)
+  const bOut = booking.checkOut?.toDate ? booking.checkOut.toDate() : new Date(booking.checkOut)
+  const reqCap = Number(booking.roomCapacity) || null
+
+  // Match rooms with exact (type, capacity). Capacity must match because
+  // each variant is a separate listing — a Premium-4 booking cannot be
+  // filled with a Premium-5 room (and vice versa).
+  const candidates = rooms
+    .filter(r => r.active !== false
+      && r.type === booking.roomType
+      && (reqCap == null || Number(r.capacity) === reqCap))
+    .map(r => {
+      const conflict = bookings.some(o => {
+        if (o.id === booking.id) return false
+        if (o.roomId !== r.id) return false
+        if (['cancelled', 'checked-out'].includes(o.status)) return false
+        const oIn  = o.checkIn?.toDate  ? o.checkIn.toDate()  : new Date(o.checkIn)
+        const oOut = o.checkOut?.toDate ? o.checkOut.toDate() : new Date(o.checkOut)
+        return oIn < bOut && oOut > bIn
+      })
+      return { room: r, conflict }
+    })
+    .sort((a, b) => +a.room.number - +b.room.number)
+
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 8, flexWrap: 'wrap', marginBottom: 10 }}>
+      <FiHome size={14} color="#b45309" />
+      <span style={{ fontSize: 12, fontWeight: 700, color: '#b45309' }}>تعيين غرفة</span>
+      <span style={{ fontSize: 11, color: '#92400E' }}>
+        الفئة: {CATEGORY_LABEL_AR[booking.roomType] || booking.roomType}
+        {reqCap ? ` · ${reqCap} ${reqCap === 1 ? 'شخص' : 'أشخاص'}` : ''}
+        {booking.guests ? ` · ${booking.guests} ضيف` : ''}
+      </span>
+      <select
+        value={pick}
+        onChange={e => setPick(e.target.value)}
+        style={{ ...fieldStyle, padding: '6px 10px', width: 220, fontSize: 12 }}
+      >
+        <option value="">— اختر غرفة —</option>
+        {candidates.length === 0 && <option disabled>لا توجد غرف بهذه السعة</option>}
+        {candidates.map(({ room, conflict }) => (
+          <option key={room.id} value={room.id} disabled={conflict}>
+            غرفة {room.number} · سعة {room.capacity}{conflict ? ' — محجوزة' : ''}
+          </option>
+        ))}
+      </select>
+      <button
+        onClick={() => pick && onAssign(pick)}
+        disabled={!pick || busy}
+        style={{
+          padding: '6px 14px', borderRadius: 7, border: 'none', fontSize: 12, fontWeight: 700,
+          fontFamily: 'Cairo, sans-serif',
+          background: (!pick || busy) ? '#E5E7EB' : '#1C2B1C',
+          color:      (!pick || busy) ? '#9CA3AF' : '#fff',
+          cursor:     (!pick || busy) ? 'not-allowed' : 'pointer',
+          display: 'inline-flex', alignItems: 'center', gap: 6,
+        }}
+      >
+        {busy
+          ? <><FiRefreshCw size={12} style={{ animation: 'spin 1s linear infinite' }} /> جارٍ التعيين...</>
+          : <><FiCheck size={12} /> تعيين</>}
+      </button>
+      {error && (
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12, color: '#b91c1c' }}>
+          <FiAlertCircle size={12} /> {error}
+        </span>
+      )}
+    </div>
+  )
+}
+
+/* ─────────────────────────────────────────────────────────────
    New Booking tab
 ───────────────────────────────────────────────────────────── */
-function NewBookingTab({ rooms, bookings, onDone }) {
+function NewBookingTab({ rooms, variants = [], bookings, onDone }) {
+  const variantOf = (room) => variants.find(v =>
+    v.type === room.type && Number(v.capacity) === Number(room.capacity)
+  )
+  const labelFor = (room) => variantOf(room)?.nameAr || `${CATEGORY_LABEL_AR[room.type] || room.type} — ${room.capacity}p`
   const today    = new Date().toISOString().split('T')[0]
   const tomorrow = new Date(Date.now() + 86400000).toISOString().split('T')[0]
 
@@ -976,11 +1126,21 @@ function NewBookingTab({ rooms, bookings, onDone }) {
     })
   }
 
-  const selectedRoom  = rooms.find(r => r.id === roomId)
-  const autoPrice     = selectedRoom?.price ? selectedRoom.price * nights : null
-  const totalPrice    = form.priceOverride !== '' ? (parseFloat(form.priceOverride) || null) : autoPrice
+  const selectedRoom    = rooms.find(r => r.id === roomId)
+  const selectedVariant = selectedRoom ? variantOf(selectedRoom) : null
+  const autoPrice       = selectedVariant?.price ? selectedVariant.price * nights : null
+  const totalPrice      = form.priceOverride !== '' ? (parseFloat(form.priceOverride) || null) : autoPrice
 
-  const displayRooms  = rooms.filter(r => r.active !== false && (!roomQ || r.nameAr?.includes(roomQ) || r.number?.includes(roomQ) || r.type?.toLowerCase().includes(roomQ.toLowerCase())))
+  const displayRooms = rooms.filter(r => {
+    if (r.active === false) return false
+    if (!roomQ) return true
+    const q = roomQ.toLowerCase()
+    const v = variantOf(r)
+    return r.number?.includes(q)
+      || r.type?.toLowerCase().includes(q)
+      || (v?.nameAr || '').includes(roomQ)
+      || (v?.nameEn || '').toLowerCase().includes(q)
+  })
 
   const handleSubmit = async () => {
     if (!roomId)                { setError('يرجى اختيار غرفة'); return }
@@ -991,10 +1151,13 @@ function NewBookingTab({ rooms, bookings, onDone }) {
     setSaving(true); setError('')
     try {
       const room = selectedRoom
+      const v    = selectedVariant
       const bookingNumber = await getNextBookingNumber()
       await addDoc(collection(db, 'bookings'), {
         roomId: room.id, roomNumber: room.number,
-        roomNameEn: room.nameEn || room.nameAr, roomNameAr: room.nameAr,
+        roomType: room.type, roomCapacity: room.capacity,
+        roomNameEn: v?.nameEn || v?.nameAr || `${room.type} ${room.capacity}p`,
+        roomNameAr: v?.nameAr || v?.nameEn || `${room.type} ${room.capacity}p`,
         checkIn, checkOut, nights, guests: parseInt(guests), totalPrice,
         guestName: form.guestName.trim(), guestPhone: form.guestPhone.trim(),
         guestEmail: form.guestEmail.trim(), notes: form.notes.trim(),
@@ -1075,14 +1238,12 @@ function NewBookingTab({ rooms, bookings, onDone }) {
                     cursor: avail ? 'pointer' : 'not-allowed', opacity: avail ? 1 : 0.5,
                     textAlign: 'right', transition: 'all 0.15s', fontFamily: 'Cairo, sans-serif',
                   }}>
-                    <div style={{ width: 48, height: 36, borderRadius: 7, overflow: 'hidden', background: '#F3F4F6', flexShrink: 0 }}>
-                      {room.images?.[0]
-                        ? <img src={room.images[0]} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                        : <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><FiImage size={14} color="#D1D5DB" /></div>}
+                    <div style={{ width: 48, height: 36, borderRadius: 7, overflow: 'hidden', background: '#F3F4F6', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 700, color: '#6B7280' }}>
+                      {room.number}
                     </div>
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <p style={{ fontSize: 12, fontWeight: 700, color: selected ? '#1a3a1a' : '#111827', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{room.nameAr}</p>
-                      <p style={{ fontSize: 11, color: '#9CA3AF' }}>غرفة {room.number} · {room.capacity} أشخاص</p>
+                      <p style={{ fontSize: 12, fontWeight: 700, color: selected ? '#1a3a1a' : '#111827', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>غرفة {room.number}</p>
+                      <p style={{ fontSize: 11, color: '#9CA3AF' }}>{labelFor(room)}</p>
                     </div>
                     <div style={{ flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 3 }}>
                       {selected && <FiCheck size={14} color="#3d5a3a" />}
@@ -1149,13 +1310,11 @@ function NewBookingTab({ rooms, bookings, onDone }) {
             <div style={{ padding: '14px 16px', borderBottom: '1px solid #F3F4F6' }}>
               {selectedRoom ? (
                 <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-                  <div style={{ width: 52, height: 40, borderRadius: 8, overflow: 'hidden', background: '#F3F4F6', flexShrink: 0 }}>
-                    {selectedRoom.images?.[0]
-                      ? <img src={selectedRoom.images[0]} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                      : <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><FiImage size={16} color="#D1D5DB" /></div>}
+                  <div style={{ width: 52, height: 40, borderRadius: 8, overflow: 'hidden', background: '#F3F4F6', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, fontWeight: 700, color: '#6B7280' }}>
+                    {selectedRoom.number}
                   </div>
                   <div>
-                    <p style={{ fontSize: 13, fontWeight: 700, color: '#111827' }}>{selectedRoom.nameAr}</p>
+                    <p style={{ fontSize: 13, fontWeight: 700, color: '#111827' }}>{labelFor(selectedRoom)}</p>
                     <p style={{ fontSize: 11, color: '#9CA3AF' }}>غرفة {selectedRoom.number} · الطابق {selectedRoom.floor}</p>
                   </div>
                 </div>
@@ -1191,7 +1350,7 @@ function NewBookingTab({ rooms, bookings, onDone }) {
                 style={fieldStyle} />
               {autoPrice != null && form.priceOverride === '' && (
                 <p style={{ fontSize: 11, color: '#9CA3AF', marginTop: 5 }}>
-                  ${selectedRoom.price} × {nights} ليالٍ = <strong style={{ color: '#374151' }}>${autoPrice}</strong>
+                  ${selectedVariant.price} × {nights} ليالٍ = <strong style={{ color: '#374151' }}>${autoPrice}</strong>
                 </p>
               )}
               {totalPrice != null && (
@@ -1238,51 +1397,245 @@ function NewBookingTab({ rooms, bookings, onDone }) {
 }
 
 /* ─────────────────────────────────────────────────────────────
-   Room Form Page  (full-page replacement for the old modal)
+   Room Form Page — INVENTORY ONLY
+   Rooms are physical units (number, type, capacity, active).
+   All customer-facing copy lives on the variant, not the room.
 ───────────────────────────────────────────────────────────── */
-function RoomFormPage({ room, onBack }) {
+function RoomFormPage({ room, variants = [], onBack }) {
   const isNew = !room
 
   const [form, setForm] = useState({
-    number:      room?.number      ?? '',
-    type:        room?.type        ?? '',
-    nameAr:      room?.nameAr      ?? '',
-    nameEn:      room?.nameEn      ?? '',
-    descAr:      room?.descAr      ?? '',
-    descEn:      room?.descEn      ?? '',
-    capacity:    room?.capacity    ?? '',
-    bedsAr:      room?.bedsAr      ?? '',
-    beds:        room?.beds        ?? '',
-    price:       room?.price       ?? '',
-    amenitiesAr: room?.amenitiesAr?.join('، ') ?? '',
-    amenities:   room?.amenities?.join(', ')  ?? '',
-    featured:    room?.featured    ?? false,
-    active:      room?.active      !== false,
+    number:   room?.number   ?? '',
+    type:     room?.type     ?? '',
+    capacity: room?.capacity ?? '',
+    floor:    room?.floor    ?? '',
+    active:   room?.active   !== false,
   })
-  const [images, setImages] = useState(room?.images ?? [])
   const [saving, setSaving] = useState(false)
   const [error,  setError]  = useState('')
 
   const set    = (k, v) => setForm(p => ({ ...p, [k]: v }))
-  const roomId = room?.id ?? `room-${form.number}`
+  const roomId = room?.id ?? (form.number ? `room-${form.number}` : '')
+
+  // Only allow (type, capacity) pairs that correspond to a real variant.
+  const variantOptions = variants
+    .slice()
+    .sort((a, b) => {
+      const idxA = CATEGORIES.indexOf(a.type), idxB = CATEGORIES.indexOf(b.type)
+      if (idxA !== idxB) return idxA - idxB
+      return (a.capacity || 0) - (b.capacity || 0)
+    })
+
+  const handleVariantPick = (e) => {
+    const v = variants.find(x => x.id === e.target.value)
+    if (!v) return
+    set('type', v.type)
+    set('capacity', String(v.capacity))
+  }
 
   const handleSave = async () => {
-    if (!form.number || !form.nameAr || !form.capacity || !form.bedsAr) {
-      setError('الحقول المطلوبة: رقم الغرفة، الاسم بالعربي، عدد الأشخاص، تفاصيل الأسرة'); return
+    if (!form.number || !form.type || !form.capacity) {
+      setError('الحقول المطلوبة: رقم الغرفة، الفئة، السعة'); return
     }
     setSaving(true); setError('')
     try {
+      const floor = form.floor !== '' ? parseInt(form.floor) : (parseInt(form.number[0]) || 1)
       await setDoc(doc(db, 'rooms', roomId), {
-        number: form.number.trim(), floor: parseInt(form.number[0]) || 1,
-        type: form.type.trim(), nameAr: form.nameAr.trim(),
-        nameEn: form.nameEn.trim() || form.nameAr.trim(),
-        descAr: form.descAr.trim(), descEn: form.descEn.trim(),
+        number:   form.number.trim(),
+        floor,
+        type:     form.type.trim(),
         capacity: parseInt(form.capacity) || 1,
-        bedsAr: form.bedsAr.trim(), beds: form.beds.trim() || form.bedsAr.trim(),
-        price: form.price !== '' ? parseFloat(form.price) : null,
+        active:   form.active,
+        updatedAt: Timestamp.now(),
+        ...(isNew ? { createdAt: Timestamp.now() } : {}),
+      }, { merge: !isNew })
+      onBack()
+    } catch (e) { setError('فشل الحفظ: ' + e.message) }
+    finally { setSaving(false) }
+  }
+
+  const focusStyle = e => (e.target.style.borderColor = '#3d5a3a')
+  const blurStyle  = e => (e.target.style.borderColor = '#E5E7EB')
+  const variantKey = form.type && form.capacity ? `${form.type}-${form.capacity}` : ''
+
+  return (
+    <div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 28 }}>
+        <button onClick={onBack}
+          style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 8, border: '1px solid #E5E7EB', background: '#fff', color: '#374151', fontSize: 12, fontFamily: 'Cairo, sans-serif', fontWeight: 600, cursor: 'pointer' }}>
+          <FiChevronRight size={14} /> رجوع إلى الغرف
+        </button>
+        <div style={{ width: 1, height: 20, background: '#E5E7EB', flexShrink: 0 }} />
+        <div style={{ flex: 1 }}>
+          <h2 style={{ fontSize: 17, fontWeight: 700, color: '#111827' }}>{isNew ? 'إضافة غرفة جديدة' : `تعديل غرفة ${room.number}`}</h2>
+          <p style={{ fontSize: 12, color: '#9CA3AF', marginTop: 2 }}>
+            الغرف وحدات مخزون فقط — الاسم والصور تُدار في «الفئات».
+          </p>
+        </div>
+        <button onClick={handleSave} disabled={saving}
+          style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '9px 22px', borderRadius: 9, background: saving ? '#9CA3AF' : '#1C2B1C', color: '#fff', border: 'none', fontSize: 13, fontFamily: 'Cairo, sans-serif', fontWeight: 700, cursor: saving ? 'not-allowed' : 'pointer' }}>
+          {saving
+            ? <><FiRefreshCw size={13} style={{ animation: 'spin 1s linear infinite' }} /> جارٍ الحفظ...</>
+            : <><FiCheck size={14} /> {isNew ? 'إضافة الغرفة' : 'حفظ التغييرات'}</>}
+        </button>
+      </div>
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+        <RFSection step="1" title="بيانات الغرفة">
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14 }}>
+            <ModalField label="رقم الغرفة *">
+              <input value={form.number} onChange={e => set('number', e.target.value)} placeholder="101" style={fieldStyle} onFocus={focusStyle} onBlur={blurStyle} />
+            </ModalField>
+            <ModalField label="الفئة (نوع + سعة) *">
+              <select value={variantKey} onChange={handleVariantPick} style={fieldStyle} onFocus={focusStyle} onBlur={blurStyle}>
+                <option value="">— اختر فئة —</option>
+                {variantOptions.map(v => (
+                  <option key={v.id} value={v.id}>
+                    {CATEGORY_LABEL_AR[v.type] || v.type} — {v.capacity} أشخاص
+                  </option>
+                ))}
+              </select>
+            </ModalField>
+            <ModalField label="الطابق">
+              <input type="number" value={form.floor} onChange={e => set('floor', e.target.value)} placeholder="(يُحسب من الرقم)" min={1} style={fieldStyle} onFocus={focusStyle} onBlur={blurStyle} />
+            </ModalField>
+          </div>
+          <div style={{ display: 'flex', gap: 12, marginTop: 6, flexWrap: 'wrap' }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 13, padding: '9px 14px', borderRadius: 8, border: `1px solid ${form.active ? '#86efac' : '#E5E7EB'}`, background: form.active ? '#f0fdf4' : '#F9FAFB', fontFamily: 'Cairo, sans-serif' }}>
+              <input type="checkbox" checked={form.active} onChange={e => set('active', e.target.checked)} style={{ accentColor: '#3d5a3a', width: 14, height: 14 }} />
+              <span style={{ fontWeight: form.active ? 600 : 400, color: form.active ? '#3d5a3a' : '#6B7280' }}>غرفة نشطة (متاحة للحجز)</span>
+            </label>
+          </div>
+        </RFSection>
+
+        {error && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 10, padding: '12px 16px' }}>
+            <FiAlertCircle size={15} color="#dc2626" style={{ flexShrink: 0 }} />
+            <span style={{ fontSize: 13, color: '#b91c1c' }}>{error}</span>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+/* ─────────────────────────────────────────────────────────────
+   Variants Tab — list of customer-facing categories
+───────────────────────────────────────────────────────────── */
+function VariantsTab({ variants, rooms, loading, onEdit, onSeed, seeding }) {
+  if (loading) return <PageLoader />
+
+  const sorted = variants.slice().sort((a, b) => {
+    const idxA = CATEGORIES.indexOf(a.type), idxB = CATEGORIES.indexOf(b.type)
+    if (idxA !== idxB) return idxA - idxB
+    return (a.capacity || 0) - (b.capacity || 0)
+  })
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+      <div style={{ background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 10, padding: '12px 16px', fontSize: 13, color: '#92400E', lineHeight: 1.6 }}>
+        كل فئة (سوبر/بريميوم/ديلوكس × عدد الأشخاص) هي بطاقة منفصلة يراها العميل. الاسم والوصف والصور تُدار هنا — أرقام الغرف الفعلية تُدار في «الغرف».
+      </div>
+
+      <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+        <Btn onClick={onSeed} disabled={seeding} variant="outline" icon={<FiDatabase size={14} />}>
+          {seeding ? 'جارٍ...' : 'إعادة التهيئة'}
+        </Btn>
+      </div>
+
+      {sorted.length === 0 ? (
+        <Empty icon={<FiStar size={28} />} text="لا توجد فئات بعد. اضغط «إعادة التهيئة» لإنشاء الفئات الافتراضية." />
+      ) : (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: 14 }}>
+          {sorted.map(v => {
+            const units = rooms.filter(r => r.type === v.type && Number(r.capacity) === Number(v.capacity))
+            const activeUnits = units.filter(r => r.active !== false).length
+            return (
+              <div key={v.id} style={{ background: '#fff', borderRadius: 12, border: '1px solid #E5E7EB', overflow: 'hidden', boxShadow: '0 1px 3px rgba(0,0,0,0.04)', opacity: v.active === false ? 0.65 : 1 }}>
+                <div style={{ height: 152, background: '#F3F4F6', position: 'relative' }}>
+                  {v.images?.[0]
+                    ? <img src={v.images[0]} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    : <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><FiImage size={28} color="#D1D5DB" /></div>}
+                  <div style={{ position: 'absolute', top: 10, right: 10, display: 'flex', gap: 4 }}>
+                    <span style={{ fontSize: 11, fontWeight: 600, padding: '3px 9px', borderRadius: 6, background: v.active !== false ? '#f0fdf4' : '#F9FAFB', color: v.active !== false ? '#15803d' : '#6B7280', border: `1px solid ${v.active !== false ? '#bbf7d0' : '#E5E7EB'}` }}>
+                      {v.active !== false ? 'ظاهرة' : 'مخفية'}
+                    </span>
+                    {v.featured && <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 11, fontWeight: 600, padding: '3px 9px', borderRadius: 6, background: '#fffbeb', color: '#b45309', border: '1px solid #fde68a' }}><FiStar size={9} />مميزة</span>}
+                  </div>
+                </div>
+                <div style={{ padding: '14px 16px' }}>
+                  <p style={{ fontSize: 11, fontWeight: 700, color: '#b45309', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 4 }}>
+                    {CATEGORY_LABEL_AR[v.type] || v.type} · {v.capacity} أشخاص
+                  </p>
+                  <p style={{ fontSize: 15, fontWeight: 700, color: '#111827', marginBottom: 4 }}>{v.nameAr || '(بدون اسم)'}</p>
+                  <p style={{ fontSize: 12, color: '#9CA3AF', marginBottom: 10 }}>
+                    {activeUnits} غرفة نشطة من أصل {units.length}
+                  </p>
+                  <p style={{ fontSize: 13, color: '#374151', lineHeight: 1.6, marginBottom: 12, minHeight: 36, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+                    {v.descAr || '—'}
+                  </p>
+                  <button onClick={() => onEdit(v)} style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, background: '#1C2B1C', color: '#fff', border: 'none', borderRadius: 8, padding: '9px 0', fontSize: 13, fontFamily: 'Cairo, sans-serif', fontWeight: 600, cursor: 'pointer' }}>
+                    <FiEdit2 size={13} /> تعديل الفئة
+                  </button>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
+
+/* ─────────────────────────────────────────────────────────────
+   Variant Form Page — full customer-facing editor
+───────────────────────────────────────────────────────────── */
+function VariantFormPage({ variant, onBack }) {
+  const isNew = !variant
+  const [form, setForm] = useState({
+    type:        variant?.type        ?? '',
+    capacity:    variant?.capacity    ?? '',
+    nameAr:      variant?.nameAr      ?? '',
+    nameEn:      variant?.nameEn      ?? '',
+    descAr:      variant?.descAr      ?? '',
+    descEn:      variant?.descEn      ?? '',
+    bedsAr:      variant?.bedsAr      ?? '',
+    beds:        variant?.beds        ?? '',
+    price:       variant?.price       ?? '',
+    amenitiesAr: variant?.amenitiesAr?.join('، ') ?? '',
+    amenities:   variant?.amenities?.join(', ')  ?? '',
+    featured:    variant?.featured    ?? false,
+    active:      variant?.active      !== false,
+  })
+  const [images, setImages] = useState(variant?.images ?? [])
+  const [saving, setSaving] = useState(false)
+  const [error,  setError]  = useState('')
+
+  const set = (k, v) => setForm(p => ({ ...p, [k]: v }))
+  const variantId = variant?.id ?? (form.type && form.capacity ? `${form.type}-${form.capacity}` : '')
+
+  const handleSave = async () => {
+    if (!form.type || !form.capacity || !form.nameAr) {
+      setError('الحقول المطلوبة: الفئة، السعة، الاسم بالعربي'); return
+    }
+    setSaving(true); setError('')
+    try {
+      await setDoc(doc(db, 'variants', variantId), {
+        type:     form.type.trim(),
+        capacity: parseInt(form.capacity) || 1,
+        nameAr:   form.nameAr.trim(),
+        nameEn:   form.nameEn.trim() || form.nameAr.trim(),
+        descAr:   form.descAr.trim(),
+        descEn:   form.descEn.trim(),
+        bedsAr:   form.bedsAr.trim(),
+        beds:     form.beds.trim() || form.bedsAr.trim(),
+        price:    form.price !== '' ? parseFloat(form.price) : null,
+        currency: 'USD',
         amenitiesAr: form.amenitiesAr.split(/[،,]/).map(s => s.trim()).filter(Boolean),
         amenities:   form.amenities.split(',').map(s => s.trim()).filter(Boolean),
-        images, featured: form.featured, active: form.active,
+        images,
+        featured: form.featured,
+        active:   form.active,
         updatedAt: Timestamp.now(),
         ...(isNew ? { createdAt: Timestamp.now() } : {}),
       }, { merge: !isNew })
@@ -1296,66 +1649,59 @@ function RoomFormPage({ room, onBack }) {
 
   return (
     <div>
-
-      {/* ── Page header ── */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 28 }}>
         <button onClick={onBack}
-          style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 8, border: '1px solid #E5E7EB', background: '#fff', color: '#374151', fontSize: 12, fontFamily: 'Cairo, sans-serif', fontWeight: 600, cursor: 'pointer', transition: 'background 0.15s', flexShrink: 0 }}
-          onMouseEnter={e => e.currentTarget.style.background = '#F3F4F6'}
-          onMouseLeave={e => e.currentTarget.style.background = '#fff'}>
-          <FiChevronRight size={14} /> رجوع إلى الغرف
+          style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 8, border: '1px solid #E5E7EB', background: '#fff', color: '#374151', fontSize: 12, fontFamily: 'Cairo, sans-serif', fontWeight: 600, cursor: 'pointer' }}>
+          <FiChevronRight size={14} /> رجوع إلى الفئات
         </button>
         <div style={{ width: 1, height: 20, background: '#E5E7EB', flexShrink: 0 }} />
         <div style={{ flex: 1 }}>
-          <h2 style={{ fontSize: 17, fontWeight: 700, color: '#111827' }}>{isNew ? 'إضافة غرفة جديدة' : `تعديل: ${room.nameAr}`}</h2>
-          {!isNew && <p style={{ fontSize: 12, color: '#9CA3AF', marginTop: 2 }}>غرفة {room.number}</p>}
+          <h2 style={{ fontSize: 17, fontWeight: 700, color: '#111827' }}>{isNew ? 'إضافة فئة جديدة' : `تعديل: ${variant.nameAr || variant.id}`}</h2>
+          {!isNew && <p style={{ fontSize: 12, color: '#9CA3AF', marginTop: 2 }}>{CATEGORY_LABEL_AR[variant.type] || variant.type} · {variant.capacity} أشخاص</p>}
         </div>
         <button onClick={handleSave} disabled={saving}
-          style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '9px 22px', borderRadius: 9, background: saving ? '#9CA3AF' : '#1C2B1C', color: '#fff', border: 'none', fontSize: 13, fontFamily: 'Cairo, sans-serif', fontWeight: 700, cursor: saving ? 'not-allowed' : 'pointer', transition: 'background 0.15s', flexShrink: 0 }}>
+          style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '9px 22px', borderRadius: 9, background: saving ? '#9CA3AF' : '#1C2B1C', color: '#fff', border: 'none', fontSize: 13, fontFamily: 'Cairo, sans-serif', fontWeight: 700, cursor: saving ? 'not-allowed' : 'pointer' }}>
           {saving
             ? <><FiRefreshCw size={13} style={{ animation: 'spin 1s linear infinite' }} /> جارٍ الحفظ...</>
-            : <><FiCheck size={14} /> {isNew ? 'إضافة الغرفة' : 'حفظ التغييرات'}</>}
+            : <><FiCheck size={14} /> {isNew ? 'إضافة الفئة' : 'حفظ التغييرات'}</>}
         </button>
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-
-        {/* ── Section 1: Basic info ── */}
         <RFSection step="1" title="المعلومات الأساسية">
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14 }}>
-            <ModalField label="رقم الغرفة *">
-              <input value={form.number} onChange={e => set('number', e.target.value)} placeholder="101" style={fieldStyle} onFocus={focusStyle} onBlur={blurStyle} />
-            </ModalField>
-            <ModalField label="نوع الغرفة">
-              <input value={form.type} onChange={e => set('type', e.target.value)} placeholder="عائلية، ديلوكس..." style={fieldStyle} onFocus={focusStyle} onBlur={blurStyle} />
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14 }}>
+            <ModalField label="الفئة *">
+              <select value={form.type} onChange={e => set('type', e.target.value)} disabled={!isNew} style={fieldStyle} onFocus={focusStyle} onBlur={blurStyle}>
+                <option value="">— اختر —</option>
+                {CATEGORY_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.labelAr}</option>)}
+              </select>
             </ModalField>
             <ModalField label="عدد الأشخاص *">
-              <input type="number" value={form.capacity} onChange={e => set('capacity', e.target.value)} min={1} max={20} style={fieldStyle} onFocus={focusStyle} onBlur={blurStyle} />
+              <input type="number" value={form.capacity} onChange={e => set('capacity', e.target.value)} disabled={!isNew} min={1} max={20} style={fieldStyle} onFocus={focusStyle} onBlur={blurStyle} />
             </ModalField>
             <ModalField label="السعر الليلي $">
               <input type="number" value={form.price} onChange={e => set('price', e.target.value)} placeholder="فارغ = عند الطلب" min={0} style={fieldStyle} onFocus={focusStyle} onBlur={blurStyle} />
             </ModalField>
           </div>
           <div style={{ display: 'flex', gap: 12, marginTop: 6, flexWrap: 'wrap' }}>
-            {[['featured', 'غرفة مميزة'], ['active', 'غرفة نشطة (ظاهرة للزوار)']].map(([k, l]) => (
-              <label key={k} style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 13, userSelect: 'none', padding: '9px 14px', borderRadius: 8, border: `1px solid ${form[k] ? '#86efac' : '#E5E7EB'}`, background: form[k] ? '#f0fdf4' : '#F9FAFB', transition: 'all 0.15s', fontFamily: 'Cairo, sans-serif' }}>
-                <input type="checkbox" checked={form[k]} onChange={e => set(k, e.target.checked)} style={{ accentColor: '#3d5a3a', width: 14, height: 14, flexShrink: 0 }} />
+            {[['featured', 'فئة مميزة'], ['active', 'فئة نشطة (ظاهرة للزوار)']].map(([k, l]) => (
+              <label key={k} style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 13, padding: '9px 14px', borderRadius: 8, border: `1px solid ${form[k] ? '#86efac' : '#E5E7EB'}`, background: form[k] ? '#f0fdf4' : '#F9FAFB', fontFamily: 'Cairo, sans-serif' }}>
+                <input type="checkbox" checked={form[k]} onChange={e => set(k, e.target.checked)} style={{ accentColor: '#3d5a3a', width: 14, height: 14 }} />
                 <span style={{ fontWeight: form[k] ? 600 : 400, color: form[k] ? '#3d5a3a' : '#6B7280' }}>{l}</span>
               </label>
             ))}
           </div>
         </RFSection>
 
-        {/* ── Section 2: Arabic content ── */}
         <RFSection step="2" title="المحتوى بالعربي">
-          <ModalField label="اسم الغرفة *">
-            <input value={form.nameAr} onChange={e => set('nameAr', e.target.value)} placeholder="شقة ١٠١" style={fieldStyle} onFocus={focusStyle} onBlur={blurStyle} />
+          <ModalField label="اسم الفئة *">
+            <input value={form.nameAr} onChange={e => set('nameAr', e.target.value)} placeholder="شقة سوبر — لـ 5 أشخاص" style={fieldStyle} onFocus={focusStyle} onBlur={blurStyle} />
           </ModalField>
-          <ModalField label="وصف الغرفة">
-            <textarea value={form.descAr} onChange={e => set('descAr', e.target.value)} rows={3} style={{ ...fieldStyle, resize: 'vertical', lineHeight: 1.7 }} placeholder="وصف قصير عن الغرفة..." onFocus={focusStyle} onBlur={blurStyle} />
+          <ModalField label="الوصف">
+            <textarea value={form.descAr} onChange={e => set('descAr', e.target.value)} rows={3} style={{ ...fieldStyle, resize: 'vertical', lineHeight: 1.7 }} placeholder="وصف قصير يراه العميل في بطاقة الفئة." onFocus={focusStyle} onBlur={blurStyle} />
           </ModalField>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
-            <ModalField label="تفاصيل الأسرة *">
+            <ModalField label="تفاصيل الأسرة">
               <input value={form.bedsAr} onChange={e => set('bedsAr', e.target.value)} placeholder="سرير مزدوج + ٣ أسرة" style={fieldStyle} onFocus={focusStyle} onBlur={blurStyle} />
             </ModalField>
             <ModalField label="المرافق (مفصولة بفاصلة عربية)">
@@ -1364,33 +1710,30 @@ function RoomFormPage({ room, onBack }) {
           </div>
         </RFSection>
 
-        {/* ── Section 3: English content (optional) ── */}
         <RFSection step="3" title="المحتوى بالإنجليزي" optional>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
-            <ModalField label="Room Name">
-              <input value={form.nameEn} onChange={e => set('nameEn', e.target.value)} placeholder="Apartment 101" style={fieldStyle} onFocus={focusStyle} onBlur={blurStyle} />
+            <ModalField label="Name">
+              <input value={form.nameEn} onChange={e => set('nameEn', e.target.value)} placeholder="Superub Apartment — for 5" style={fieldStyle} onFocus={focusStyle} onBlur={blurStyle} />
             </ModalField>
             <ModalField label="Bed Details">
               <input value={form.beds} onChange={e => set('beds', e.target.value)} placeholder="1 Double + 3 Singles" style={fieldStyle} onFocus={focusStyle} onBlur={blurStyle} />
             </ModalField>
           </div>
           <ModalField label="Description">
-            <textarea value={form.descEn} onChange={e => set('descEn', e.target.value)} rows={2} style={{ ...fieldStyle, resize: 'vertical', lineHeight: 1.7 }} placeholder="Short description..." onFocus={focusStyle} onBlur={blurStyle} />
+            <textarea value={form.descEn} onChange={e => set('descEn', e.target.value)} rows={2} style={{ ...fieldStyle, resize: 'vertical', lineHeight: 1.7 }} placeholder="Short customer-facing description." onFocus={focusStyle} onBlur={blurStyle} />
           </ModalField>
           <ModalField label="Amenities (comma separated)">
             <input value={form.amenities} onChange={e => set('amenities', e.target.value)} placeholder="WiFi, AC, TV" style={fieldStyle} onFocus={focusStyle} onBlur={blurStyle} />
           </ModalField>
         </RFSection>
 
-        {/* ── Section 4: Images ── */}
         <ImageManager
           images={images}
           setImages={setImages}
-          roomNumber={form.number}
+          docId={variantId}
           onError={msg => setError(msg)}
         />
 
-        {/* Error banner */}
         {error && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 10, padding: '12px 16px' }}>
             <FiAlertCircle size={15} color="#dc2626" style={{ flexShrink: 0 }} />
@@ -1398,19 +1741,16 @@ function RoomFormPage({ room, onBack }) {
           </div>
         )}
 
-        {/* Footer actions */}
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, paddingBottom: 16 }}>
           <button onClick={onBack}
-            style={{ padding: '10px 22px', borderRadius: 9, border: '1px solid #E5E7EB', background: '#fff', color: '#374151', fontSize: 13, fontFamily: 'Cairo, sans-serif', fontWeight: 600, cursor: 'pointer', transition: 'background 0.15s' }}
-            onMouseEnter={e => e.currentTarget.style.background = '#F3F4F6'}
-            onMouseLeave={e => e.currentTarget.style.background = '#fff'}>
+            style={{ padding: '10px 22px', borderRadius: 9, border: '1px solid #E5E7EB', background: '#fff', color: '#374151', fontSize: 13, fontFamily: 'Cairo, sans-serif', fontWeight: 600, cursor: 'pointer' }}>
             إلغاء
           </button>
           <button onClick={handleSave} disabled={saving}
-            style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '10px 26px', borderRadius: 9, background: saving ? '#9CA3AF' : '#1C2B1C', color: '#fff', border: 'none', fontSize: 13, fontFamily: 'Cairo, sans-serif', fontWeight: 700, cursor: saving ? 'not-allowed' : 'pointer', transition: 'background 0.15s' }}>
+            style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '10px 26px', borderRadius: 9, background: saving ? '#9CA3AF' : '#1C2B1C', color: '#fff', border: 'none', fontSize: 13, fontFamily: 'Cairo, sans-serif', fontWeight: 700, cursor: saving ? 'not-allowed' : 'pointer' }}>
             {saving
               ? <><FiRefreshCw size={13} style={{ animation: 'spin 1s linear infinite' }} /> جارٍ الحفظ...</>
-              : <><FiCheck size={14} /> {isNew ? 'إضافة الغرفة' : 'حفظ التغييرات'}</>}
+              : <><FiCheck size={14} /> {isNew ? 'إضافة الفئة' : 'حفظ التغييرات'}</>}
           </button>
         </div>
       </div>
@@ -1441,7 +1781,9 @@ function RFSection({ step, title, optional, children }) {
 /* ─────────────────────────────────────────────────────────────
    Image Manager  — grid layout with hover-overlay actions
 ───────────────────────────────────────────────────────────── */
-function ImageManager({ images, setImages, roomNumber, onError }) {
+function ImageManager({ images, setImages, docId, roomNumber, onError }) {
+  // docId is preferred (variant slug). roomNumber kept for legacy callers.
+  const uploadKey = docId || roomNumber
   const fileRef = useRef()
   const [uploading,  setUploading]  = useState(false)
   const [uploadProg, setUploadProg] = useState({ done: 0, total: 0 })
@@ -1450,7 +1792,7 @@ function ImageManager({ images, setImages, roomNumber, onError }) {
   const handleUpload = async e => {
     const files = Array.from(e.target.files)
     if (!files.length) return
-    if (!roomNumber) { onError('أدخل رقم الغرفة أولاً'); return }
+    if (!uploadKey) { onError('أكمل الحقول الأساسية أولاً (الفئة والسعة)'); return }
     setUploading(true)
     setUploadProg({ done: 0, total: files.length })
     onError('')
@@ -1458,7 +1800,7 @@ function ImageManager({ images, setImages, roomNumber, onError }) {
       const uploaded = await Promise.all(files.map(async file => {
         const compressed = await compressImage(file)
         const safeName   = compressed.name.replace(/[^\w.\-]+/g, '_')
-        const sRef       = ref(storage, `rooms/room-${roomNumber}/${Date.now()}_${safeName}`)
+        const sRef       = ref(storage, `variants/${uploadKey}/${Date.now()}_${safeName}`)
         await uploadBytes(sRef, compressed)
         const url = await getDownloadURL(sRef)
         setUploadProg(p => ({ ...p, done: p.done + 1 }))
@@ -1511,7 +1853,7 @@ function ImageManager({ images, setImages, roomNumber, onError }) {
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px 20px', borderBottom: '1px solid #F3F4F6', background: '#FAFAFA' }}>
           <div style={{ width: 26, height: 26, borderRadius: 8, background: '#1C2B1C', color: '#86efac', fontSize: 12, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>4</div>
           <div style={{ flex: 1 }}>
-            <span style={{ fontSize: 14, fontWeight: 700, color: '#111827' }}>صور الغرفة</span>
+            <span style={{ fontSize: 14, fontWeight: 700, color: '#111827' }}>صور الفئة</span>
             {images.length > 0 && (
               <span style={{ fontSize: 12, color: '#9CA3AF', marginRight: 10 }}>
                 {images.length} {images.length === 1 ? 'صورة' : 'صور'} · رتّب باستخدام الأسهم ↑↓ أو السحب · ⭐ لتغيير الغلاف

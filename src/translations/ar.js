@@ -37,13 +37,26 @@ export const ar = {
   rooms_floor:    'الطابق',
   rooms_noRooms:  'لا توجد غرف تطابق بحثك. حاول تعديل التواريخ أو الفلاتر.',
 
-  // Room types (filter)
+  // Room categories
   type_all:       'الكل',
-  type_standard:  'عادية',
+  type_superub:   'سوبر',
+  type_premium:   'بريميوم',
   type_deluxe:    'ديلوكس',
+  // Legacy (kept so old room docs still render before re-seed)
+  type_standard:  'عادية',
   type_suite:     'جناح',
   type_family:    'عائلية',
   type_penthouse: 'بنتهاوس',
+
+  // Category descriptions (shown on type detail page)
+  cat_superub_desc: 'أرقى شققنا — مساحات واسعة وتشطيبات فاخرة وراحة استثنائية تستوعب من شخصين حتى ٥ أشخاص.',
+  cat_premium_desc: 'شقق عائلية مريحة بغرفتي نوم وصالون مناسبة لـ ٤ أو ٥ أشخاص.',
+  cat_deluxe_desc: 'شقق هادئة لشخصين — غرفة نوم وصالون وحمام خاص لإقامة هادئة.',
+
+  cat_capacity_options: 'خيارات السعة',
+  cat_units_available:  'وحدات متاحة',
+  cat_choose_capacity:  'اختر السعة',
+  cat_persons:          'أشخاص',
 
   // Availability
   avail_available:    'متاحة',
@@ -90,8 +103,8 @@ export const ar = {
   booking_confirming: 'جارٍ المعالجة...',
   booking_policies:   'سياسة الإلغاء والشروط',
   booking_policy1:    'إلغاء مجاني حتى 48 ساعة قبل تسجيل الوصول',
-  booking_policy2:    'تسجيل الوصول من 3:00 م — المغادرة قبل 12:00 ظهراً',
-  booking_policy3:    'الدفع عند الوصول (نقداً أو بطاقة)',
+  booking_policy2:    'تسجيل الوصول من 2:00 م — المغادرة قبل 12:00 ظهراً',
+  booking_policy3:    'الدفع عند الوصول',
 
   // Confirmation page
   confirm_title:    'تم استلام طلب الحجز',

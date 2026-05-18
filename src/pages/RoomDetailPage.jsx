@@ -2,15 +2,13 @@ import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { useParams, useSearchParams, Link, useNavigate, useLocation } from 'react-router-dom'
 import { useLanguage } from '../App'
 import { t } from '../translations'
-import { useRoom } from '../hooks/useRooms'
-import { checkAvailability } from '../firebase/services'
-import { FiUsers, FiMaximize2, FiArrowLeft, FiArrowRight, FiCheck, FiCalendar, FiChevronLeft, FiChevronRight, FiX } from 'react-icons/fi'
+import { useRoomVariant } from '../hooks/useRooms'
+import { countAvailableUnitsForVariant } from '../firebase/services'
+import { FiUsers, FiArrowLeft, FiArrowRight, FiCheck, FiCalendar, FiChevronLeft, FiChevronRight, FiX } from 'react-icons/fi'
 
 function ImageGallery({ images, name }) {
   const { isRTL } = useLanguage()
   const [rawActiveIdx, setActiveIdx]  = useState(0)
-  // Clamp against the current images length so a stale index from a previous
-  // room never renders a bogus "15 / 2" counter before the reset effect runs.
   const activeIdx = images.length ? Math.min(rawActiveIdx, images.length - 1) : 0
   const [bgSrc, setBgSrc]             = useState(images[0])
   const [fgSrc, setFgSrc]             = useState(null)
@@ -46,11 +44,7 @@ function ImageGallery({ images, name }) {
       const img = new Image()
       img.decoding = 'async'
       img.onload = async () => {
-        try {
-          if (img.decode) await img.decode()
-        } catch {
-          // Decode can reject for cached images in some browsers, but the image is still usable.
-        }
+        try { if (img.decode) await img.decode() } catch {}
         markLoaded(url)
         resolve(url)
       }
@@ -70,9 +64,6 @@ function ImageGallery({ images, name }) {
     loadImage(images[nextIdx]).catch(() => {})
   }, [images, loadImage])
 
-  // Reset the local cache when the room changes.
-  // Cached images switch instantly (see switchTo) — visitors on slow connections
-  // get a smooth scrub through all photos instead of waiting per swipe.
   useEffect(() => {
     const firstImage = images[0] || ''
     imageCache.current = new Map()
@@ -93,8 +84,6 @@ function ImageGallery({ images, name }) {
     preloadNeighbors(activeIdx)
   }, [activeIdx, bgReady, preloadNeighbors])
 
-  // Once the first image is on screen, fetch the rest one-by-one in the
-  // background so thumbnails fill in and later swipes are instant.
   useEffect(() => {
     if (!bgReady || images.length <= 1) return
     let cancelled = false
@@ -109,37 +98,29 @@ function ImageGallery({ images, name }) {
     return () => { cancelled = true }
   }, [bgReady, images, loadImage])
 
-  useEffect(() => () => {
-    if (transitionTimer.current) clearTimeout(transitionTimer.current)
-  }, [])
+  useEffect(() => () => { if (transitionTimer.current) clearTimeout(transitionTimer.current) }, [])
 
   const switchTo = useCallback((idx) => {
     if (idx === activeIdx || !images[idx]) return
-
     const url = images[idx]
     const token = switchToken.current + 1
     switchToken.current = token
     if (transitionTimer.current) clearTimeout(transitionTimer.current)
-
     setActiveIdx(idx)
     setSwitching(true)
     setFgSrc(null)
     setFgLoaded(false)
     preloadNeighbors(idx)
-    // Already cached → swap instantly, no fade-in wait.
     if (imageCache.current.get(url)?.status === 'ready') {
       setBgSrc(url)
       setSwitching(false)
       return
     }
-
     loadImage(url)
       .then(() => {
         if (switchToken.current !== token) return
         setFgSrc(url)
-        requestAnimationFrame(() => {
-          if (switchToken.current === token) setFgLoaded(true)
-        })
+        requestAnimationFrame(() => { if (switchToken.current === token) setFgLoaded(true) })
         transitionTimer.current = setTimeout(() => {
           if (switchToken.current !== token) return
           setBgSrc(url)
@@ -148,9 +129,7 @@ function ImageGallery({ images, name }) {
           setSwitching(false)
         }, 280)
       })
-      .catch(() => {
-        if (switchToken.current === token) setSwitching(false)
-      })
+      .catch(() => { if (switchToken.current === token) setSwitching(false) })
   }, [activeIdx, images, loadImage, preloadNeighbors])
 
   const prev = useCallback(() => switchTo(activeIdx === 0 ? images.length - 1 : activeIdx - 1), [switchTo, activeIdx, images.length])
@@ -158,17 +137,14 @@ function ImageGallery({ images, name }) {
 
   useEffect(() => {
     if (!viewerOpen) return
-
     const previousOverflow = document.body.style.overflow
     document.body.style.overflow = 'hidden'
-
     const h = (e) => {
       if (e.key === 'Escape') setViewerOpen(false)
       if (e.key === 'ArrowLeft')  (isRTL ? next : prev)()
       if (e.key === 'ArrowRight') (isRTL ? prev : next)()
     }
     window.addEventListener('keydown', h)
-
     return () => {
       document.body.style.overflow = previousOverflow
       window.removeEventListener('keydown', h)
@@ -177,7 +153,6 @@ function ImageGallery({ images, name }) {
 
   useEffect(() => {
     const el = galleryRef.current; if (!el) return
-    // In RTL the next thumbnail lives to the left, so ArrowLeft advances.
     const h = (e) => {
       if (e.key === 'ArrowLeft')  (isRTL ? next : prev)()
       if (e.key === 'ArrowRight') (isRTL ? prev : next)()
@@ -191,7 +166,6 @@ function ImageGallery({ images, name }) {
     if (!touchStartX.current) return
     const dx = e.changedTouches[0].clientX - touchStartX.current
     if (Math.abs(dx) > 40) {
-      // Swiping toward the next-thumbnail side advances; that side flips in RTL.
       const goNext = isRTL ? dx > 0 : dx < 0
       goNext ? next() : prev()
     }
@@ -206,33 +180,23 @@ function ImageGallery({ images, name }) {
         className="gallery-main-area"
         style={{ position: 'relative', borderRadius: 'var(--radius-lg)', overflow: 'hidden', aspectRatio: '16/9', background: '#e8e0d0', outline: 'none', cursor: images.length > 1 ? 'grab' : 'default' }}
       >
-        {/* Shimmer while first image loads */}
         {!bgReady && (
           <div style={{ position: 'absolute', inset: 0, zIndex: 1, background: 'linear-gradient(90deg, #e8e0d0 25%, #f0e8d8 50%, #e8e0d0 75%)', backgroundSize: '200% 100%', animation: 'gallery-shimmer 1.4s infinite' }} />
         )}
-
-        {/* BG: stable current image — stays visible while next loads */}
         <img src={bgSrc} alt={name} decoding="async" fetchpriority="high"
           onClick={() => setViewerOpen(true)}
           onLoad={() => { markLoaded(bgSrc); if (!bgReady) setBgReady(true) }}
           style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', zIndex: 2, cursor: 'zoom-in' }} />
-
-        {/* FG: new image fading in on top */}
         {fgSrc && (
           <img key={fgSrc} src={fgSrc} alt="" decoding="async"
             onClick={() => setViewerOpen(true)}
             style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', zIndex: 3, opacity: fgLoaded ? 1 : 0, transition: fgLoaded ? 'opacity 0.28s ease' : 'none', cursor: 'zoom-in' }} />
         )}
-
-        {/* Tiny loading spinner while fg is downloading */}
         {isSwitching && !fgLoaded && (
           <div style={{ position: 'absolute', bottom: 16, left: '50%', transform: 'translateX(-50%)', zIndex: 10, width: 24, height: 24, borderRadius: '50%', border: '2.5px solid rgba(255,255,255,0.35)', borderTopColor: '#fff', animation: 'spin 0.65s linear infinite' }} />
         )}
-
         {images.length > 1 && (
           <>
-            {/* In RTL the thumbnails flow right-to-left, so the visually-left
-                arrow advances activeIdx (the next thumbnail sits to the left). */}
             <button onClick={isRTL ? next : prev} aria-label={isRTL ? 'Next image' : 'Previous image'}
               className="gallery-arrow gallery-arrow-left">
               <FiChevronLeft size={20} color="var(--ink)" />
@@ -248,7 +212,6 @@ function ImageGallery({ images, name }) {
         )}
       </div>
 
-      {/* Thumbnails */}
       {images.length > 1 && (
         <div className="gallery-thumb-strip" style={{ display: 'flex', gap: 8, marginTop: 10, marginBottom: 20, overflowX: 'auto', paddingBottom: 4 }}>
           {images.map((img, i) => (
@@ -273,13 +236,11 @@ function ImageGallery({ images, name }) {
         </div>
       )}
 
-      {/* ── Lightbox ── */}
       {viewerOpen && (
         <div
           onClick={() => setViewerOpen(false)}
           style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(0,0,0,0.92)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
         >
-          {/* Close */}
           <button
             onClick={() => setViewerOpen(false)}
             aria-label="Close"
@@ -287,21 +248,15 @@ function ImageGallery({ images, name }) {
           >
             <FiX size={22} />
           </button>
-
-          {/* Counter */}
           <div style={{ position: 'absolute', top: 20, left: '50%', transform: 'translateX(-50%)', color: 'rgba(255,255,255,0.7)', fontSize: 13, fontWeight: 600, userSelect: 'none' }}>
             {activeIdx + 1} / {images.length}
           </div>
-
-          {/* Image — stop click from bubbling to backdrop */}
           <img
             src={images[activeIdx]}
             alt={name}
             onClick={e => e.stopPropagation()}
             style={{ maxWidth: '92vw', maxHeight: '88vh', objectFit: 'contain', borderRadius: 6, userSelect: 'none', display: 'block' }}
           />
-
-          {/* Prev */}
           {images.length > 1 && (
             <button
               onClick={e => { e.stopPropagation(); (isRTL ? next : prev)() }}
@@ -311,8 +266,6 @@ function ImageGallery({ images, name }) {
               <FiChevronLeft size={26} />
             </button>
           )}
-
-          {/* Next */}
           {images.length > 1 && (
             <button
               onClick={e => { e.stopPropagation(); (isRTL ? prev : next)() }}
@@ -329,7 +282,8 @@ function ImageGallery({ images, name }) {
 }
 
 export default function RoomDetailPage() {
-  const { roomId } = useParams()
+  // The :roomId param now carries the variant slug like 'superub-5'.
+  const { roomId: variantSlug } = useParams()
   const [searchParams, setSearchParams] = useSearchParams()
   const { language, isRTL } = useLanguage()
   const navigate = useNavigate()
@@ -338,7 +292,7 @@ export default function RoomDetailPage() {
 
   const cameFromHome = location.state?.from === '/'
 
-  const { room, loading } = useRoom(roomId)
+  const { variant, loading } = useRoomVariant(variantSlug)
   const BackIcon = isRTL ? FiArrowRight : FiArrowLeft
 
   const checkIn  = searchParams.get('checkIn')  || ''
@@ -364,24 +318,24 @@ export default function RoomDetailPage() {
     setSearchParams(next, { replace: true })
   }
 
-  const [available, setAvailable]    = useState(null)
-  const [checkingAvail, setChecking] = useState(false)
+  const [available,     setAvailable]  = useState(null)
+  const [checkingAvail, setChecking]   = useState(false)
 
-  // Stabilise the image list reference so the gallery's reset effect doesn't
-  // re-fire on every parent render when the fallback [room.image] is used.
-  const images = useMemo(
-    () => (room?.images?.length ? room.images : (room?.image ? [room.image] : [])),
-    [room?.images, room?.image],
-  )
+  // Images are managed once per variant in /admin → Variants.
+  const images = useMemo(() => {
+    if (!variant) return []
+    const arr = variant.images?.length ? variant.images : (variant.heroImage ? [variant.heroImage] : [])
+    return [...new Set(arr)]
+  }, [variant])
 
   useEffect(() => {
-    if (!checkIn || !checkOut || !room) return
+    if (!checkIn || !checkOut || !variant) return
     setChecking(true)
-    checkAvailability(room.id, checkIn, checkOut)
-      .then(v => setAvailable(v))
+    countAvailableUnitsForVariant(variant.type, variant.capacity, checkIn, checkOut)
+      .then(n => setAvailable(n > 0))
       .catch(() => setAvailable(true))
       .finally(() => setChecking(false))
-  }, [room?.id, checkIn, checkOut])
+  }, [variant?.id, checkIn, checkOut])
 
   const bookingParams = new URLSearchParams({
     ...(checkIn  ? { checkIn }  : {}),
@@ -398,29 +352,28 @@ export default function RoomDetailPage() {
     )
   }
 
-  if (!room) {
+  if (!variant || variant.count === 0) {
     return (
       <div className="page-loader">
-        <p style={{ color: 'var(--muted)' }}>{isRTL ? 'الغرفة غير موجودة' : 'Room not found'}</p>
+        <p style={{ color: 'var(--muted)' }}>{isRTL ? 'الفئة غير موجودة' : 'Category not found'}</p>
         <Link to="/rooms" className="btn btn-outline">{isRTL ? 'عودة للغرف' : 'Back to Rooms'}</Link>
       </div>
     )
   }
 
-  const name      = isRTL ? room.nameAr : room.nameEn
-  const desc      = isRTL ? room.descAr : room.descEn
-  const amenities = (isRTL ? room.amenitiesAr : room.amenities) || []
-  const beds      = isRTL ? room.bedsAr : room.beds
+  const categoryName = tr(`type_${variant.type}`)
+  const name = isRTL
+    ? (variant.nameAr || `${categoryName} — لـ ${variant.capacity} أشخاص`)
+    : (variant.nameEn || `${categoryName} — for ${variant.capacity} persons`)
+  const desc = isRTL
+    ? (variant.descAr || tr(`cat_${variant.type}_desc`))
+    : (variant.descEn || tr(`cat_${variant.type}_desc`))
+  const amenities = (isRTL ? variant.amenitiesAr : variant.amenities) || []
 
-  const nights = (checkIn && checkOut)
-    ? Math.max(1, Math.ceil((new Date(checkOut) - new Date(checkIn)) / 86400000))
-    : 1
-
-  const totalPrice = room.price ? room.price * nights : null
+  const isFull = available === false
 
   return (
     <div style={{ background: 'var(--cream)', paddingTop: 'var(--header-h)', paddingBottom: 80, minHeight: '100vh' }}>
-      {/* Back link */}
       <div style={{ background: 'var(--white)', borderBottom: '1px solid var(--sand)', padding: '16px 0' }}>
         <div className="container">
           <button
@@ -439,9 +392,7 @@ export default function RoomDetailPage() {
 
       <div className="container room-detail-top" style={{ paddingTop: 40 }}>
         <div className="room-detail-grid">
-          {/* Left: gallery + details */}
           <div>
-            {/* Image gallery */}
             <div className="room-gallery-bleed">
               {images.length > 0
                 ? <ImageGallery images={images} name={name} />
@@ -449,86 +400,65 @@ export default function RoomDetailPage() {
               }
             </div>
 
-            {/* Name + type */}
             <div className="room-detail-content">
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12, flexWrap: 'wrap' }}>
-              <span style={{ background: 'var(--linen)', color: 'var(--charcoal)', padding: '4px 12px', borderRadius: '100px', fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.8px' }}>
-                {tr(`type_${room.type}`)}
-              </span>
-              <span style={{ fontSize: 13, color: 'var(--muted)' }}>
-                {tr('rooms_floor')} {room.floor} · #{room.number}
-              </span>
-            </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12, flexWrap: 'wrap' }}>
+                <span style={{ background: 'var(--linen)', color: 'var(--charcoal)', padding: '4px 12px', borderRadius: '100px', fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.8px' }}>
+                  {categoryName}
+                </span>
+              </div>
 
-            <h1 style={{ fontSize: 'clamp(24px, 4vw, 36px)', fontWeight: 700, color: 'var(--ink)', marginBottom: 20, fontFamily: isRTL ? 'var(--font-ar)' : 'var(--font-heading)', lineHeight: 1.2 }}>
-              {name}
-            </h1>
+              <h1 style={{ fontSize: 'clamp(24px, 4vw, 36px)', fontWeight: 700, color: 'var(--ink)', marginBottom: 20, fontFamily: isRTL ? 'var(--font-ar)' : 'var(--font-heading)', lineHeight: 1.2 }}>
+                {name}
+              </h1>
 
-            {/* Quick specs */}
-            <div className="room-specs-row">
-              {[
-                { icon: <FiUsers />,      label: tr('detail_capacity'), value: `${room.capacity} ${tr('rooms_guests')}` },
-                ...(room.size ? [{ icon: <FiMaximize2 />, label: tr('detail_size'), value: `${room.size} ${tr('rooms_size')}` }] : []),
-                { icon: <span>🛏</span>, label: tr('detail_beds'),     value: beds },
-                { icon: <span>🏢</span>, label: tr('detail_floor'),    value: room.floor },
-              ].map(({ icon, label, value }) => (
-                <div key={label} style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-                  <span style={{ fontSize: 12, color: 'var(--muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px' }}>{label}</span>
-                  <span style={{ fontSize: 15, color: 'var(--ink)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 5 }}>{icon} {value}</span>
+              <div className="room-specs-row">
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                  <span style={{ fontSize: 12, color: 'var(--muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px' }}>{tr('detail_capacity')}</span>
+                  <span style={{ fontSize: 15, color: 'var(--ink)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 5 }}>
+                    <FiUsers /> {variant.capacity} {tr('rooms_guests')}
+                  </span>
                 </div>
-              ))}
-            </div>
-
-            {/* Description */}
-            {desc && (
-              <>
-                <h3 style={{ fontSize: 16, fontWeight: 700, color: 'var(--ink)', marginBottom: 10, fontFamily: isRTL ? 'var(--font-ar)' : 'var(--font-heading)' }}>{tr('detail_description')}</h3>
-                <p style={{ fontSize: 16, color: 'var(--charcoal)', lineHeight: 1.8, marginBottom: 32 }}>{desc}</p>
-              </>
-            )}
-
-            {/* Amenities */}
-            {amenities.length > 0 && (
-              <>
-                <h3 style={{ fontSize: 16, fontWeight: 700, color: 'var(--ink)', marginBottom: 14, fontFamily: isRTL ? 'var(--font-ar)' : 'var(--font-heading)' }}>{tr('detail_amenities')}</h3>
-                <div className="amenities-grid">
-                  {amenities.map((a, i) => (
-                    <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 14, color: 'var(--charcoal)', background: 'var(--linen)', padding: '10px 14px', borderRadius: 'var(--radius-md)' }}>
-                      <FiCheck size={14} style={{ color: 'var(--olive)', flexShrink: 0 }} />
-                      {a}
-                    </div>
-                  ))}
-                </div>
-              </>
-            )}
-            </div>{/* end .room-detail-content */}
-          </div>
-
-          {/* Right: booking card (sticky on desktop) */}
-          <div className="room-booking-card" style={{ position: 'sticky', top: 'calc(var(--header-h) + 24px)' }}>
-            <div style={{ background: 'var(--white)', borderRadius: 'var(--radius-lg)', boxShadow: 'var(--shadow-lg)', overflow: 'hidden', border: '1px solid var(--border)' }}>
-              {/* Price header */}
-              <div className="booking-card-price" style={{ background: 'var(--linen)', padding: 24, borderBottom: '1px solid var(--sand)' }}>
-                <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, marginBottom: 4 }}>
-                  {room.price ? (
-                    <>
-                      <span style={{ fontSize: 32, fontWeight: 800, color: 'var(--terracotta)', fontFamily: 'var(--font-body)' }}>${room.price}</span>
-                      <span style={{ color: 'var(--muted)', fontSize: 14 }}>{tr('rooms_perNight')}</span>
-                    </>
-                  ) : (
-                    <span style={{ fontSize: 20, fontWeight: 700, color: 'var(--terracotta)', fontFamily: isRTL ? 'var(--font-ar)' : undefined }}>
-                      {isRTL ? 'السعر عند الطلب' : 'Price on Request'}
-                    </span>
-                  )}
-                </div>
-                {room.price && checkIn && checkOut && (
-                  <p style={{ fontSize: 13, color: 'var(--muted)' }}>
-                    {nights} {tr('detail_nights')} = <strong style={{ color: 'var(--ink)' }}>${totalPrice}</strong>
-                  </p>
+                {(isRTL ? variant.bedsAr : variant.beds) && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                    <span style={{ fontSize: 12, color: 'var(--muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px' }}>{tr('detail_beds')}</span>
+                    <span style={{ fontSize: 15, color: 'var(--ink)', fontWeight: 600 }}>{isRTL ? variant.bedsAr : variant.beds}</span>
+                  </div>
                 )}
               </div>
 
-              {/* Editable dates */}
+              {desc && (
+                <>
+                  <h3 style={{ fontSize: 16, fontWeight: 700, color: 'var(--ink)', marginBottom: 10, fontFamily: isRTL ? 'var(--font-ar)' : 'var(--font-heading)' }}>{tr('detail_description')}</h3>
+                  <p style={{ fontSize: 16, color: 'var(--charcoal)', lineHeight: 1.8, marginBottom: 32 }}>{desc}</p>
+                </>
+              )}
+
+              {amenities.length > 0 && (
+                <>
+                  <h3 style={{ fontSize: 16, fontWeight: 700, color: 'var(--ink)', marginBottom: 14, fontFamily: isRTL ? 'var(--font-ar)' : 'var(--font-heading)' }}>{tr('detail_amenities')}</h3>
+                  <div className="amenities-grid">
+                    {amenities.map((a, i) => (
+                      <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 14, color: 'var(--charcoal)', background: 'var(--linen)', padding: '10px 14px', borderRadius: 'var(--radius-md)' }}>
+                        <FiCheck size={14} style={{ color: 'var(--olive)', flexShrink: 0 }} />
+                        {a}
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+
+          <div className="room-booking-card" style={{ position: 'sticky', top: 'calc(var(--header-h) + 24px)' }}>
+            <div style={{ background: 'var(--white)', borderRadius: 'var(--radius-lg)', boxShadow: 'var(--shadow-lg)', overflow: 'hidden', border: '1px solid var(--border)' }}>
+              <div className="booking-card-price" style={{ background: 'var(--linen)', padding: 24, borderBottom: '1px solid var(--sand)' }}>
+                <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, marginBottom: 4 }}>
+                  <span style={{ fontSize: 20, fontWeight: 700, color: 'var(--terracotta)', fontFamily: isRTL ? 'var(--font-ar)' : undefined }}>
+                    {isRTL ? 'السعر عند الطلب' : 'Price on Request'}
+                  </span>
+                </div>
+              </div>
+
               <div style={{ padding: '20px 24px', borderBottom: '1px solid var(--sand)' }}>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                   {[
@@ -552,22 +482,20 @@ export default function RoomDetailPage() {
                 </div>
               </div>
 
-              {/* Availability */}
               {checkIn && checkOut && (
                 <div style={{ padding: '12px 24px', borderBottom: '1px solid var(--sand)' }}>
                   {checkingAvail
                     ? <p style={{ fontSize: 13, color: 'var(--muted)' }}>{tr('avail_checking')}</p>
-                    : <span className={`badge ${available ? 'badge-green' : 'badge-red'}`}>
-                        {available ? tr('avail_available') : tr('avail_unavailable')}
+                    : <span className={`badge ${isFull ? 'badge-red' : 'badge-green'}`}>
+                        {isFull ? tr('avail_unavailable') : tr('avail_available')}
                       </span>
                   }
                 </div>
               )}
 
-              {/* CTA */}
               <div className="booking-card-body" style={{ padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 12 }}>
-                {available !== false && (
-                  <Link to={`/booking/${room.id}${bookingParams ? `?${bookingParams}` : ''}`} className="btn btn-primary btn-lg" style={{ justifyContent: 'center' }}>
+                {!isFull && (
+                  <Link to={`/booking/${variant.id}${bookingParams ? `?${bookingParams}` : ''}`} className="btn btn-primary btn-lg" style={{ justifyContent: 'center' }}>
                     {tr('detail_bookRoom')}
                   </Link>
                 )}
@@ -588,35 +516,22 @@ export default function RoomDetailPage() {
         </div>
       </div>
 
-      {/* ── Mobile sticky CTA bar ── */}
       <div className="room-mobile-cta">
         <div>
-          {room.price ? (
-            <>
-              <span style={{ fontSize: 22, fontWeight: 800, color: 'var(--terracotta)' }}>${room.price}</span>
-              <span style={{ fontSize: 12, color: 'var(--muted)', marginInlineStart: 4 }}>{tr('rooms_perNight')}</span>
-            </>
-          ) : (
-            <span style={{ fontSize: 15, fontWeight: 700, color: 'var(--terracotta)' }}>
-              {isRTL ? 'السعر عند الطلب' : 'Price on Request'}
-            </span>
-          )}
-          {room.price && checkIn && checkOut && (
-            <p style={{ fontSize: 11, color: 'var(--muted)', marginTop: 1 }}>
-              {nights} {tr('detail_nights')} · <strong style={{ color: 'var(--ink)' }}>${totalPrice}</strong>
-            </p>
-          )}
+          <span style={{ fontSize: 15, fontWeight: 700, color: 'var(--terracotta)' }}>
+            {isRTL ? 'السعر عند الطلب' : 'Price on Request'}
+          </span>
         </div>
-        {available !== false && (
+        {!isFull && (
           <Link
-            to={`/booking/${room.id}${bookingParams ? `?${bookingParams}` : ''}`}
+            to={`/booking/${variant.id}${bookingParams ? `?${bookingParams}` : ''}`}
             className="btn btn-primary"
             style={{ flexShrink: 0, padding: '12px 24px', fontSize: 15 }}
           >
             {tr('detail_bookRoom')}
           </Link>
         )}
-        {available === false && (
+        {isFull && (
           <span className="badge badge-red" style={{ flexShrink: 0 }}>{tr('avail_unavailable')}</span>
         )}
       </div>

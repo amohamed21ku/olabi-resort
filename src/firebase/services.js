@@ -37,43 +37,109 @@ export async function getNextBookingNumber() {
 }
 
 export async function createBooking(bookingData) {
-  const { roomId, checkIn, checkOut } = bookingData
-  if (!roomId || !checkIn || !checkOut) throw new Error('INVALID_BOOKING_DATA')
+  const { roomId, roomType, roomCapacity, checkIn, checkOut } = bookingData
+  if (!checkIn || !checkOut) throw new Error('INVALID_BOOKING_DATA')
+  if (!roomId && !(roomType && roomCapacity)) throw new Error('INVALID_BOOKING_DATA')
 
   const reqIn  = new Date(checkIn)
   const reqOut = new Date(checkOut)
   if (!(reqIn < reqOut)) throw new Error('INVALID_DATES')
 
-  const roomRef    = doc(db, 'rooms', roomId)
   const bookingRef = doc(collection(db, 'bookings'))
   const bookingNumber = await getNextBookingNumber()
 
-  await runTransaction(db, async (tx) => {
-    const roomSnap = await tx.get(roomRef)
-    if (!roomSnap.exists()) throw new Error('ROOM_NOT_FOUND')
+  // ── Specific-room booking (admin flow / legacy) ──
+  if (roomId) {
+    const roomRef = doc(db, 'rooms', roomId)
+    await runTransaction(db, async (tx) => {
+      const roomSnap = await tx.get(roomRef)
+      if (!roomSnap.exists()) throw new Error('ROOM_NOT_FOUND')
 
-    const snap = await getDocs(query(
-      collection(db, 'bookings'),
-      where('roomId', '==', roomId),
-    ))
-    const conflict = snap.docs.some(d => {
-      const b = d.data()
-      if (['cancelled', 'checked-out'].includes(b.status)) return false
-      const bIn  = b.checkIn.toDate  ? b.checkIn.toDate()  : new Date(b.checkIn)
-      const bOut = b.checkOut.toDate ? b.checkOut.toDate() : new Date(b.checkOut)
-      return bIn < reqOut && bOut > reqIn
+      const snap = await getDocs(query(
+        collection(db, 'bookings'),
+        where('roomId', '==', roomId),
+      ))
+      const conflict = snap.docs.some(d => {
+        const b = d.data()
+        if (['cancelled', 'checked-out'].includes(b.status)) return false
+        const bIn  = b.checkIn.toDate  ? b.checkIn.toDate()  : new Date(b.checkIn)
+        const bOut = b.checkOut.toDate ? b.checkOut.toDate() : new Date(b.checkOut)
+        return bIn < reqOut && bOut > reqIn
+      })
+      if (conflict) throw new RoomUnavailableError()
+
+      tx.set(bookingRef, {
+        ...bookingData,
+        bookingNumber,
+        status: 'pending',
+        createdAt: Timestamp.now(),
+      })
     })
-    if (conflict) throw new RoomUnavailableError()
+    return { id: bookingRef.id, bookingNumber }
+  }
 
+  // ── Variant-only booking (customer flow) ──
+  // The customer picked a specific (type, capacity) variant. Validate the
+  // variant still has free inventory for the window so the admin has
+  // something to assign.
+  const remaining = await countAvailableUnitsForVariant(roomType, roomCapacity, checkIn, checkOut)
+  if (remaining <= 0) throw new RoomUnavailableError()
+
+  await runTransaction(db, async (tx) => {
     tx.set(bookingRef, {
       ...bookingData,
+      roomId:     null,
+      roomNumber: null,
       bookingNumber,
-      status: 'pending',
-      createdAt: Timestamp.now(),
+      status:     'pending',
+      createdAt:  Timestamp.now(),
     })
   })
 
   return { id: bookingRef.id, bookingNumber }
+}
+
+// Returns how many rooms matching the exact (type, capacity) variant are
+// still free across the requested window. Used by the customer booking UI
+// and by createBooking to guard the write. Capacity must match exactly —
+// a Superub-5 booking cannot be filled by a Superub-2 room.
+export async function countAvailableUnitsForVariant(roomType, roomCapacity, checkIn, checkOut) {
+  if (!roomType || !roomCapacity || !checkIn || !checkOut) return 0
+  const reqIn  = new Date(checkIn)
+  const reqOut = new Date(checkOut)
+  if (!(reqIn < reqOut)) return 0
+
+  const [roomsSnap, bookingsSnap] = await Promise.all([
+    getDocs(query(collection(db, 'rooms'), where('type', '==', roomType))),
+    getDocs(collection(db, 'bookings')),
+  ])
+
+  const rooms = roomsSnap.docs
+    .map(d => ({ id: d.id, ...d.data() }))
+    .filter(r => r.active !== false && Number(r.capacity) === Number(roomCapacity))
+
+  if (rooms.length === 0) return 0
+
+  const overlapping = bookingsSnap.docs
+    .map(d => d.data())
+    .filter(b => !['cancelled', 'checked-out'].includes(b.status))
+    .filter(b => {
+      const bIn  = b.checkIn?.toDate  ? b.checkIn.toDate()  : new Date(b.checkIn)
+      const bOut = b.checkOut?.toDate ? b.checkOut.toDate() : new Date(b.checkOut)
+      return bIn < reqOut && bOut > reqIn
+    })
+
+  const bookedIds = new Set(overlapping.filter(b => b.roomId).map(b => b.roomId))
+  const blocked   = rooms.filter(r => bookedIds.has(r.id)).length
+
+  // Unassigned bookings for the same variant each consume one unit.
+  const unassigned = overlapping.filter(b =>
+    !b.roomId
+    && b.roomType === roomType
+    && Number(b.roomCapacity) === Number(roomCapacity)
+  ).length
+
+  return Math.max(0, rooms.length - blocked - unassigned)
 }
 
 export async function getBookingById(bookingId) {
@@ -135,9 +201,16 @@ export async function extendBookingStay(bookingId, newCheckOut) {
     if (conflict) throw new RoomUnavailableError()
 
     const nights = Math.max(1, Math.ceil((newOut - checkInDate) / 86400000))
-    const roomSnap = await tx.get(doc(db, 'rooms', b.roomId))
-    const roomPrice = roomSnap.exists() ? roomSnap.data().price : null
-    const newTotal = (typeof roomPrice === 'number') ? roomPrice * nights : b.totalPrice ?? null
+    // Price now lives on the variant. Look it up by the booking's stored
+    // (type, capacity); fall back to the existing totalPrice if no variant
+    // doc is found (e.g. legacy admin-created bookings without those fields).
+    let newTotal = b.totalPrice ?? null
+    if (b.roomType && b.roomCapacity) {
+      const variantId = `${b.roomType}-${b.roomCapacity}`
+      const variantSnap = await tx.get(doc(db, 'variants', variantId))
+      const variantPrice = variantSnap.exists() ? variantSnap.data().price : null
+      if (typeof variantPrice === 'number') newTotal = variantPrice * nights
+    }
 
     const checkOutStr = newOut.toISOString().split('T')[0]
     tx.update(bookingRef, {
@@ -192,6 +265,75 @@ export async function firestoreDeleteRoom(id) {
   await deleteDoc(doc(db, 'rooms', id))
 }
 
+// ─── Variants (admin) ─────────────────────────────────────
+
+export async function firestoreGetVariants() {
+  const snap = await getDocs(collection(db, 'variants'))
+  return snap.docs.map(d => ({ id: d.id, ...d.data() }))
+}
+
+export async function firestoreSetVariant(id, data) {
+  await setDoc(doc(db, 'variants', id), { ...data, updatedAt: Timestamp.now() }, { merge: true })
+}
+
+export async function firestoreUpdateVariant(id, data) {
+  await updateDoc(doc(db, 'variants', id), { ...data, updatedAt: Timestamp.now() })
+}
+
+// Admin assigns a concrete room (e.g. 102) to an unassigned type-based
+// booking. Validates that the chosen room has no overlapping booking for the
+// stay window inside a transaction so two admins can't race-assign the same
+// room to different guests.
+export async function assignRoomToBooking(bookingId, roomId) {
+  if (!bookingId || !roomId) throw new Error('INVALID_ASSIGN_DATA')
+  const bookingRef = doc(db, 'bookings', bookingId)
+  const roomRef    = doc(db, 'rooms', roomId)
+
+  return await runTransaction(db, async (tx) => {
+    const [bookingSnap, roomSnap] = await Promise.all([tx.get(bookingRef), tx.get(roomRef)])
+    if (!bookingSnap.exists()) throw new Error('BOOKING_NOT_FOUND')
+    if (!roomSnap.exists())    throw new Error('ROOM_NOT_FOUND')
+
+    const b    = bookingSnap.data()
+    const room = roomSnap.data()
+    if (b.roomType && room.type && b.roomType !== room.type) throw new Error('TYPE_MISMATCH')
+    if (b.roomCapacity && room.capacity && Number(b.roomCapacity) !== Number(room.capacity)) {
+      throw new Error('CAPACITY_MISMATCH')
+    }
+
+    // Rooms no longer carry display names — pull from the matching variant
+    // so the bookings table and WhatsApp message render a friendly label.
+    const variantId = `${room.type}-${room.capacity}`
+    const variantSnap = await tx.get(doc(db, 'variants', variantId))
+    const variant = variantSnap.exists() ? variantSnap.data() : null
+
+    const bIn  = b.checkIn?.toDate  ? b.checkIn.toDate()  : new Date(b.checkIn)
+    const bOut = b.checkOut?.toDate ? b.checkOut.toDate() : new Date(b.checkOut)
+
+    const others = await getDocs(query(
+      collection(db, 'bookings'),
+      where('roomId', '==', roomId),
+    ))
+    const conflict = others.docs.some(d => {
+      if (d.id === bookingId) return false
+      const o = d.data()
+      if (['cancelled', 'checked-out'].includes(o.status)) return false
+      const oIn  = o.checkIn?.toDate  ? o.checkIn.toDate()  : new Date(o.checkIn)
+      const oOut = o.checkOut?.toDate ? o.checkOut.toDate() : new Date(o.checkOut)
+      return oIn < bOut && oOut > bIn
+    })
+    if (conflict) throw new RoomUnavailableError()
+
+    tx.update(bookingRef, {
+      roomId,
+      roomNumber: room.number ?? null,
+      roomNameAr: variant?.nameAr ?? b.roomNameAr ?? null,
+      roomNameEn: variant?.nameEn ?? b.roomNameEn ?? null,
+      updatedAt:  Timestamp.now(),
+    })
+  })
+}
+
 // ─── WhatsApp notification ─────────────────────────────────
 
 export function buildWhatsAppUrl(booking, language = 'ar') {
@@ -214,12 +356,29 @@ export function buildWhatsAppUrl(booking, language = 'ar') {
     ? `#${formatBookingNumber(booking.bookingNumber)}`
     : booking.bookingId
 
+  // Customer flow stores roomType + roomCapacity + null roomId; show the
+  // variant instead of a specific room number.
+  const TYPE_AR = { superub: 'سوبر', premium: 'بريميوم', deluxe: 'ديلوكس' }
+  const TYPE_EN = { superub: 'Superub', premium: 'Premium', deluxe: 'Deluxe' }
+  const variantAr = booking.roomType
+    ? `${TYPE_AR[booking.roomType] || booking.roomType}${booking.roomCapacity ? ` — لـ ${booking.roomCapacity} أشخاص` : ''}`
+    : ''
+  const variantEn = booking.roomType
+    ? `${TYPE_EN[booking.roomType] || booking.roomType}${booking.roomCapacity ? ` — for ${booking.roomCapacity} persons` : ''}`
+    : ''
+  const roomLineAr = booking.roomNumber
+    ? `${booking.roomNameAr || ''} (${booking.roomNumber})`
+    : `${booking.roomNameAr || variantAr}${variantAr && booking.roomNameAr && !booking.roomNameAr.includes(variantAr) ? ` — ${variantAr}` : ''}`
+  const roomLineEn = booking.roomNumber
+    ? `${booking.roomNameEn || ''} (${booking.roomNumber})`
+    : `${booking.roomNameEn || variantEn}${variantEn && booking.roomNameEn && !booking.roomNameEn.includes(variantEn) ? ` — ${variantEn}` : ''}`
+
   let message
   if (language === 'ar') {
     message =
       `*طلب حجز جديد - منتجع العلبي* 🏨\n\n` +
       `رقم الحجز: ${bookingRef}\n` +
-      `الغرفة: ${booking.roomNameAr} (${booking.roomNumber})\n` +
+      `الغرفة: ${roomLineAr}\n` +
       `الوصول: ${checkInStr}\n` +
       `المغادرة: ${checkOutStr}\n` +
       `عدد الليالي: ${nights}\n` +
@@ -235,7 +394,7 @@ export function buildWhatsAppUrl(booking, language = 'ar') {
     message =
       `*New Booking Request - Olabi Resort* 🏨\n\n` +
       `Booking ID: ${bookingRef}\n` +
-      `Room: ${booking.roomNameEn} (${booking.roomNumber})\n` +
+      `Room: ${roomLineEn}\n` +
       `Check-in: ${checkInStr}\n` +
       `Check-out: ${checkOutStr}\n` +
       `Nights: ${nights}\n` +

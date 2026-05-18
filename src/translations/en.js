@@ -37,13 +37,26 @@ export const en = {
   rooms_floor:    'Floor',
   rooms_noRooms:  'No rooms match your search. Try adjusting dates or filters.',
 
-  // Room types (filter)
+  // Room categories
   type_all:       'All',
-  type_standard:  'Standard',
+  type_superub:   'Superub',
+  type_premium:   'Premium',
   type_deluxe:    'Deluxe',
+  // Legacy (kept so old room docs still render before re-seed)
+  type_standard:  'Standard',
   type_suite:     'Suite',
   type_family:    'Family',
   type_penthouse: 'Penthouse',
+
+  // Category descriptions (shown on type detail page)
+  cat_superub_desc: 'Our flagship apartments — spacious layouts with premium finishes and elevated comfort, available for couples or families up to 5.',
+  cat_premium_desc: 'Comfortable family apartments with two bedrooms and a living room, ideal for groups of 4 or 5.',
+  cat_deluxe_desc: 'Cozy retreats for two — one bedroom, a living room and a private bathroom for a quiet stay.',
+
+  cat_capacity_options: 'Capacity options',
+  cat_units_available:  'units available',
+  cat_choose_capacity:  'Choose capacity',
+  cat_persons:          'persons',
 
   // Availability
   avail_available:    'Available',
@@ -90,8 +103,8 @@ export const en = {
   booking_confirming: 'Processing...',
   booking_policies:   'Cancellation & Policies',
   booking_policy1:    'Free cancellation up to 48 hours before check-in',
-  booking_policy2:    'Check-in from 3:00 PM — Check-out by 12:00 PM',
-  booking_policy3:    'Payment on arrival (cash or card)',
+  booking_policy2:    'Check-in from 2:00 PM — Check-out by 12:00 PM',
+  booking_policy3:    'Payment on arrival',
 
   // Confirmation page
   confirm_title:    'Booking Request Received',
