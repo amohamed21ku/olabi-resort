@@ -1,8 +1,9 @@
-import { useEffect, useRef, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { useEffect, useRef, useState, useCallback } from 'react'
+import { useLocation, useSearchParams } from 'react-router-dom'
 import { useLanguage } from '../App'
 import { t } from '../translations'
 import { useRoomVariants } from '../hooks/useRooms'
+import { countAvailableUnitsForVariant } from '../firebase/services'
 import SearchBar from '../components/SearchBar'
 import TypeCard from '../components/TypeCard'
 import DirectionsMap from '../components/DirectionsMap'
@@ -131,9 +132,61 @@ export default function HomePage() {
   const { language, isRTL } = useLanguage()
   const tr = (key) => t(language, key)
   const { variants } = useRoomVariants()
-  const visibleVariants = variants.filter(v => v.count > 0)
+  const [searchParams] = useSearchParams()
+  const location = useLocation()
   const [scrolled, setScrolled] = useState(false)
   const videoRef = useRef(null)
+
+  const checkIn  = searchParams.get('checkIn')  || ''
+  const checkOut = searchParams.get('checkOut') || ''
+  const guests   = parseInt(searchParams.get('guests') || '0', 10)
+
+  const visibleVariants = variants.filter(v => {
+    if (v.count === 0) return false
+    if (guests > 0 && v.capacity < guests) return false
+    return true
+  })
+
+  const [availabilityByVariant, setAvailability]  = useState({})
+  const [checkingAvail,         setCheckingAvail] = useState(false)
+
+  const variantKey = visibleVariants.map(v => v.id).join(',')
+  const runAvailabilityCheck = useCallback(async () => {
+    if (!checkIn || !checkOut || visibleVariants.length === 0) {
+      setAvailability({})
+      return
+    }
+    setCheckingAvail(true)
+    const results = {}
+    await Promise.all(visibleVariants.map(async v => {
+      try {
+        const n = await countAvailableUnitsForVariant(v.type, v.capacity, checkIn, checkOut)
+        results[v.id] = n > 0
+      } catch {
+        results[v.id] = true
+      }
+    }))
+    setAvailability(results)
+    setCheckingAvail(false)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [checkIn, checkOut, variantKey])
+
+  useEffect(() => { runAvailabilityCheck() }, [runAvailabilityCheck])
+
+  const hasAvailability = Object.values(availabilityByVariant).some(Boolean)
+
+  useEffect(() => {
+    const wantsRoomsScroll =
+      location.hash === '#rooms' || !!checkIn || !!checkOut
+    if (!wantsRoomsScroll) {
+      if (location.hash) {
+        const id = location.hash.slice(1)
+        setTimeout(() => document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' }), 250)
+      }
+      return
+    }
+    setTimeout(() => document.getElementById('rooms')?.scrollIntoView({ behavior: 'smooth' }), 250)
+  }, [location.hash, location.search, checkIn, checkOut])
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 80)
@@ -150,6 +203,8 @@ export default function HomePage() {
     else v.addEventListener('canplay', play, { once: true })
     return () => v.removeEventListener('canplay', play)
   }, [])
+
+  const scrollToRooms = () => document.getElementById('rooms')?.scrollIntoView({ behavior: 'smooth' })
 
   return (
     <>
@@ -239,7 +294,10 @@ export default function HomePage() {
           </p>
 
           <div style={{ width: '100%', maxWidth: '720px', animation: 'heroFadeUp 0.7s ease 0.4s both' }}>
-            <SearchBar onDark />
+            <SearchBar
+              onDark
+              initialValues={{ checkIn, checkOut, guests: guests || 2 }}
+            />
           </div>
 
           <div style={{
@@ -247,14 +305,14 @@ export default function HomePage() {
             marginTop: '16px',
             animation: 'heroFadeUp 0.7s ease 0.52s both',
           }}>
-            <Link
-              to="/rooms"
+            <button
+              onClick={scrollToRooms}
               className="btn btn-primary btn-sm"
               style={{ borderRadius: '100px', display: 'inline-flex', alignItems: 'center', gap: '7px' }}
             >
               <FiSearch size={13} />
               {isRTL ? 'استعرض الغرف' : 'Explore rooms'}
-            </Link>
+            </button>
             <button
               onClick={() => document.getElementById('directions')?.scrollIntoView({ behavior: 'smooth' })}
               style={{
@@ -283,8 +341,8 @@ export default function HomePage() {
         )}
       </section>
 
-      {/* ─── Featured Rooms ─── */}
-      <section className="section" style={{ background: 'var(--cream)' }}>
+      {/* ─── Rooms ─── */}
+      <section id="rooms" className="section" style={{ background: 'var(--cream)', scrollMarginTop: 'var(--header-h)' }}>
         <div className="container">
           <div style={{ marginBottom: '48px', textAlign: 'center' }}>
             <p className="section-label">{tr('rooms_label')}</p>
@@ -296,17 +354,48 @@ export default function HomePage() {
             </p>
           </div>
 
-          <div className="grid-rooms">
-            {visibleVariants.map(variant => (
-              <TypeCard key={variant.id} variant={variant} />
-            ))}
-          </div>
+          {checkIn && checkOut && (
+            <div style={{
+              background: 'var(--olive-light)',
+              border: '1px solid var(--olive)',
+              borderRadius: 'var(--radius-md)',
+              padding: '12px 16px',
+              marginBottom: 28,
+              fontSize: 14,
+              color: 'var(--olive-dark)',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              maxWidth: 720,
+              margin: '0 auto 28px',
+            }}>
+              <span>{checkingAvail
+                ? tr('avail_checking')
+                : (hasAvailability
+                    ? (isRTL ? 'فئات متاحة للحجز' : 'Categories available to book')
+                    : (isRTL ? 'لا تتوفر فئات في هذه التواريخ' : 'No categories available for these dates'))}</span>
+            </div>
+          )}
 
-          <div style={{ textAlign: 'center', marginTop: '48px' }}>
-            <Link to="/rooms" className="btn btn-outline btn-lg">
-              {tr('rooms_viewAll')}
-            </Link>
-          </div>
+          {visibleVariants.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '60px 0', color: 'var(--muted)' }}>
+              <p style={{ fontSize: 18, marginBottom: 12 }}>🔍</p>
+              <p>{tr('rooms_noRooms')}</p>
+            </div>
+          ) : (
+            <div className="grid-rooms">
+              {visibleVariants.map(variant => (
+                <TypeCard
+                  key={variant.id}
+                  variant={variant}
+                  checkIn={checkIn}
+                  checkOut={checkOut}
+                  guests={guests || undefined}
+                  available={checkIn && checkOut ? (availabilityByVariant[variant.id] ?? null) : null}
+                />
+              ))}
+            </div>
+          )}
         </div>
       </section>
 
@@ -428,9 +517,9 @@ export default function HomePage() {
           <p style={{ color: 'rgba(255,255,255,0.82)', marginBottom: '28px', fontSize: '17px' }}>
             {isRTL ? 'احجز مباشرة للحصول على أفضل سعر.' : 'Book directly for the best rates.'}
           </p>
-          <Link to="/rooms" className="btn btn-ghost btn-lg">
+          <button onClick={scrollToRooms} className="btn btn-ghost btn-lg">
             {tr('rooms_viewAll')}
-          </Link>
+          </button>
         </div>
       </section>
     </>

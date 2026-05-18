@@ -24,7 +24,7 @@ export default function Header() {
 
   const navLinks = [
     { key: 'nav_home',       href: '/' },
-    { key: 'nav_rooms',      href: '/rooms' },
+    { key: 'nav_rooms',      href: '/#rooms' },
     { key: 'nav_about',      href: '/#about' },
     { key: 'nav_directions', href: '/#directions' },
   ]
@@ -162,13 +162,13 @@ export default function Header() {
             </button>
 
             {/* Book Now — desktop only */}
-            <Link
-              to="/rooms"
+            <button
+              onClick={() => scrollTo('/#rooms')}
               className="btn btn-primary btn-sm hide-mobile"
               style={{ background: transparent ? 'rgba(61,90,58,0.9)' : 'var(--terracotta)' }}
             >
               {tr('nav_bookNow')}
-            </Link>
+            </button>
 
             {/* Hamburger — mobile only */}
             <button
@@ -254,13 +254,13 @@ export default function Header() {
                   {tr(link.key)}
                 </Link>
           ))}
-          <Link
-            to="/rooms"
+          <button
+            onClick={() => { scrollTo('/#rooms'); setMenuOpen(false) }}
             className="btn btn-primary"
             style={{ marginTop: '16px', justifyContent: 'center' }}
           >
             {tr('nav_bookNow')}
-          </Link>
+          </button>
         </nav>
       </div>
 

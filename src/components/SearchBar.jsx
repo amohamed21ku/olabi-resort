@@ -24,7 +24,7 @@ export default function SearchBar({ onDark = false, initialValues = {} }) {
   const handleSearch = (e) => {
     e.preventDefault()
     const params = new URLSearchParams({ checkIn, checkOut, guests })
-    navigate(`/rooms?${params}`)
+    navigate(`/?${params}#rooms`)
   }
 
   const inputStyle = {

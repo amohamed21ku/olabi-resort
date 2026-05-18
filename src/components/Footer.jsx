@@ -1,4 +1,4 @@
-import { Link } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useLanguage } from '../App'
 import { t } from '../translations'
 import { FiPhone, FiMail, FiMapPin } from 'react-icons/fi'
@@ -7,13 +7,27 @@ import { FaFacebook, FaInstagram, FaWhatsapp } from 'react-icons/fa'
 export default function Footer() {
   const { language, isRTL } = useLanguage()
   const tr = (key) => t(language, key)
+  const location = useLocation()
+  const navigate = useNavigate()
 
   const navLinks = [
     { label: tr('nav_home'),       href: '/' },
-    { label: tr('nav_rooms'),      href: '/rooms' },
+    { label: tr('nav_rooms'),      href: '/#rooms' },
     { label: tr('nav_about'),      href: '/#about' },
     { label: tr('nav_directions'), href: '/#directions' },
   ]
+
+  const handleLink = (href, e) => {
+    if (!href.startsWith('/#')) return
+    e.preventDefault()
+    const id = href.slice(2)
+    if (location.pathname !== '/') {
+      navigate('/')
+      setTimeout(() => document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' }), 300)
+    } else {
+      document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' })
+    }
+  }
 
   return (
     <footer style={{
@@ -98,11 +112,14 @@ export default function Footer() {
             <ul style={{ listStyle: 'none', display: 'flex', flexDirection: 'column', gap: '10px' }}>
               {navLinks.map(link => (
                 <li key={link.href}>
-                  <Link to={link.href} style={{
-                    fontSize: '14px',
-                    color: 'rgba(255,255,255,0.65)',
-                    transition: 'color 0.2s',
-                  }}
+                  <Link
+                    to={link.href}
+                    onClick={(e) => handleLink(link.href, e)}
+                    style={{
+                      fontSize: '14px',
+                      color: 'rgba(255,255,255,0.65)',
+                      transition: 'color 0.2s',
+                    }}
                     onMouseEnter={e => e.target.style.color = 'var(--terracotta)'}
                     onMouseLeave={e => e.target.style.color = 'rgba(255,255,255,0.65)'}
                   >

@@ -86,7 +86,7 @@ export default function BookingPage() {
     return (
       <div className="page-loader">
         <p style={{ color: 'var(--muted)' }}>{isRTL ? 'الفئة غير موجودة' : 'Category not found'}</p>
-        <Link to="/rooms" className="btn btn-outline">{isRTL ? 'عودة للغرف' : 'Back to Rooms'}</Link>
+        <Link to="/#rooms" className="btn btn-outline">{isRTL ? 'عودة للغرف' : 'Back to Rooms'}</Link>
       </div>
     )
   }
@@ -212,7 +212,7 @@ export default function BookingPage() {
                 <FiAlertCircle size={18} style={{ flexShrink: 0, marginTop: 2 }} />
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                   <span style={{ fontSize: 14, lineHeight: 1.6 }}>{unavailableMsg}</span>
-                  <Link to="/rooms" className="btn btn-outline btn-sm" style={{ alignSelf: 'flex-start' }}>
+                  <Link to="/#rooms" className="btn btn-outline btn-sm" style={{ alignSelf: 'flex-start' }}>
                     {isRTL ? 'تصفح فئات أخرى' : 'Browse other categories'}
                   </Link>
                 </div>

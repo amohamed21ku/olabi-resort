@@ -356,7 +356,7 @@ export default function RoomDetailPage() {
     return (
       <div className="page-loader">
         <p style={{ color: 'var(--muted)' }}>{isRTL ? 'الفئة غير موجودة' : 'Category not found'}</p>
-        <Link to="/rooms" className="btn btn-outline">{isRTL ? 'عودة للغرف' : 'Back to Rooms'}</Link>
+        <Link to="/#rooms" className="btn btn-outline">{isRTL ? 'عودة للغرف' : 'Back to Rooms'}</Link>
       </div>
     )
   }
@@ -377,7 +377,7 @@ export default function RoomDetailPage() {
       <div style={{ background: 'var(--white)', borderBottom: '1px solid var(--sand)', padding: '16px 0' }}>
         <div className="container">
           <button
-            onClick={() => navigate(cameFromHome ? '/' : `/rooms${bookingParams ? `?${bookingParams}` : ''}`)}
+            onClick={() => navigate(cameFromHome ? '/' : `/${bookingParams ? `?${bookingParams}` : ''}#rooms`)}
             style={{ display: 'inline-flex', alignItems: 'center', gap: 8, color: 'var(--muted)', fontSize: 14, fontFamily: 'inherit', background: 'none', border: 'none', cursor: 'pointer', transition: 'color 0.2s' }}
             onMouseEnter={e => e.currentTarget.style.color = 'var(--terracotta)'}
             onMouseLeave={e => e.currentTarget.style.color = 'var(--muted)'}

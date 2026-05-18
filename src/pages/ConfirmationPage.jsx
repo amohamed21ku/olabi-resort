@@ -217,7 +217,7 @@ export default function ConfirmationPage() {
                 <FiHome size={16} />
                 {tr('confirm_backHome')}
               </Link>
-              <Link to="/rooms" style={{
+              <Link to="/#rooms" style={{
                 fontSize: '14px',
                 color: 'var(--muted)',
                 textAlign: 'center',
