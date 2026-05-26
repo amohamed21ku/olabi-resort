@@ -596,6 +596,94 @@ input, select, textarea { font-family: inherit; }
   }
 }
 
+/* Features / amenities grid — 2 cols mobile, auto-fill desktop */
+.grid-features {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(2, 1fr);
+}
+
+@media (min-width: 640px) {
+  .grid-features {
+    gap: 14px;
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+@media (min-width: 900px) {
+  .grid-features {
+    gap: 16px;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  }
+}
+
+.feature-card {
+  background: var(--white);
+  border: 1px solid rgba(221, 208, 184, 0.6);
+  border-radius: var(--radius-lg);
+  padding: 14px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  box-shadow: 0 2px 12px rgba(35, 48, 31, 0.04);
+  transition: transform 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease;
+}
+
+.feature-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 12px 28px rgba(35, 48, 31, 0.10);
+  border-color: rgba(107, 124, 74, 0.45);
+}
+
+.feature-card .feature-icon {
+  width: 38px;
+  height: 38px;
+  border-radius: 11px;
+  background: var(--olive-light);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--terracotta);
+}
+
+.feature-card .feature-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink);
+  line-height: 1.45;
+  margin: 0;
+}
+
+@media (min-width: 640px) {
+  .feature-card {
+    padding: 18px 16px;
+    gap: 12px;
+  }
+  .feature-card .feature-icon {
+    width: 44px;
+    height: 44px;
+    border-radius: 13px;
+  }
+  .feature-card .feature-label {
+    font-size: 14px;
+  }
+}
+
+@media (min-width: 900px) {
+  .feature-card {
+    padding: 22px 20px;
+    gap: 14px;
+  }
+  .feature-card .feature-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 14px;
+  }
+  .feature-card .feature-label {
+    font-size: 15px;
+  }
+}
+
 /* Compact room card in mobile 2-col grid */
 @media (max-width: 767px) {
   .card-body-room {

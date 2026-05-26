@@ -486,11 +486,7 @@ export default function HomePage() {
             </p>
           </div>
 
-          <div style={{
-            display: 'grid',
-            gap: '16px',
-            gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))',
-          }}>
+          <div className="grid-features">
             {[
               { Icon: LuBedDouble,    key: 'feat_rooms' },
               { Icon: LuMountainSnow, key: 'feat_views' },
@@ -510,50 +506,13 @@ export default function HomePage() {
             ].map(({ Icon, key }) => (
               <div
                 key={key}
-                style={{
-                  background: 'var(--white)',
-                  border: '1px solid rgba(221, 208, 184, 0.6)',
-                  borderRadius: 'var(--radius-lg)',
-                  padding: '22px 20px',
-                  textAlign: isRTL ? 'right' : 'left',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: '14px',
-                  boxShadow: '0 2px 12px rgba(35, 48, 31, 0.04)',
-                  transition: 'transform 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease',
-                  cursor: 'default',
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.transform = 'translateY(-3px)'
-                  e.currentTarget.style.boxShadow = '0 12px 28px rgba(35, 48, 31, 0.10)'
-                  e.currentTarget.style.borderColor = 'rgba(107, 124, 74, 0.45)'
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.transform = 'translateY(0)'
-                  e.currentTarget.style.boxShadow = '0 2px 12px rgba(35, 48, 31, 0.04)'
-                  e.currentTarget.style.borderColor = 'rgba(221, 208, 184, 0.6)'
-                }}
+                className="feature-card"
+                style={{ textAlign: isRTL ? 'right' : 'left' }}
               >
-                <div style={{
-                  width: '48px',
-                  height: '48px',
-                  borderRadius: '14px',
-                  background: 'var(--olive-light)',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  color: 'var(--terracotta)',
-                }} aria-hidden>
-                  <Icon size={22} strokeWidth={1.75} />
+                <div className="feature-icon" aria-hidden>
+                  <Icon size={20} strokeWidth={1.75} />
                 </div>
-                <p style={{
-                  fontSize: '15px',
-                  fontWeight: 600,
-                  color: 'var(--ink)',
-                  lineHeight: 1.5,
-                  margin: 0,
-                  fontFamily: isRTL ? 'var(--font-ar)' : undefined,
-                }}>
+                <p className="feature-label" style={{ fontFamily: isRTL ? 'var(--font-ar)' : undefined }}>
                   {tr(key)}
                 </p>
               </div>
