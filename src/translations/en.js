@@ -116,12 +116,35 @@ export const en = {
 
   // About section
   about_label:    'Our Story',
-  about_title:    'A Mountain Sanctuary Since 1985',
-  about_body:     'Perched in the cedar-lined heights of Kasab, Olabi Resort grew over four decades around a single belief — that quiet and nature are the truest luxury. Pine-scented breezes drift across the balconies, the view stretches from mountain ridges to the distant sea, and our family welcomes yours with hospitality passed down through generations.',
+  about_title:    'Olabi Resort · Hospitality of World-Class Standard',
+  about_body:     'Set in the enchanting village of Kasab, Olabi Resort & Hotel is part of the Olabi Holding Group — a place where modern luxury meets the magic of mountain nature to deliver a refined stay built to world-class standards.',
+  about_body2:    'Wrapped in quiet, surrounded by mountains and ancient forests, the resort is the perfect retreat for families and visitors seeking calm, comfort and unforgettable moments in the heart of Kasab.',
+  about_tagline:  'Cool summers, naturally — no AC required.',
+  about_location: 'Kasab · Latakia · Syria',
   about_stat1:    'Years of Hospitality',
   about_stat2:    'Rooms & Suites',
   about_stat3:    'Happy Persons',
   about_stat4:    'Metres Above Sea Level',
+
+  // Features / amenities
+  features_label:    'Facilities & Services',
+  features_title:    'Everything You Need for an Unforgettable Stay',
+  features_subtitle: 'Complete facilities and thoughtful experiences crafted for the whole family.',
+  feat_rooms:      'Modern luxury rooms & suites',
+  feat_views:      'Panoramic mountain views',
+  feat_terraces:   'Private terraces with stunning views',
+  feat_outdoor:    'Forest seating areas',
+  feat_cabins:     'Private cabins with unique outlooks',
+  feat_kitchen:    'Fully-equipped kitchens',
+  feat_wifi:       'Free Starlink high-speed internet',
+  feat_dining:     'On-site restaurant & café',
+  feat_bbq:        'Family grilling & BBQ areas',
+  feat_sports:     'Football field & recreation',
+  feat_tent:       'Traditional hospitality tent',
+  feat_kids:       "Kids' play area",
+  feat_market:     'On-site supermarket',
+  feat_parking:    'Free parking',
+  feat_ac:         'Fully air-conditioned rooms',
 
   // Directions section
   dir_label:      'Getting Here',

@@ -8,6 +8,11 @@ import SearchBar from '../components/SearchBar'
 import TypeCard from '../components/TypeCard'
 import DirectionsMap from '../components/DirectionsMap'
 import { FiPhone, FiMail, FiMapPin, FiChevronDown, FiSearch, FiNavigation, FiChevronLeft, FiChevronRight } from 'react-icons/fi'
+import {
+  LuBedDouble, LuMountainSnow, LuArmchair, LuTrees, LuHouse,
+  LuChefHat, LuWifi, LuUtensils, LuFlame, LuGoal,
+  LuTent, LuBaby, LuShoppingCart, LuCar, LuSnowflake, LuSun,
+} from 'react-icons/lu'
 
 const ABOUT_IMAGES = [
   '/static/images/assets/about-image.png',
@@ -405,13 +410,154 @@ export default function HomePage() {
           <div className="about-grid">
             <AboutCarousel isRTL={isRTL} />
 
-            <div>
+            <div style={{ textAlign: isRTL ? 'right' : 'left' }}>
               <p className="section-label">{tr('about_label')}</p>
               <h2 className="section-title">{tr('about_title')}</h2>
-              <p style={{ fontSize: '16px', color: 'var(--charcoal)', lineHeight: 1.8 }}>
+
+              <p style={{
+                fontSize: '16.5px',
+                color: 'var(--charcoal)',
+                lineHeight: 1.85,
+                marginBottom: '14px',
+              }}>
                 {tr('about_body')}
               </p>
+              <p style={{
+                fontSize: '16px',
+                color: 'var(--charcoal)',
+                lineHeight: 1.85,
+                marginBottom: '24px',
+              }}>
+                {tr('about_body2')}
+              </p>
+
+              {/* Tagline highlight */}
+              <div style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '10px',
+                padding: '12px 20px',
+                borderRadius: 'var(--radius-lg)',
+                background: 'var(--olive-light)',
+                border: '1px solid rgba(107, 124, 74, 0.28)',
+                marginBottom: '20px',
+              }}>
+                <LuSun size={20} strokeWidth={1.75} style={{ color: 'var(--olive-dark)' }} aria-hidden />
+                <span style={{
+                  fontSize: '17px',
+                  fontWeight: 700,
+                  color: 'var(--olive-dark)',
+                  letterSpacing: isRTL ? '0' : '0.3px',
+                  fontFamily: isRTL ? 'var(--font-ar)' : 'var(--font-heading)',
+                  fontStyle: isRTL ? 'normal' : 'italic',
+                }}>
+                  {tr('about_tagline')}
+                </span>
+              </div>
+
+              {/* Location chip */}
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                color: 'var(--muted)',
+                fontSize: '14px',
+                fontWeight: 600,
+                letterSpacing: '0.4px',
+              }}>
+                <FiMapPin size={15} style={{ color: 'var(--terracotta)' }} />
+                <span>{tr('about_location')}</span>
+              </div>
             </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ─── Features / Amenities ─── */}
+      <section id="features" className="section" style={{ background: 'var(--cream)' }}>
+        <div className="container">
+          <div style={{ marginBottom: '48px', textAlign: 'center' }}>
+            <p className="section-label">{tr('features_label')}</p>
+            <h2 className="section-title" style={{ margin: '0 auto 14px' }}>
+              {tr('features_title')}
+            </h2>
+            <p className="section-subtitle" style={{ margin: '0 auto' }}>
+              {tr('features_subtitle')}
+            </p>
+          </div>
+
+          <div style={{
+            display: 'grid',
+            gap: '16px',
+            gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))',
+          }}>
+            {[
+              { Icon: LuBedDouble,    key: 'feat_rooms' },
+              { Icon: LuMountainSnow, key: 'feat_views' },
+              { Icon: LuArmchair,     key: 'feat_terraces' },
+              { Icon: LuTrees,        key: 'feat_outdoor' },
+              { Icon: LuHouse,        key: 'feat_cabins' },
+              { Icon: LuChefHat,      key: 'feat_kitchen' },
+              { Icon: LuWifi,         key: 'feat_wifi' },
+              { Icon: LuUtensils,     key: 'feat_dining' },
+              { Icon: LuFlame,        key: 'feat_bbq' },
+              { Icon: LuGoal,         key: 'feat_sports' },
+              { Icon: LuTent,         key: 'feat_tent' },
+              { Icon: LuBaby,         key: 'feat_kids' },
+              { Icon: LuShoppingCart, key: 'feat_market' },
+              { Icon: LuCar,          key: 'feat_parking' },
+              { Icon: LuSnowflake,    key: 'feat_ac' },
+            ].map(({ Icon, key }) => (
+              <div
+                key={key}
+                style={{
+                  background: 'var(--white)',
+                  border: '1px solid rgba(221, 208, 184, 0.6)',
+                  borderRadius: 'var(--radius-lg)',
+                  padding: '22px 20px',
+                  textAlign: isRTL ? 'right' : 'left',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '14px',
+                  boxShadow: '0 2px 12px rgba(35, 48, 31, 0.04)',
+                  transition: 'transform 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease',
+                  cursor: 'default',
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.transform = 'translateY(-3px)'
+                  e.currentTarget.style.boxShadow = '0 12px 28px rgba(35, 48, 31, 0.10)'
+                  e.currentTarget.style.borderColor = 'rgba(107, 124, 74, 0.45)'
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.transform = 'translateY(0)'
+                  e.currentTarget.style.boxShadow = '0 2px 12px rgba(35, 48, 31, 0.04)'
+                  e.currentTarget.style.borderColor = 'rgba(221, 208, 184, 0.6)'
+                }}
+              >
+                <div style={{
+                  width: '48px',
+                  height: '48px',
+                  borderRadius: '14px',
+                  background: 'var(--olive-light)',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: 'var(--terracotta)',
+                }} aria-hidden>
+                  <Icon size={22} strokeWidth={1.75} />
+                </div>
+                <p style={{
+                  fontSize: '15px',
+                  fontWeight: 600,
+                  color: 'var(--ink)',
+                  lineHeight: 1.5,
+                  margin: 0,
+                  fontFamily: isRTL ? 'var(--font-ar)' : undefined,
+                }}>
+                  {tr(key)}
+                </p>
+              </div>
+            ))}
           </div>
         </div>
       </section>
