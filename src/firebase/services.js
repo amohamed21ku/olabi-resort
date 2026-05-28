@@ -12,6 +12,36 @@ export class RoomUnavailableError extends Error {
   }
 }
 
+// A room's `blockedUntil` field (YYYY-MM-DD) marks the LAST night the room is
+// unavailable. The block starts today and ends inclusive of that date. Stale
+// blocks (past today) are treated as not-blocked so we don't have to sweep.
+export function isRoomBlockedInRange(room, checkIn, checkOut) {
+  if (!room?.blockedUntil) return false
+  const blockEnd = new Date(room.blockedUntil)
+  if (isNaN(blockEnd.getTime())) return false
+  blockEnd.setDate(blockEnd.getDate() + 1)
+  const today = new Date(new Date().toISOString().split('T')[0])
+  const reqIn  = checkIn  instanceof Date ? checkIn  : new Date(checkIn)
+  const reqOut = checkOut instanceof Date ? checkOut : new Date(checkOut)
+  return today < reqOut && blockEnd > reqIn
+}
+
+export async function setRoomBlock(roomId, blockedUntil) {
+  if (!roomId || !blockedUntil) throw new Error('INVALID_BLOCK_DATA')
+  await updateDoc(doc(db, 'rooms', roomId), {
+    blockedUntil,
+    updatedAt: Timestamp.now(),
+  })
+}
+
+export async function clearRoomBlock(roomId) {
+  if (!roomId) throw new Error('INVALID_CLEAR_DATA')
+  await updateDoc(doc(db, 'rooms', roomId), {
+    blockedUntil: null,
+    updatedAt: Timestamp.now(),
+  })
+}
+
 // ─── WhatsApp config ──────────────────────────────────────
 // Hotel's WhatsApp number (international format, no + or spaces)
 const HOTEL_WHATSAPP = '963956883006'
@@ -54,6 +84,7 @@ export async function createBooking(bookingData) {
     await runTransaction(db, async (tx) => {
       const roomSnap = await tx.get(roomRef)
       if (!roomSnap.exists()) throw new Error('ROOM_NOT_FOUND')
+      if (isRoomBlockedInRange(roomSnap.data(), reqIn, reqOut)) throw new RoomUnavailableError()
 
       const snap = await getDocs(query(
         collection(db, 'bookings'),
@@ -130,7 +161,9 @@ export async function countAvailableUnitsForVariant(roomType, roomCapacity, chec
     })
 
   const bookedIds = new Set(overlapping.filter(b => b.roomId).map(b => b.roomId))
-  const blocked   = rooms.filter(r => bookedIds.has(r.id)).length
+  const blocked   = rooms.filter(r =>
+    bookedIds.has(r.id) || isRoomBlockedInRange(r, reqIn, reqOut)
+  ).length
 
   // Unassigned bookings for the same variant each consume one unit.
   const unassigned = overlapping.filter(b =>
@@ -301,14 +334,15 @@ export async function assignRoomToBooking(bookingId, roomId) {
       throw new Error('CAPACITY_MISMATCH')
     }
 
+    const bIn  = b.checkIn?.toDate  ? b.checkIn.toDate()  : new Date(b.checkIn)
+    const bOut = b.checkOut?.toDate ? b.checkOut.toDate() : new Date(b.checkOut)
+    if (isRoomBlockedInRange(room, bIn, bOut)) throw new RoomUnavailableError()
+
     // Rooms no longer carry display names — pull from the matching variant
     // so the bookings table and WhatsApp message render a friendly label.
     const variantId = `${room.type}-${room.capacity}`
     const variantSnap = await tx.get(doc(db, 'variants', variantId))
     const variant = variantSnap.exists() ? variantSnap.data() : null
-
-    const bIn  = b.checkIn?.toDate  ? b.checkIn.toDate()  : new Date(b.checkIn)
-    const bOut = b.checkOut?.toDate ? b.checkOut.toDate() : new Date(b.checkOut)
 
     const others = await getDocs(query(
       collection(db, 'bookings'),

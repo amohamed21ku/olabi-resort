@@ -7,7 +7,7 @@ import {
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage'
 import { auth, db, storage } from '../firebase/config'
 import { seedRooms, CATEGORIES } from '../firebase/seed'
-import { getNextBookingNumber, formatBookingNumber, buildCustomerWhatsAppUrl, extendBookingStay, assignRoomToBooking } from '../firebase/services'
+import { getNextBookingNumber, formatBookingNumber, buildCustomerWhatsAppUrl, extendBookingStay, assignRoomToBooking, setRoomBlock, clearRoomBlock, isRoomBlockedInRange } from '../firebase/services'
 
 const CATEGORY_OPTIONS = [
   { value: 'superub', labelAr: 'سوبر' },
@@ -24,7 +24,7 @@ import {
   FiCheckSquare, FiSliders, FiDatabase, FiClock, FiDollarSign,
   FiUsers, FiArrowUp, FiArrowDown, FiMoreVertical, FiRefreshCw,
   FiExternalLink, FiPlusCircle, FiMessageCircle,
-  FiCreditCard, FiStar, FiBell, FiSettings,
+  FiCreditCard, FiStar, FiBell, FiSettings, FiLock, FiUnlock,
 } from 'react-icons/fi'
 
 /* ─────────────────────────────────────────────────────────────
@@ -619,12 +619,34 @@ function AvailabilityTab({ rooms, variants = [], bookings, loading }) {
   })
   const fmtD = d => { try { return (d?.toDate ? d.toDate() : new Date(d)).toLocaleDateString('ar-SY', { day: 'numeric', month: 'short' }) } catch { return '—' } }
 
+  const [blockBusy, setBlockBusy] = useState(null)
+  const [blockErr,  setBlockErr]  = useState('')
+  const handleBlock = async (roomId, until) => {
+    setBlockBusy(roomId); setBlockErr('')
+    try { await setRoomBlock(roomId, until) }
+    catch (e) { setBlockErr('فشل الحظر: ' + (e?.message || '')) }
+    finally { setBlockBusy(null) }
+  }
+  const handleUnblock = async (roomId) => {
+    setBlockBusy(roomId); setBlockErr('')
+    try { await clearRoomBlock(roomId) }
+    catch (e) { setBlockErr('فشل إلغاء الحظر: ' + (e?.message || '')) }
+    finally { setBlockBusy(null) }
+  }
+
   if (loading) return <PageLoader />
 
-  const withStatus = rooms.map(r => ({ room: r, booking: getBooking(r) }))
+  const rangeFrom = new Date(from)
+  const rangeTo   = new Date(to)
+  const withStatus = rooms.map(r => ({
+    room:    r,
+    booking: getBooking(r),
+    blocked: isRoomBlockedInRange(r, rangeFrom, rangeTo),
+  }))
   const occupied   = withStatus.filter(x => !!x.booking)
-  const available  = withStatus.filter(x => !x.booking && x.room.active !== false)
-  const inactive   = withStatus.filter(x => !x.booking && x.room.active === false)
+  const blockedArr = withStatus.filter(x => !x.booking && x.blocked)
+  const available  = withStatus.filter(x => !x.booking && !x.blocked && x.room.active !== false)
+  const inactive   = withStatus.filter(x => !x.booking && !x.blocked && x.room.active === false)
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
@@ -655,13 +677,21 @@ function AvailabilityTab({ rooms, variants = [], bookings, loading }) {
         </div>
       </div>
 
+      {blockErr && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 10, padding: '10px 14px' }}>
+          <FiAlertCircle size={14} color="#dc2626" style={{ flexShrink: 0 }} />
+          <span style={{ fontSize: 13, color: '#b91c1c' }}>{blockErr}</span>
+        </div>
+      )}
+
       {/* Summary row */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 10 }}>
         {[
-          { label: 'متاحة',   v: available.length, c: '#15803d', bg: '#f0fdf4', border: '#bbf7d0' },
-          { label: 'محجوزة',  v: occupied.length,  c: '#1d4ed8', bg: '#eff6ff', border: '#bfdbfe' },
-          { label: 'مخفية',   v: inactive.length,  c: '#6b7280', bg: '#F9FAFB', border: '#E5E7EB' },
-          { label: 'الإجمالي',v: rooms.length,     c: '#374151', bg: '#fff',    border: '#E5E7EB' },
+          { label: 'متاحة',   v: available.length,  c: '#15803d', bg: '#f0fdf4', border: '#bbf7d0' },
+          { label: 'محجوزة',  v: occupied.length,   c: '#1d4ed8', bg: '#eff6ff', border: '#bfdbfe' },
+          { label: 'محظورة',  v: blockedArr.length, c: '#b45309', bg: '#fffbeb', border: '#fde68a' },
+          { label: 'مخفية',   v: inactive.length,   c: '#6b7280', bg: '#F9FAFB', border: '#E5E7EB' },
+          { label: 'الإجمالي',v: rooms.length,      c: '#374151', bg: '#fff',    border: '#E5E7EB' },
         ].map(s => (
           <div key={s.label} style={{ background: s.bg, border: `1px solid ${s.border}`, borderRadius: 10, padding: '14px 16px', textAlign: 'center' }}>
             <p style={{ fontSize: 24, fontWeight: 700, color: s.c, lineHeight: 1, marginBottom: 4 }}>{s.v}</p>
@@ -693,18 +723,43 @@ function AvailabilityTab({ rooms, variants = [], bookings, loading }) {
         </AvailSection>
       )}
 
+      {/* Blocked rooms */}
+      {blockedArr.length > 0 && (
+        <AvailSection title={`الغرف المحظورة (${blockedArr.length})`} color="#b45309">
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 8 }}>
+            {blockedArr.map(({ room }) => (
+              <div key={room.id} style={{ background: '#fff', borderRadius: 10, border: '1px solid #FDE68A', padding: '12px 14px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                  <p style={{ fontSize: 13, fontWeight: 700, color: '#111827' }}>غرفة {room.number}</p>
+                  <FiLock size={12} color="#b45309" />
+                </div>
+                <p style={{ fontSize: 11, color: '#9CA3AF', marginBottom: 8 }}>{labelFor(room)} · {room.capacity} أشخاص</p>
+                <p style={{ fontSize: 11, color: '#92400E', marginBottom: 8 }}>محظورة حتى {fmtD(room.blockedUntil)}</p>
+                <button
+                  onClick={() => handleUnblock(room.id)}
+                  disabled={blockBusy === room.id}
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11, fontWeight: 600, padding: '5px 10px', borderRadius: 6, border: '1px solid #FDE68A', background: '#FFFBEB', color: '#92400E', cursor: blockBusy === room.id ? 'wait' : 'pointer', fontFamily: 'Cairo, sans-serif' }}
+                >
+                  <FiUnlock size={11} /> {blockBusy === room.id ? 'جارٍ...' : 'إلغاء الحظر'}
+                </button>
+              </div>
+            ))}
+          </div>
+        </AvailSection>
+      )}
+
       {/* Available rooms */}
       {available.length > 0 && (
         <AvailSection title={`الغرف المتاحة (${available.length})`} color="#15803d">
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 8 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 8 }}>
             {available.map(({ room }) => (
-              <div key={room.id} style={{ background: '#fff', borderRadius: 10, border: '1px solid #BBF7D0', padding: '12px 14px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-                  <p style={{ fontSize: 13, fontWeight: 700, color: '#111827' }}>غرفة {room.number}</p>
-                  <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#22c55e', flexShrink: 0 }} />
-                </div>
-                <p style={{ fontSize: 11, color: '#9CA3AF' }}>{labelFor(room)} · {room.capacity} أشخاص</p>
-              </div>
+              <AvailableRoomCard
+                key={room.id}
+                room={room}
+                label={labelFor(room)}
+                busy={blockBusy === room.id}
+                onBlock={(until) => handleBlock(room.id, until)}
+              />
             ))}
           </div>
         </AvailSection>
@@ -733,6 +788,55 @@ function AvailSection({ title, color, children }) {
         <p style={{ fontSize: 13, fontWeight: 700, color }}>{title}</p>
       </div>
       {children}
+    </div>
+  )
+}
+
+function AvailableRoomCard({ room, label, busy, onBlock }) {
+  const [expanded, setExpanded] = useState(false)
+  const tomorrow = new Date(Date.now() + 86400000).toISOString().split('T')[0]
+  const [until, setUntil] = useState(tomorrow)
+  const today = new Date().toISOString().split('T')[0]
+
+  return (
+    <div style={{ background: '#fff', borderRadius: 10, border: '1px solid #BBF7D0', padding: '12px 14px' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+        <p style={{ fontSize: 13, fontWeight: 700, color: '#111827' }}>غرفة {room.number}</p>
+        <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#22c55e', flexShrink: 0 }} />
+      </div>
+      <p style={{ fontSize: 11, color: '#9CA3AF', marginBottom: 8 }}>{label} · {room.capacity} أشخاص</p>
+      {!expanded ? (
+        <button
+          onClick={() => setExpanded(true)}
+          style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11, fontWeight: 600, padding: '5px 10px', borderRadius: 6, border: '1px solid #E5E7EB', background: '#F9FAFB', color: '#6B7280', cursor: 'pointer', fontFamily: 'Cairo, sans-serif' }}
+        >
+          <FiLock size={11} /> حظر حتى تاريخ
+        </button>
+      ) : (
+        <div style={{ display: 'flex', gap: 4, alignItems: 'center', flexWrap: 'wrap' }}>
+          <input
+            type="date"
+            value={until}
+            min={today}
+            onChange={e => setUntil(e.target.value)}
+            style={{ flex: 1, minWidth: 110, padding: '5px 8px', fontSize: 11, borderRadius: 6, border: '1px solid #E5E7EB', fontFamily: 'Cairo, sans-serif', outline: 'none' }}
+          />
+          <button
+            onClick={() => until && onBlock(until)}
+            disabled={!until || busy}
+            style={{ fontSize: 11, padding: '5px 10px', borderRadius: 6, border: 'none', background: (!until || busy) ? '#E5E7EB' : '#1C2B1C', color: (!until || busy) ? '#9CA3AF' : '#fff', cursor: (!until || busy) ? 'not-allowed' : 'pointer', fontWeight: 600, fontFamily: 'Cairo, sans-serif' }}
+          >
+            {busy ? 'جارٍ...' : 'حظر'}
+          </button>
+          <button
+            onClick={() => setExpanded(false)}
+            style={{ background: 'none', border: 'none', color: '#9CA3AF', cursor: 'pointer', padding: 4, display: 'inline-flex' }}
+            title="إلغاء"
+          >
+            <FiX size={12} />
+          </button>
+        </div>
+      )}
     </div>
   )
 }
@@ -1032,7 +1136,7 @@ function AssignRoomControl({ booking, rooms, bookings, busy, error, onAssign }) 
       && r.type === booking.roomType
       && (reqCap == null || Number(r.capacity) === reqCap))
     .map(r => {
-      const conflict = bookings.some(o => {
+      const bookingConflict = bookings.some(o => {
         if (o.id === booking.id) return false
         if (o.roomId !== r.id) return false
         if (['cancelled', 'checked-out'].includes(o.status)) return false
@@ -1040,7 +1144,8 @@ function AssignRoomControl({ booking, rooms, bookings, busy, error, onAssign }) 
         const oOut = o.checkOut?.toDate ? o.checkOut.toDate() : new Date(o.checkOut)
         return oIn < bOut && oOut > bIn
       })
-      return { room: r, conflict }
+      const blocked = isRoomBlockedInRange(r, bIn, bOut)
+      return { room: r, conflict: bookingConflict || blocked, blocked }
     })
     .sort((a, b) => +a.room.number - +b.room.number)
 
@@ -1060,9 +1165,9 @@ function AssignRoomControl({ booking, rooms, bookings, busy, error, onAssign }) 
       >
         <option value="">— اختر غرفة —</option>
         {candidates.length === 0 && <option disabled>لا توجد غرف بهذه السعة</option>}
-        {candidates.map(({ room, conflict }) => (
+        {candidates.map(({ room, conflict, blocked }) => (
           <option key={room.id} value={room.id} disabled={conflict}>
-            غرفة {room.number} · سعة {room.capacity}{conflict ? ' — محجوزة' : ''}
+            غرفة {room.number} · سعة {room.capacity}{conflict ? (blocked ? ' — محظورة' : ' — محجوزة') : ''}
           </option>
         ))}
       </select>
@@ -1118,6 +1223,8 @@ function NewBookingTab({ rooms, variants = [], bookings, onDone }) {
   const isAvailable = rid => {
     if (!checkIn || !checkOut) return true
     const f = new Date(checkIn), t = new Date(checkOut)
+    const room = rooms.find(r => r.id === rid)
+    if (room && isRoomBlockedInRange(room, f, t)) return false
     return !bookings.some(b => {
       if (b.roomId !== rid || ['cancelled', 'checked-out'].includes(b.status)) return false
       const bIn  = b.checkIn?.toDate  ? b.checkIn.toDate()  : new Date(b.checkIn)
