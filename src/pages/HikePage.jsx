@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect } from 'react'
 import { useLanguage } from '../App'
 import { useHike } from '../hooks/useHike'
-import { createHikeApplication, buildHikeWhatsAppUrl } from '../firebase/services'
+import { createHikeApplication } from '../firebase/services'
 import {
   FiMapPin, FiSun, FiMoon, FiCamera, FiArrowRight, FiArrowLeft,
   FiCheckCircle, FiCalendar, FiUsers, FiChevronLeft, FiChevronRight, FiX,
@@ -368,9 +368,8 @@ function ApplicationForm({ upcoming, isRTL, language }) {
     name: '', phone: '', email: '', partySize: 2,
     isResident: false, eventDate: '', notes: '',
   })
-  const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
-  const [done, setDone] = useState(null)
+  const [done, setDone] = useState(false)
   const set = (k, v) => setForm(p => ({ ...p, [k]: v }))
 
   useEffect(() => {
@@ -378,24 +377,20 @@ function ApplicationForm({ upcoming, isRTL, language }) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [upcoming])
 
-  const submit = async (e) => {
+  const submit = (e) => {
     e.preventDefault()
     if (!form.name.trim() || !form.phone.trim()) {
       setError(isRTL ? 'الرجاء إدخال الاسم ورقم الهاتف' : 'Please enter your name and phone number')
       return
     }
-    setSubmitting(true); setError('')
-    try {
-      const { applicationNumber } = await createHikeApplication(form)
-      const payload = { ...form, applicationNumber }
-      setDone(payload)
-      // Open WhatsApp to the resort with the application details
-      window.open(buildHikeWhatsAppUrl(payload, language), '_blank', 'noopener,noreferrer')
-    } catch (err) {
-      setError((isRTL ? 'تعذّر الإرسال: ' : 'Could not submit: ') + err.message)
-    } finally {
-      setSubmitting(false)
-    }
+    setError('')
+    // Show success immediately — the write is queued by Firestore's persistent
+    // cache and syncs in the background, so it feels instant even on a weak
+    // connection. The application lands in the admin panel; no WhatsApp step.
+    setDone(true)
+    createHikeApplication(form).catch(err => {
+      console.error('Hike application failed to sync:', err)
+    })
   }
 
   const inp = {
@@ -427,15 +422,11 @@ function ApplicationForm({ upcoming, isRTL, language }) {
         }}>
           {isRTL ? 'تم استلام طلبك!' : 'Application received!'}
         </h3>
-        <p style={{ fontSize: 15, color: 'var(--charcoal)', lineHeight: 1.7, marginBottom: 18, fontFamily: isRTL ? 'var(--font-ar)' : undefined }}>
+        <p style={{ fontSize: 15, color: 'var(--charcoal)', lineHeight: 1.7, fontFamily: isRTL ? 'var(--font-ar)' : undefined }}>
           {isRTL
-            ? 'إذا لم تُفتح نافذة واتساب تلقائياً، اضغط الزر أدناه لإرسال طلبك وتأكيد مشاركتك.'
-            : 'If WhatsApp did not open automatically, tap the button below to send your application and confirm.'}
+            ? 'شكراً لك! سجّلنا طلبك للانضمام إلى الرحلة، وسيتواصل معك فريق المنتجع قريباً لتأكيد مشاركتك.'
+            : 'Thank you! Your request to join the trip has been recorded. The resort team will contact you soon to confirm your spot.'}
         </p>
-        <a href={buildHikeWhatsAppUrl(done, language)} target="_blank" rel="noopener noreferrer"
-          className="btn btn-primary btn-lg" style={{ borderRadius: 100, display: 'inline-flex', alignItems: 'center', gap: 8 }}>
-          {isRTL ? 'إرسال على واتساب' : 'Send on WhatsApp'}
-        </a>
       </div>
     )
   }
@@ -511,14 +502,12 @@ function ApplicationForm({ upcoming, isRTL, language }) {
         </p>
       )}
 
-      <button type="submit" disabled={submitting} className="btn btn-primary btn-lg"
-        style={{ borderRadius: 100, justifyContent: 'center', opacity: submitting ? 0.7 : 1 }}>
-        {submitting
-          ? (isRTL ? 'جارٍ الإرسال…' : 'Submitting…')
-          : (isRTL ? 'إرسال الطلب عبر واتساب' : 'Submit via WhatsApp')}
+      <button type="submit" className="btn btn-primary btn-lg"
+        style={{ borderRadius: 100, justifyContent: 'center' }}>
+        {isRTL ? 'إرسال الطلب' : 'Submit application'}
       </button>
       <p style={{ fontSize: 12, color: 'var(--muted)', textAlign: 'center', margin: 0, fontFamily: isRTL ? 'var(--font-ar)' : undefined }}>
-        {isRTL ? 'سنؤكد مشاركتك عبر واتساب بعد استلام الطلب.' : "We'll confirm your spot on WhatsApp after we receive your request."}
+        {isRTL ? 'سيتواصل معك فريق المنتجع لتأكيد مشاركتك.' : 'The resort team will contact you to confirm your spot.'}
       </p>
     </form>
   )

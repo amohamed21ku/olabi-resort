@@ -7,7 +7,7 @@ import {
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage'
 import { auth, db, storage } from '../firebase/config'
 import { seedRooms, CATEGORIES } from '../firebase/seed'
-import { getNextBookingNumber, formatBookingNumber, buildCustomerWhatsAppUrl, extendBookingStay, assignRoomToBooking, setRoomBlock, clearRoomBlock, isRoomBlockedInRange, HIKE_DOC, DEFAULT_HIKE_CONTENT, saveHikeContent, buildHikeWhatsAppUrl, buildHikeCustomerWhatsAppUrl } from '../firebase/services'
+import { getNextBookingNumber, formatBookingNumber, buildCustomerWhatsAppUrl, extendBookingStay, assignRoomToBooking, setRoomBlock, clearRoomBlock, isRoomBlockedInRange, HIKE_DOC, DEFAULT_HIKE_CONTENT, saveHikeContent, buildHikeCustomerWhatsAppUrl } from '../firebase/services'
 
 const CATEGORY_OPTIONS = [
   { value: 'superub', labelAr: 'سوبر' },
@@ -2605,7 +2605,7 @@ function HikeApplications({ applications, content }) {
                   <div>
                     <p style={{ fontSize: 15, fontWeight: 700, color: '#111827' }}>{a.name}</p>
                     <p style={{ fontSize: 11, color: '#9CA3AF', marginTop: 2 }}>
-                      {a.applicationNumber != null ? `#${formatBookingNumber(a.applicationNumber)}` : ''} · {fmtCreated(a.createdAt)}
+                      #{a.id.slice(0, 6).toUpperCase()} · {fmtCreated(a.createdAt)}
                     </p>
                   </div>
                   <span style={{ fontSize: 11, fontWeight: 700, color: st.color, background: st.bg, border: `1px solid ${st.border}`, padding: '3px 10px', borderRadius: 100, whiteSpace: 'nowrap' }}>{st.label}</span>
@@ -2633,11 +2633,7 @@ function HikeApplications({ applications, content }) {
                 <div style={{ display: 'flex', gap: 8 }}>
                   <a href={buildHikeCustomerWhatsAppUrl(a, content, 'ar')} target="_blank" rel="noreferrer"
                     style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, background: '#15803d', color: '#fff', borderRadius: 8, padding: '8px 0', fontSize: 12, fontFamily: 'Cairo, sans-serif', fontWeight: 600, textDecoration: 'none' }}>
-                    <FiMessageCircle size={13} /> واتساب للمتقدّم
-                  </a>
-                  <a href={buildHikeWhatsAppUrl(a, 'ar')} target="_blank" rel="noreferrer" title="إرسال التفاصيل للمنتجع"
-                    style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '8px 12px', borderRadius: 8, border: '1px solid #E5E7EB', background: '#fff', color: '#374151', textDecoration: 'none' }}>
-                    <FiExternalLink size={13} />
+                    <FiMessageCircle size={13} /> تواصل مع المتقدّم
                   </a>
                   <button onClick={() => handleDelete(a)} disabled={deleting === a.id}
                     style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid #FECACA', background: '#FEF2F2', color: '#DC2626', cursor: 'pointer', display: 'flex', alignItems: 'center' }}>

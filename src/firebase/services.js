@@ -519,20 +519,12 @@ export async function saveHikeContent(data) {
   }, { merge: true })
 }
 
-// Read the highest existing applicationNumber and return the next one.
-async function getNextHikeApplicationNumber() {
-  const snap = await getDocs(collection(db, 'hikeApplications'))
-  let max = 0
-  snap.docs.forEach(d => {
-    const n = d.data().applicationNumber
-    if (typeof n === 'number' && n > max) max = n
-  })
-  return max + 1
-}
-
+// A single lightweight write — no pre-read of the collection (which would be
+// slow and, under our rules, denied for the public visitor submitting). The
+// caller can fire this without awaiting; the persistent cache queues the write
+// and syncs it in the background, so the form feels instant on slow networks.
 export async function createHikeApplication(data) {
   if (!data?.name || !data?.phone) throw new Error('INVALID_APPLICATION_DATA')
-  const applicationNumber = await getNextHikeApplicationNumber()
   const ref = await addDoc(collection(db, 'hikeApplications'), {
     name:      data.name.trim(),
     phone:     data.phone.trim(),
@@ -541,50 +533,10 @@ export async function createHikeApplication(data) {
     isResident: !!data.isResident,
     eventDate: data.eventDate || '',
     notes:     data.notes?.trim() || '',
-    applicationNumber,
     status:    'pending',
     createdAt: Timestamp.now(),
   })
-  return { id: ref.id, applicationNumber }
-}
-
-export function buildHikeWhatsAppUrl(application, language = 'ar') {
-  const ref = application.applicationNumber != null
-    ? `#${formatBookingNumber(application.applicationNumber)}`
-    : ''
-  const dateStr = application.eventDate
-    ? new Date(application.eventDate).toLocaleDateString(
-        language === 'ar' ? 'ar-SY' : 'en-GB',
-        { year: 'numeric', month: 'long', day: 'numeric' })
-    : (language === 'ar' ? 'لم يُحدد' : 'Not selected')
-
-  let message
-  if (language === 'ar') {
-    message =
-      `*طلب انضمام — مسار العم سيفاك (هايكنغ)* 🥾\n\n` +
-      `رقم الطلب: ${ref}\n` +
-      `الاسم: ${application.name}\n` +
-      `الهاتف: ${application.phone}\n` +
-      `البريد: ${application.email || 'لم يُذكر'}\n` +
-      `عدد الأشخاص: ${application.partySize}\n` +
-      `${application.isResident ? 'نزيل في المنتجع: نعم' : 'من خارج الفندق'}\n` +
-      `تاريخ الرحلة: ${dateStr}\n` +
-      `${application.notes ? `ملاحظات: ${application.notes}\n` : ''}` +
-      `\nيرجى تأكيد المشاركة.`
-  } else {
-    message =
-      `*Hiking Application — Uncle Sevak's Trail* 🥾\n\n` +
-      `Application: ${ref}\n` +
-      `Name: ${application.name}\n` +
-      `Phone: ${application.phone}\n` +
-      `Email: ${application.email || 'Not provided'}\n` +
-      `Party size: ${application.partySize}\n` +
-      `${application.isResident ? 'Resort guest: Yes' : 'From outside the hotel'}\n` +
-      `Trip date: ${dateStr}\n` +
-      `${application.notes ? `Notes: ${application.notes}\n` : ''}` +
-      `\nPlease confirm participation.`
-  }
-  return `https://wa.me/${HOTEL_WHATSAPP}?text=${encodeURIComponent(message)}`
+  return { id: ref.id }
 }
 
 // WhatsApp the applicant back to confirm their hike participation.
