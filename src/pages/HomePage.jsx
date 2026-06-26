@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
-import { useLocation, useSearchParams } from 'react-router-dom'
+import { useLocation, useSearchParams, Link } from 'react-router-dom'
 import { useLanguage } from '../App'
 import { t } from '../translations'
 import { useRoomVariants } from '../hooks/useRooms'
@@ -7,6 +7,7 @@ import { countAvailableUnitsForVariant } from '../firebase/services'
 import SearchBar from '../components/SearchBar'
 import TypeCard from '../components/TypeCard'
 import DirectionsMap from '../components/DirectionsMap'
+import HikeSpotlight from '../components/HikeSpotlight'
 import { FiPhone, FiMail, FiMapPin, FiChevronDown, FiSearch, FiNavigation, FiChevronLeft, FiChevronRight } from 'react-icons/fi'
 import {
   LuBedDouble, LuMountainSnow, LuArmchair, LuTrees, LuHouse,
@@ -213,6 +214,8 @@ export default function HomePage() {
 
   return (
     <>
+      <HikeSpotlight />
+
       {/* ─── Hero ─── */}
       <section style={{
         position: 'relative',
@@ -332,6 +335,28 @@ export default function HomePage() {
               <FiMapPin size={13} />
               {isRTL ? 'كيف تصل إلينا' : 'How to get here'}
             </button>
+
+            {/* Hiking event — subtle entry point, visible on landing without competing with booking */}
+            <Link
+              to="/hike"
+              style={{
+                display: 'inline-flex', alignItems: 'center', gap: '7px',
+                padding: '9px 18px', borderRadius: '100px',
+                background: 'rgba(134,239,172,0.16)',
+                border: '1.5px solid rgba(134,239,172,0.45)',
+                color: '#bbf7d0', fontSize: '13px', fontWeight: 600,
+                fontFamily: isRTL ? 'var(--font-ar)' : undefined,
+                textDecoration: 'none',
+              }}
+            >
+              <LuMountainSnow size={14} />
+              {isRTL ? 'مسار العم سيفاك' : "Uncle Sevak's Trail"}
+              <span style={{
+                fontSize: '9px', fontWeight: 700, letterSpacing: '0.5px',
+                background: '#86efac', color: '#07130a',
+                padding: '1px 6px', borderRadius: '100px',
+              }}>{isRTL ? 'جديد' : 'NEW'}</span>
+            </Link>
           </div>
         </div>
 
@@ -470,6 +495,63 @@ export default function HomePage() {
               </div>
             </div>
           </div>
+        </div>
+      </section>
+
+      {/* ─── Hike event teaser ─── */}
+      <section style={{
+        position: 'relative', overflow: 'hidden', background: '#07130a',
+      }}>
+        <img
+          src="/static/images/assets/hike/hike-1.jpg"
+          alt=""
+          loading="lazy"
+          style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', opacity: 0.8 }}
+        />
+        <div style={{
+          position: 'absolute', inset: 0,
+          background: isRTL
+            ? 'linear-gradient(270deg, rgba(7,19,10,0.92) 0%, rgba(7,19,10,0.55) 55%, rgba(7,19,10,0.25) 100%)'
+            : 'linear-gradient(90deg, rgba(7,19,10,0.92) 0%, rgba(7,19,10,0.55) 55%, rgba(7,19,10,0.25) 100%)',
+        }} />
+        <div className="container" style={{
+          position: 'relative', zIndex: 2,
+          padding: '88px 0', display: 'flex', flexDirection: 'column',
+          alignItems: isRTL ? 'flex-end' : 'flex-start',
+          textAlign: isRTL ? 'right' : 'left',
+        }}>
+          <div style={{
+            display: 'inline-flex', alignItems: 'center', gap: 9, marginBottom: 16,
+            padding: '7px 15px', borderRadius: 100,
+            background: 'rgba(134,239,172,0.16)', border: '1px solid rgba(134,239,172,0.35)',
+          }}>
+            <LuMountainSnow size={16} style={{ color: '#86efac' }} />
+            <span style={{ color: '#86efac', fontSize: 12, fontWeight: 700, letterSpacing: '0.04em',
+              fontFamily: isRTL ? 'var(--font-ar)' : undefined }}>
+              {tr('hike_teaser_label')}
+            </span>
+          </div>
+          <h2 style={{
+            fontSize: 'clamp(26px, 4vw, 42px)', fontWeight: 800, color: '#fff',
+            lineHeight: 1.15, marginBottom: 16, maxWidth: 580,
+            fontFamily: isRTL ? 'var(--font-ar)' : 'var(--font-heading)',
+            textShadow: '0 2px 20px rgba(0,0,0,0.5)',
+          }}>
+            {tr('hike_teaser_title')}
+          </h2>
+          <p style={{
+            fontSize: 16.5, color: 'rgba(255,255,255,0.85)', lineHeight: 1.8,
+            maxWidth: 520, marginBottom: 28,
+            fontFamily: isRTL ? 'var(--font-ar)' : undefined,
+            textShadow: '0 1px 8px rgba(0,0,0,0.4)',
+          }}>
+            {tr('hike_teaser_body')}
+          </p>
+          <Link to="/hike" className="btn btn-primary btn-lg"
+            style={{ borderRadius: 100, display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+            {tr('hike_teaser_cta')}
+            {isRTL ? <FiChevronLeft size={17} /> : <FiChevronRight size={17} />}
+          </Link>
         </div>
       </section>
 

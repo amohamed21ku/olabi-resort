@@ -2,9 +2,16 @@ export const ar = {
   // Navigation
   nav_home:       'الرئيسية',
   nav_rooms:      'الغرف',
+  nav_hike:       'الهايكنغ',
   nav_about:      'من نحن',
   nav_directions: 'الاتجاهات',
   nav_bookNow:    'احجز الآن',
+
+  // Hike teaser (home page)
+  hike_teaser_label: 'فعالية في المنتجع',
+  hike_teaser_title: 'مسار العم سيفاك · رحلة هايكنغ',
+  hike_teaser_body:  'طبيعة خلّابة على ارتفاعٍ شاهق، انطلاقاً من منتجع العلبي وصولاً إلى جبل النسر بإطلالاته الثلاث الساحرة. دخول النزلاء مجاني وتلقائي.',
+  hike_teaser_cta:   'اكتشف الرحلة',
 
   // Hero
   hero_label:    'ملاذ جبلي · كسب، سوريا',

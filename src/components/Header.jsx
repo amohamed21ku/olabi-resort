@@ -25,6 +25,7 @@ export default function Header() {
   const navLinks = [
     { key: 'nav_home',       href: '/' },
     { key: 'nav_rooms',      href: '/#rooms' },
+    { key: 'nav_hike',       href: '/hike' },
     { key: 'nav_about',      href: '/#about' },
     { key: 'nav_directions', href: '/#directions' },
   ]

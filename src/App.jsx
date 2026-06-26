@@ -8,6 +8,7 @@ import RoomDetailPage from './pages/RoomDetailPage'
 import BookingPage from './pages/BookingPage'
 import ConfirmationPage from './pages/ConfirmationPage'
 import AdminPage from './pages/AdminPage'
+import HikePage from './pages/HikePage'
 
 export const LanguageContext = createContext()
 
@@ -41,6 +42,7 @@ function AppLayout() {
       <main style={isAdmin ? {} : { minHeight: 'calc(100vh - var(--header-h))' }}>
         <Routes>
           <Route path="/"                        element={<HomePage />} />
+          <Route path="/hike"                    element={<HikePage />} />
           <Route path="/rooms/:roomId"           element={<RoomDetailPage />} />
           <Route path="/booking/:roomId"         element={<BookingPage />} />
           <Route path="/confirmation/:bookingId" element={<ConfirmationPage />} />

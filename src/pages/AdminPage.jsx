@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, Fragment } from 'react'
 import { onAuthStateChanged, signInWithEmailAndPassword, signOut } from 'firebase/auth'
 import {
   collection, doc, onSnapshot, setDoc, updateDoc, deleteDoc,
@@ -7,7 +7,7 @@ import {
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage'
 import { auth, db, storage } from '../firebase/config'
 import { seedRooms, CATEGORIES } from '../firebase/seed'
-import { getNextBookingNumber, formatBookingNumber, buildCustomerWhatsAppUrl, extendBookingStay, assignRoomToBooking, setRoomBlock, clearRoomBlock, isRoomBlockedInRange } from '../firebase/services'
+import { getNextBookingNumber, formatBookingNumber, buildCustomerWhatsAppUrl, extendBookingStay, assignRoomToBooking, setRoomBlock, clearRoomBlock, isRoomBlockedInRange, HIKE_DOC, DEFAULT_HIKE_CONTENT, saveHikeContent, buildHikeWhatsAppUrl, buildHikeCustomerWhatsAppUrl } from '../firebase/services'
 
 const CATEGORY_OPTIONS = [
   { value: 'superub', labelAr: 'سوبر' },
@@ -25,6 +25,7 @@ import {
   FiUsers, FiArrowUp, FiArrowDown, FiMoreVertical, FiRefreshCw,
   FiExternalLink, FiPlusCircle, FiMessageCircle,
   FiCreditCard, FiStar, FiBell, FiSettings, FiLock, FiUnlock,
+  FiCompass, FiSave,
 } from 'react-icons/fi'
 
 /* ─────────────────────────────────────────────────────────────
@@ -60,6 +61,12 @@ const NAV_SECTIONS = [
       { id: 'availability', label: 'الإتاحة',     Icon: FiCalendar },
       { id: 'variants',     label: 'الفئات',       Icon: FiStar },
       { id: 'rooms',        label: 'الغرف',        Icon: FiLayers },
+    ],
+  },
+  {
+    title: 'الفعاليات',
+    items: [
+      { id: 'hike',         label: 'مسار العم سيفاك', Icon: FiCompass },
     ],
   },
 ]
@@ -150,6 +157,8 @@ function Dashboard({ user }) {
   const [rooms, setRooms]         = useState([])
   const [variants, setVariants]   = useState([])
   const [bookings, setBookings]   = useState([])
+  const [hikeContent, setHikeContent] = useState(null)
+  const [hikeApps, setHikeApps]   = useState([])
   const [loadingR, setLR]         = useState(true)
   const [loadingV, setLV]         = useState(true)
   const [loadingB, setLB]         = useState(true)
@@ -173,6 +182,15 @@ function Dashboard({ user }) {
     return onSnapshot(q, snap => { setBookings(snap.docs.map(d => ({ id: d.id, ...d.data() }))); setLB(false) })
   }, [])
 
+  useEffect(() => onSnapshot(doc(db, HIKE_DOC.col, HIKE_DOC.id), snap => {
+    setHikeContent(snap.exists() ? { ...DEFAULT_HIKE_CONTENT, ...snap.data() } : { ...DEFAULT_HIKE_CONTENT })
+  }), [])
+
+  useEffect(() => onSnapshot(collection(db, 'hikeApplications'), snap => {
+    setHikeApps(snap.docs.map(d => ({ id: d.id, ...d.data() }))
+      .sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0)))
+  }), [])
+
   const handleSeed = async () => {
     if (!confirm('إعادة تهيئة الفئات والغرف؟ (سيُعاد كتابة 5 فئات و14 غرفة)')) return
     setSeeding(true)
@@ -185,6 +203,7 @@ function Dashboard({ user }) {
   }
 
   const pending = bookings.filter(b => b.status === 'pending').length
+  const pendingHike = hikeApps.filter(a => a.status === 'pending').length
   const navLabel = tab === 'room-form'
     ? (editingRoom ? `تعديل غرفة ${editingRoom.number}` : 'إضافة غرفة جديدة')
     : tab === 'variant-form'
@@ -229,7 +248,8 @@ function Dashboard({ user }) {
               <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                 {section.items.map(({ id, label, Icon }) => {
                   const active = tab === id
-                  const hasBadge = id === 'bookings' && pending > 0
+                  const badgeCount = id === 'bookings' ? pending : id === 'hike' ? pendingHike : 0
+                  const hasBadge = badgeCount > 0
                   return (
                     <button key={id} onClick={() => { setTab(id); setMob(false) }} style={{
                       width: '100%', display: 'flex', alignItems: 'center', gap: 10,
@@ -245,7 +265,7 @@ function Dashboard({ user }) {
                       <Icon size={16} style={{ flexShrink: 0 }} />
                       <span style={{ flex: 1 }}>{label}</span>
                       {hasBadge && (
-                        <span style={{ background: '#fbbf24', color: '#78350f', fontSize: 10, fontWeight: 700, padding: '1px 7px', borderRadius: 100, lineHeight: '18px' }}>{pending}</span>
+                        <span style={{ background: '#fbbf24', color: '#78350f', fontSize: 10, fontWeight: 700, padding: '1px 7px', borderRadius: 100, lineHeight: '18px' }}>{badgeCount}</span>
                       )}
                       {id === 'new-booking' && (
                         <span style={{ background: 'rgba(134,239,172,0.15)', color: '#86efac', fontSize: 10, fontWeight: 700, padding: '1px 7px', borderRadius: 100, lineHeight: '18px' }}>جديد</span>
@@ -312,6 +332,7 @@ function Dashboard({ user }) {
           {tab === 'availability' && <AvailabilityTab rooms={rooms} variants={variants} bookings={bookings} loading={loadingR || loadingB} />}
           {tab === 'bookings'     && <BookingsTab bookings={bookings} loading={loadingB} rooms={rooms} />}
           {tab === 'new-booking'  && <NewBookingTab rooms={rooms} variants={variants} bookings={bookings} onDone={() => setTab('bookings')} />}
+          {tab === 'hike'         && <HikeTab content={hikeContent} applications={hikeApps} />}
         </main>
       </div>
 
@@ -959,8 +980,8 @@ function BookingsTab({ bookings, loading, rooms = [] }) {
                 const nights = b.nights || Math.max(1, Math.ceil((new Date(b.checkOut?.toDate?.() || b.checkOut) - new Date(b.checkIn?.toDate?.() || b.checkIn)) / 86400000))
                 const isExp  = expanded === b.id
                 return (
-                  <>
-                    <tr key={b.id} style={{ borderBottom: '1px solid #F9FAFB', transition: 'background 0.1s', cursor: 'pointer' }}
+                  <Fragment key={b.id}>
+                    <tr style={{ borderBottom: '1px solid #F9FAFB', transition: 'background 0.1s', cursor: 'pointer' }}
                       onMouseEnter={e => e.currentTarget.style.background = '#FAFAFA'}
                       onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
                       onClick={() => setExpanded(isExp ? null : b.id)}>
@@ -1052,7 +1073,7 @@ function BookingsTab({ bookings, loading, rooms = [] }) {
                         </td>
                       </tr>
                     )}
-                  </>
+                  </Fragment>
                 )
               })}
             </tbody>
@@ -1888,7 +1909,7 @@ function RFSection({ step, title, optional, children }) {
 /* ─────────────────────────────────────────────────────────────
    Image Manager  — grid layout with hover-overlay actions
 ───────────────────────────────────────────────────────────── */
-function ImageManager({ images, setImages, docId, roomNumber, onError }) {
+function ImageManager({ images, setImages, docId, roomNumber, onError, pathPrefix = 'variants', step = '4', title = 'صور الفئة' }) {
   // docId is preferred (variant slug). roomNumber kept for legacy callers.
   const uploadKey = docId || roomNumber
   const fileRef = useRef()
@@ -1907,7 +1928,7 @@ function ImageManager({ images, setImages, docId, roomNumber, onError }) {
       const uploaded = await Promise.all(files.map(async file => {
         const compressed = await compressImage(file)
         const safeName   = compressed.name.replace(/[^\w.\-]+/g, '_')
-        const sRef       = ref(storage, `variants/${uploadKey}/${Date.now()}_${safeName}`)
+        const sRef       = ref(storage, `${pathPrefix}/${uploadKey}/${Date.now()}_${safeName}`)
         await uploadBytes(sRef, compressed)
         const url = await getDownloadURL(sRef)
         setUploadProg(p => ({ ...p, done: p.done + 1 }))
@@ -1958,9 +1979,9 @@ function ImageManager({ images, setImages, docId, roomNumber, onError }) {
 
         {/* Section header */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px 20px', borderBottom: '1px solid #F3F4F6', background: '#FAFAFA' }}>
-          <div style={{ width: 26, height: 26, borderRadius: 8, background: '#1C2B1C', color: '#86efac', fontSize: 12, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>4</div>
+          <div style={{ width: 26, height: 26, borderRadius: 8, background: '#1C2B1C', color: '#86efac', fontSize: 12, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>{step}</div>
           <div style={{ flex: 1 }}>
-            <span style={{ fontSize: 14, fontWeight: 700, color: '#111827' }}>صور الفئة</span>
+            <span style={{ fontSize: 14, fontWeight: 700, color: '#111827' }}>{title}</span>
             {images.length > 0 && (
               <span style={{ fontSize: 12, color: '#9CA3AF', marginRight: 10 }}>
                 {images.length} {images.length === 1 ? 'صورة' : 'صور'} · رتّب باستخدام الأسهم ↑↓ أو السحب · ⭐ لتغيير الغلاف
@@ -2276,3 +2297,361 @@ function FullLoader() {
 function Req() {
   return <span style={{ color: '#EF4444', marginRight: 2 }}>*</span>
 }
+
+/* ─────────────────────────────────────────────────────────────
+   Hike event tab — content editor + applications
+───────────────────────────────────────────────────────────── */
+function HikeTab({ content, applications }) {
+  const [view, setView] = useState('content')
+  if (!content) return <PageLoader />
+  const pending = applications.filter(a => a.status === 'pending').length
+
+  const TabBtn = ({ id, label, badge }) => {
+    const active = view === id
+    return (
+      <button onClick={() => setView(id)} style={{
+        display: 'flex', alignItems: 'center', gap: 8, padding: '9px 18px', borderRadius: 9,
+        border: `1px solid ${active ? '#1C2B1C' : '#E5E7EB'}`, cursor: 'pointer',
+        background: active ? '#1C2B1C' : '#fff', color: active ? '#fff' : '#374151',
+        fontSize: 13, fontFamily: 'Cairo, sans-serif', fontWeight: 700,
+      }}>
+        {label}
+        {badge > 0 && (
+          <span style={{ background: active ? 'rgba(255,255,255,0.2)' : '#fbbf24', color: active ? '#fff' : '#78350f', fontSize: 10, fontWeight: 700, padding: '1px 7px', borderRadius: 100 }}>{badge}</span>
+        )}
+      </button>
+    )
+  }
+
+  return (
+    <div>
+      <div style={{ display: 'flex', gap: 10, marginBottom: 24 }}>
+        <TabBtn id="content" label="محتوى الصفحة" />
+        <TabBtn id="applications" label="طلبات الانضمام" badge={pending} />
+      </div>
+      {view === 'content'
+        ? <HikeContentEditor content={content} />
+        : <HikeApplications applications={applications} content={content} />}
+    </div>
+  )
+}
+
+/* Content editor for the public hike page (siteContent/hike) */
+function HikeContentEditor({ content }) {
+  const TEXT_FIELDS = [
+    'titleAr','titleEn','taglineAr','taglineEn','introAr','introEn',
+    'routeAr','routeEn','morningAr','morningEn','eveningAr','eveningEn',
+    'priceNoteAr','priceNoteEn',
+  ]
+  const [form, setForm] = useState(() => {
+    const init = {}
+    TEXT_FIELDS.forEach(k => { init[k] = content[k] ?? '' })
+    init.priceExternal = content.priceExternal ?? ''
+    init.residentsFree = content.residentsFree !== false
+    init.active        = content.active !== false
+    return init
+  })
+  const [images,    setImages]    = useState(content.images ?? [])
+  const [logoUrl,   setLogoUrl]   = useState(content.logoUrl ?? '')
+  const [highlights, setHighlights] = useState(content.highlights ?? [])
+  const [upcoming,  setUpcoming]  = useState(content.upcoming ?? [])
+  const [saving,    setSaving]    = useState(false)
+  const [error,     setError]     = useState('')
+  const [success,   setSuccess]   = useState('')
+  const [logoBusy,  setLogoBusy]  = useState(false)
+  const logoRef = useRef()
+
+  const set = (k, v) => setForm(p => ({ ...p, [k]: v }))
+  const focusStyle = e => (e.target.style.borderColor = '#3d5a3a')
+  const blurStyle  = e => (e.target.style.borderColor = '#E5E7EB')
+
+  const handleLogo = async e => {
+    const file = e.target.files?.[0]; if (!file) return
+    setLogoBusy(true); setError('')
+    try {
+      const compressed = await compressImage(file)
+      const safeName   = compressed.name.replace(/[^\w.\-]+/g, '_')
+      const sRef       = ref(storage, `hike/logo/${Date.now()}_${safeName}`)
+      await uploadBytes(sRef, compressed)
+      setLogoUrl(await getDownloadURL(sRef))
+    } catch (err) { setError('فشل رفع الشعار: ' + err.message) }
+    finally { setLogoBusy(false); e.target.value = '' }
+  }
+
+  const addHighlight = () => setHighlights(p => [...p, { ar: '', en: '' }])
+  const setHighlight = (i, k, v) => setHighlights(p => p.map((h, idx) => idx === i ? { ...h, [k]: v } : h))
+  const delHighlight = i => setHighlights(p => p.filter((_, idx) => idx !== i))
+
+  const addDate = () => setUpcoming(p => [...p, { id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6), date: '', timeAr: '', timeEn: '' }])
+  const setDate = (i, k, v) => setUpcoming(p => p.map((d, idx) => idx === i ? { ...d, [k]: v } : d))
+  const delDate = i => setUpcoming(p => p.filter((_, idx) => idx !== i))
+
+  const handleSave = async () => {
+    if (!form.titleAr.trim()) { setError('العنوان بالعربي مطلوب'); return }
+    setSaving(true); setError(''); setSuccess('')
+    try {
+      const payload = { ...form }
+      payload.priceExternal = form.priceExternal === '' ? null : parseFloat(form.priceExternal)
+      payload.priceCurrency = 'USD'
+      payload.logoUrl   = logoUrl
+      payload.images    = images
+      payload.highlights = highlights.filter(h => (h.ar || '').trim() || (h.en || '').trim())
+      payload.upcoming  = upcoming
+        .filter(d => d.date)
+        .sort((a, b) => a.date.localeCompare(b.date))
+      await saveHikeContent(payload)
+      setSuccess('تم حفظ التغييرات بنجاح')
+      setTimeout(() => setSuccess(''), 3500)
+    } catch (e) { setError('فشل الحفظ: ' + e.message) }
+    finally { setSaving(false) }
+  }
+
+  const SaveBar = () => (
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+      <a href="/hike" target="_blank" rel="noreferrer"
+        style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#3d5a3a', fontWeight: 600, textDecoration: 'none' }}>
+        <FiExternalLink size={13} /> معاينة الصفحة
+      </a>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        {success && <span style={{ fontSize: 12, color: '#15803d', background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 6, padding: '5px 12px', fontWeight: 600 }}>{success}</span>}
+        <button onClick={handleSave} disabled={saving}
+          style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '10px 26px', borderRadius: 9, background: saving ? '#9CA3AF' : '#1C2B1C', color: '#fff', border: 'none', fontSize: 13, fontFamily: 'Cairo, sans-serif', fontWeight: 700, cursor: saving ? 'not-allowed' : 'pointer' }}>
+          {saving ? <><FiRefreshCw size={13} style={{ animation: 'spin 1s linear infinite' }} /> جارٍ الحفظ...</> : <><FiSave size={14} /> حفظ التغييرات</>}
+        </button>
+      </div>
+    </div>
+  )
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <SaveBar />
+
+      {error && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 10, padding: '12px 16px' }}>
+          <FiAlertCircle size={15} color="#dc2626" style={{ flexShrink: 0 }} />
+          <span style={{ fontSize: 13, color: '#b91c1c' }}>{error}</span>
+        </div>
+      )}
+
+      {/* Visibility + logo */}
+      <RFSection step="1" title="الإعدادات العامة والشعار">
+        <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', fontSize: 13, padding: '10px 14px', borderRadius: 8, border: `1px solid ${form.active ? '#86efac' : '#E5E7EB'}`, background: form.active ? '#f0fdf4' : '#F9FAFB', fontFamily: 'Cairo, sans-serif', width: 'fit-content' }}>
+          <input type="checkbox" checked={form.active} onChange={e => set('active', e.target.checked)} style={{ accentColor: '#3d5a3a', width: 14, height: 14 }} />
+          <span style={{ fontWeight: form.active ? 600 : 400, color: form.active ? '#3d5a3a' : '#6B7280' }}>الفعالية نشطة (ظاهرة للزوار)</span>
+        </label>
+
+        <ModalField label="شعار الفعالية">
+          <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+            <div style={{ width: 84, height: 84, borderRadius: 14, border: '1px solid #E5E7EB', background: '#F9FAFB', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', flexShrink: 0 }}>
+              {logoUrl ? <img src={logoUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'contain' }} /> : <FiImage size={24} color="#9CA3AF" />}
+            </div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <input ref={logoRef} type="file" accept="image/*" onChange={handleLogo} style={{ display: 'none' }} />
+              <button onClick={() => logoRef.current?.click()} disabled={logoBusy}
+                style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px', borderRadius: 8, background: logoBusy ? '#9CA3AF' : '#1C2B1C', color: '#fff', border: 'none', fontSize: 13, fontFamily: 'Cairo, sans-serif', fontWeight: 600, cursor: logoBusy ? 'not-allowed' : 'pointer' }}>
+                <FiUpload size={13} /> {logoBusy ? 'جارٍ الرفع...' : 'رفع شعار'}
+              </button>
+              {logoUrl && (
+                <button onClick={() => setLogoUrl('')}
+                  style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 8, background: '#fff', color: '#DC2626', border: '1px solid #FECACA', fontSize: 13, fontFamily: 'Cairo, sans-serif', fontWeight: 600, cursor: 'pointer' }}>
+                  <FiX size={13} /> إزالة
+                </button>
+              )}
+            </div>
+          </div>
+        </ModalField>
+      </RFSection>
+
+      {/* Arabic content */}
+      <RFSection step="2" title="المحتوى بالعربي">
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+          <ModalField label="العنوان *"><input value={form.titleAr} onChange={e => set('titleAr', e.target.value)} style={fieldStyle} onFocus={focusStyle} onBlur={blurStyle} /></ModalField>
+          <ModalField label="العبارة التعريفية"><input value={form.taglineAr} onChange={e => set('taglineAr', e.target.value)} style={fieldStyle} onFocus={focusStyle} onBlur={blurStyle} /></ModalField>
+        </div>
+        <ModalField label="الفكرة / المقدمة"><textarea value={form.introAr} onChange={e => set('introAr', e.target.value)} rows={3} style={{ ...fieldStyle, resize: 'vertical', lineHeight: 1.7 }} onFocus={focusStyle} onBlur={blurStyle} /></ModalField>
+        <ModalField label="خط السير"><textarea value={form.routeAr} onChange={e => set('routeAr', e.target.value)} rows={3} style={{ ...fieldStyle, resize: 'vertical', lineHeight: 1.7 }} onFocus={focusStyle} onBlur={blurStyle} /></ModalField>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+          <ModalField label="الرحلة الصباحية"><textarea value={form.morningAr} onChange={e => set('morningAr', e.target.value)} rows={3} style={{ ...fieldStyle, resize: 'vertical', lineHeight: 1.7 }} onFocus={focusStyle} onBlur={blurStyle} /></ModalField>
+          <ModalField label="الرحلة المسائية"><textarea value={form.eveningAr} onChange={e => set('eveningAr', e.target.value)} rows={3} style={{ ...fieldStyle, resize: 'vertical', lineHeight: 1.7 }} onFocus={focusStyle} onBlur={blurStyle} /></ModalField>
+        </div>
+      </RFSection>
+
+      {/* English content */}
+      <RFSection step="3" title="المحتوى بالإنجليزي" optional>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+          <ModalField label="Title"><input value={form.titleEn} onChange={e => set('titleEn', e.target.value)} style={fieldStyle} onFocus={focusStyle} onBlur={blurStyle} /></ModalField>
+          <ModalField label="Tagline"><input value={form.taglineEn} onChange={e => set('taglineEn', e.target.value)} style={fieldStyle} onFocus={focusStyle} onBlur={blurStyle} /></ModalField>
+        </div>
+        <ModalField label="Intro"><textarea value={form.introEn} onChange={e => set('introEn', e.target.value)} rows={3} style={{ ...fieldStyle, resize: 'vertical', lineHeight: 1.7 }} onFocus={focusStyle} onBlur={blurStyle} /></ModalField>
+        <ModalField label="Route"><textarea value={form.routeEn} onChange={e => set('routeEn', e.target.value)} rows={3} style={{ ...fieldStyle, resize: 'vertical', lineHeight: 1.7 }} onFocus={focusStyle} onBlur={blurStyle} /></ModalField>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+          <ModalField label="Morning trip"><textarea value={form.morningEn} onChange={e => set('morningEn', e.target.value)} rows={3} style={{ ...fieldStyle, resize: 'vertical', lineHeight: 1.7 }} onFocus={focusStyle} onBlur={blurStyle} /></ModalField>
+          <ModalField label="Evening trip"><textarea value={form.eveningEn} onChange={e => set('eveningEn', e.target.value)} rows={3} style={{ ...fieldStyle, resize: 'vertical', lineHeight: 1.7 }} onFocus={focusStyle} onBlur={blurStyle} /></ModalField>
+        </div>
+      </RFSection>
+
+      {/* Highlights */}
+      <RFSection step="4" title="أبرز المعالم (تظهر كوسوم على الصفحة)" optional>
+        {highlights.length === 0 && <p style={{ fontSize: 13, color: '#9CA3AF' }}>لا توجد معالم بعد.</p>}
+        {highlights.map((h, i) => (
+          <div key={i} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto', gap: 10, alignItems: 'center' }}>
+            <input value={h.ar} onChange={e => setHighlight(i, 'ar', e.target.value)} placeholder="بالعربي (مثال: جبل الأقرع)" style={fieldStyle} onFocus={focusStyle} onBlur={blurStyle} />
+            <input value={h.en} onChange={e => setHighlight(i, 'en', e.target.value)} placeholder="English (e.g. Mount Aqra)" style={fieldStyle} onFocus={focusStyle} onBlur={blurStyle} />
+            <button onClick={() => delHighlight(i)} style={iconDangerBtn}><FiTrash2 size={14} /></button>
+          </div>
+        ))}
+        <button onClick={addHighlight} style={addRowBtn}><FiPlus size={14} /> إضافة معلم</button>
+      </RFSection>
+
+      {/* Pricing */}
+      <RFSection step="5" title="الأسعار والمشاركة">
+        <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', fontSize: 13, padding: '10px 14px', borderRadius: 8, border: `1px solid ${form.residentsFree ? '#86efac' : '#E5E7EB'}`, background: form.residentsFree ? '#f0fdf4' : '#F9FAFB', fontFamily: 'Cairo, sans-serif', width: 'fit-content' }}>
+          <input type="checkbox" checked={form.residentsFree} onChange={e => set('residentsFree', e.target.checked)} style={{ accentColor: '#3d5a3a', width: 14, height: 14 }} />
+          <span style={{ fontWeight: form.residentsFree ? 600 : 400, color: form.residentsFree ? '#3d5a3a' : '#6B7280' }}>دخول النزلاء مجاني وتلقائي</span>
+        </label>
+        <ModalField label="رسوم المشاركة لغير النزلاء ($ للشخص)">
+          <input type="number" min={0} value={form.priceExternal} onChange={e => set('priceExternal', e.target.value)} placeholder="فارغ = حسب الطلب / لا يُعرض" style={{ ...fieldStyle, maxWidth: 260 }} onFocus={focusStyle} onBlur={blurStyle} />
+        </ModalField>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+          <ModalField label="ملاحظة الأسعار (عربي)"><textarea value={form.priceNoteAr} onChange={e => set('priceNoteAr', e.target.value)} rows={2} style={{ ...fieldStyle, resize: 'vertical', lineHeight: 1.7 }} onFocus={focusStyle} onBlur={blurStyle} /></ModalField>
+          <ModalField label="Pricing note (English)"><textarea value={form.priceNoteEn} onChange={e => set('priceNoteEn', e.target.value)} rows={2} style={{ ...fieldStyle, resize: 'vertical', lineHeight: 1.7 }} onFocus={focusStyle} onBlur={blurStyle} /></ModalField>
+        </div>
+      </RFSection>
+
+      {/* Upcoming dates */}
+      <RFSection step="6" title="مواعيد الرحلات القادمة">
+        <p style={{ fontSize: 12.5, color: '#9CA3AF', marginTop: -4 }}>المواعيد التي مرّ تاريخها لا تظهر للزوار تلقائياً. أقرب موعد قادم يظهر في أعلى الصفحة.</p>
+        {upcoming.length === 0 && <p style={{ fontSize: 13, color: '#9CA3AF' }}>لا توجد مواعيد مجدولة بعد.</p>}
+        {upcoming.map((d, i) => (
+          <div key={d.id || i} style={{ display: 'grid', gridTemplateColumns: '180px 1fr 1fr auto', gap: 10, alignItems: 'center' }}>
+            <input type="date" value={d.date} onChange={e => setDate(i, 'date', e.target.value)} style={fieldStyle} onFocus={focusStyle} onBlur={blurStyle} />
+            <input value={d.timeAr} onChange={e => setDate(i, 'timeAr', e.target.value)} placeholder="الوقت/تفاصيل (عربي) — مثال: 8 صباحاً" style={fieldStyle} onFocus={focusStyle} onBlur={blurStyle} />
+            <input value={d.timeEn} onChange={e => setDate(i, 'timeEn', e.target.value)} placeholder="Time/details (English) — e.g. 8 AM" style={fieldStyle} onFocus={focusStyle} onBlur={blurStyle} />
+            <button onClick={() => delDate(i)} style={iconDangerBtn}><FiTrash2 size={14} /></button>
+          </div>
+        ))}
+        <button onClick={addDate} style={addRowBtn}><FiPlus size={14} /> إضافة موعد</button>
+      </RFSection>
+
+      <ImageManager images={images} setImages={setImages} docId="gallery" pathPrefix="hike" step="7" title="صور الفعالية" onError={msg => setError(msg)} />
+
+      <div style={{ paddingBottom: 16 }}><SaveBar /></div>
+    </div>
+  )
+}
+
+/* Applications list for the hike event */
+function HikeApplications({ applications, content }) {
+  const [filter, setFilter] = useState('all')
+  const [deleting, setDeleting] = useState(null)
+
+  const setStatus = async (id, status) => {
+    try { await updateDoc(doc(db, 'hikeApplications', id), { status }) }
+    catch (e) { alert('تعذّر تحديث الحالة: ' + e.message) }
+  }
+  const handleDelete = async (a) => {
+    if (!confirm(`حذف طلب ${a.name}؟`)) return
+    setDeleting(a.id)
+    try { await deleteDoc(doc(db, 'hikeApplications', a.id)) }
+    catch (e) { alert('تعذّر الحذف: ' + e.message) }
+    finally { setDeleting(null) }
+  }
+
+  const FILTERS = [
+    { k: 'all', label: 'الكل' },
+    { k: 'pending', label: 'معلق' },
+    { k: 'confirmed', label: 'مؤكد' },
+    { k: 'cancelled', label: 'ملغى' },
+  ]
+  const list = applications.filter(a => filter === 'all' || a.status === filter)
+
+  const fmt = (d) => {
+    if (!d) return '—'
+    return new Date(d).toLocaleDateString('ar-SY', { year: 'numeric', month: 'long', day: 'numeric' })
+  }
+  const fmtCreated = (ts) => {
+    if (!ts?.seconds) return ''
+    return new Date(ts.seconds * 1000).toLocaleDateString('ar-SY', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+  }
+
+  return (
+    <div>
+      {/* Filter pills */}
+      <div style={{ display: 'flex', gap: 8, marginBottom: 18, flexWrap: 'wrap' }}>
+        {FILTERS.map(({ k, label }) => {
+          const active = filter === k
+          const count = k === 'all' ? applications.length : applications.filter(a => a.status === k).length
+          return (
+            <button key={k} onClick={() => setFilter(k)} style={{
+              padding: '7px 16px', borderRadius: 100, border: `1px solid ${active ? '#1C2B1C' : '#E5E7EB'}`,
+              background: active ? '#1C2B1C' : '#fff', color: active ? '#fff' : '#374151',
+              fontSize: 12.5, fontFamily: 'Cairo, sans-serif', fontWeight: 600, cursor: 'pointer',
+            }}>
+              {label} ({count})
+            </button>
+          )
+        })}
+      </div>
+
+      {list.length === 0 ? (
+        <Empty icon={<FiCompass size={26} />} text="لا توجد طلبات في هذه الحالة." />
+      ) : (
+        <div style={{ display: 'grid', gap: 12, gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))' }}>
+          {list.map(a => {
+            const st = STATUS[a.status] || STATUS.pending
+            return (
+              <div key={a.id} style={{ background: '#fff', borderRadius: 12, border: '1px solid #E5E7EB', padding: 16, boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
+                <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8, marginBottom: 12 }}>
+                  <div>
+                    <p style={{ fontSize: 15, fontWeight: 700, color: '#111827' }}>{a.name}</p>
+                    <p style={{ fontSize: 11, color: '#9CA3AF', marginTop: 2 }}>
+                      {a.applicationNumber != null ? `#${formatBookingNumber(a.applicationNumber)}` : ''} · {fmtCreated(a.createdAt)}
+                    </p>
+                  </div>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: st.color, background: st.bg, border: `1px solid ${st.border}`, padding: '3px 10px', borderRadius: 100, whiteSpace: 'nowrap' }}>{st.label}</span>
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 13, color: '#374151', marginBottom: 14 }}>
+                  <InfoItem icon={<FiPhone size={12} />} label="الهاتف" value={a.phone} />
+                  {a.email && <InfoItem icon={<FiMail size={12} />} label="البريد" value={a.email} />}
+                  <InfoItem icon={<FiUsers size={12} />} label="عدد الأشخاص" value={a.partySize} />
+                  <InfoItem icon={<FiCalendar size={12} />} label="الموعد" value={fmt(a.eventDate)} />
+                  <InfoItem icon={a.isResident ? <FiCheck size={12} /> : <FiUser size={12} />} label="الحالة" value={a.isResident ? 'نزيل في المنتجع' : 'من خارج الفندق'} />
+                  {a.notes && <InfoItem icon={<FiMessageSquare size={12} />} label="ملاحظات" value={a.notes} />}
+                </div>
+
+                {/* Status control */}
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 10 }}>
+                  <select value={a.status} onChange={e => setStatus(a.id, e.target.value)}
+                    style={{ flex: 1, padding: '8px 10px', borderRadius: 8, border: '1px solid #E5E7EB', fontSize: 12.5, fontFamily: 'Cairo, sans-serif', color: '#374151', background: '#fff', cursor: 'pointer' }}>
+                    <option value="pending">معلق</option>
+                    <option value="confirmed">مؤكد</option>
+                    <option value="cancelled">ملغى</option>
+                  </select>
+                </div>
+
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <a href={buildHikeCustomerWhatsAppUrl(a, content, 'ar')} target="_blank" rel="noreferrer"
+                    style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, background: '#15803d', color: '#fff', borderRadius: 8, padding: '8px 0', fontSize: 12, fontFamily: 'Cairo, sans-serif', fontWeight: 600, textDecoration: 'none' }}>
+                    <FiMessageCircle size={13} /> واتساب للمتقدّم
+                  </a>
+                  <a href={buildHikeWhatsAppUrl(a, 'ar')} target="_blank" rel="noreferrer" title="إرسال التفاصيل للمنتجع"
+                    style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '8px 12px', borderRadius: 8, border: '1px solid #E5E7EB', background: '#fff', color: '#374151', textDecoration: 'none' }}>
+                    <FiExternalLink size={13} />
+                  </a>
+                  <button onClick={() => handleDelete(a)} disabled={deleting === a.id}
+                    style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid #FECACA', background: '#FEF2F2', color: '#DC2626', cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
+                    <FiTrash2 size={13} />
+                  </button>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
+
+const iconDangerBtn = { padding: '9px 11px', borderRadius: 8, border: '1px solid #FECACA', background: '#FEF2F2', color: '#DC2626', cursor: 'pointer', display: 'flex', alignItems: 'center', flexShrink: 0 }
+const addRowBtn = { display: 'inline-flex', alignItems: 'center', gap: 7, padding: '9px 16px', borderRadius: 8, border: '1px dashed #86efac', background: '#f0fdf4', color: '#3d5a3a', fontSize: 13, fontFamily: 'Cairo, sans-serif', fontWeight: 600, cursor: 'pointer', width: 'fit-content' }

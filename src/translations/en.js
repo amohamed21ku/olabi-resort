@@ -2,9 +2,16 @@ export const en = {
   // Navigation
   nav_home:       'Home',
   nav_rooms:      'Rooms',
+  nav_hike:       'Hiking',
   nav_about:      'About',
   nav_directions: 'Directions',
   nav_bookNow:    'Book Now',
+
+  // Hike teaser (home page)
+  hike_teaser_label: 'Resort experience',
+  hike_teaser_title: "Uncle Sevak's Trail · A Hiking Adventure",
+  hike_teaser_body:  'Breathtaking nature at soaring heights — from Olabi Resort all the way to Eagle Mountain with its three enchanting views. Free and automatic for resort guests.',
+  hike_teaser_cta:   'Discover the trail',
 
   // Hero
   hero_label:    'Mountain Retreat · Kasab, Syria',

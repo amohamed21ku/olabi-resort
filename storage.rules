@@ -1,0 +1,14 @@
+rules_version = '2';
+
+// Olabi Resort — Cloud Storage rules.
+// Images are publicly readable (shown on the site); only authenticated
+// admins may upload or delete. Covers room/variant images, the hiking
+// event gallery (hike/) and its logo (hike/logo/).
+service firebase.storage {
+  match /b/{bucket}/o {
+    match /{allPaths=**} {
+      allow read: if true;
+      allow write: if request.auth != null;
+    }
+  }
+}

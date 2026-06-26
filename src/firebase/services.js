@@ -450,6 +450,178 @@ export function sendWhatsAppNotification(booking, language = 'ar') {
   window.open(url, '_blank', 'noopener,noreferrer')
 }
 
+// ─── Hiking event (مسار العم سيفاك) ───────────────────────
+// All editable content lives in a single Firestore doc: siteContent/hike.
+// This default is the seed/fallback used before an admin saves anything, and
+// it ships the bundled hero/gallery photos so the page looks good out of the box.
+export const HIKE_DOC = { col: 'siteContent', id: 'hike' }
+
+export const DEFAULT_HIKE_CONTENT = {
+  active: true,
+  logoUrl: '/static/images/assets/hike/hike-logo.png',
+  titleAr: 'مسار العم سيفاك',
+  titleEn: "Uncle Sevak's Trail",
+  taglineAr: 'طبيعة خلّابة على ارتفاعٍ شاهق',
+  taglineEn: 'Breathtaking nature at soaring heights',
+  introAr:
+    'فكرته الأساسية الهروب من زحمة المدينة والضجة والغبرة واللجوء إلى الطبيعة. ' +
+    'إحساس نقطة البداية والانطلاق من منتجع العلبي السياحي، ثم مغامرةٌ تصل إلى حدّ الريف.',
+  introEn:
+    'The idea is simple: escape the noise, crowds and dust of the city and return to nature. ' +
+    'You set off from Olabi Resort, then an adventure carries you all the way to the countryside.',
+  routeAr:
+    'تبدأ الرحلة من منتجع العلبي السياحي مروراً بضيعة الغزالة، وصولاً إلى جبل النسر ' +
+    'الذي يطلّ على ثلاث إطلالاتٍ ساحرة: جبل الأقرع، وضيعة تركية، والبحر.',
+  routeEn:
+    'The trail begins at Olabi Resort, passes through Al-Ghazala hamlet, and climbs to Eagle ' +
+    'Mountain — which overlooks three enchanting views: Mount Aqra, a Turkish village, and the sea.',
+  morningAr:
+    'الرحلة الصباحية أجواء أكشن وغموض وصيد، واستخدام تركتور فلكلوري يقوده العم سيفاك بنفسه.',
+  morningEn:
+    'The morning trip is full of action, mystery and foraging — riding a folkloric tractor driven by Uncle Sevak himself.',
+  eveningAr:
+    'وفي المساء أضواء وهدوء ورحلةٌ تثقيفية على الارتفاع الشاهق، بين المناظر الجميلة والورود على طول الطريق.',
+  eveningEn:
+    'In the evening: lights, calm and an educational journey at high altitude, among beautiful scenery and wildflowers along the way.',
+  highlights: [
+    { ar: 'جبل الأقرع', en: 'Mount Aqra' },
+    { ar: 'ضيعة تركية', en: 'A Turkish village' },
+    { ar: 'إطلالة على البحر', en: 'A view of the sea' },
+    { ar: 'مصوّر مرافق للرحلة', en: 'A photographer accompanies the trip' },
+    { ar: 'تركتور فلكلوري', en: 'A folkloric tractor ride' },
+  ],
+  images: [
+    '/static/images/assets/hike/hike-1.jpg',
+    '/static/images/assets/hike/hike-2.jpg',
+    '/static/images/assets/hike/hike-3.jpg',
+    '/static/images/assets/hike/hike-4.jpg',
+    '/static/images/assets/hike/hike-5.jpg',
+    '/static/images/assets/hike/hike-6.jpg',
+  ],
+  residentsFree: true,
+  priceExternal: null,
+  priceCurrency: 'USD',
+  priceNoteAr: 'دخول نزلاء المنتجع تلقائي ومجاني. للراغبين بالانضمام من خارج الفندق تكون المشاركة مدفوعة.',
+  priceNoteEn: 'Resort guests join automatically and for free. Visitors from outside the hotel pay to take part.',
+  upcoming: [],
+}
+
+export async function getHikeContent() {
+  const snap = await getDoc(doc(db, HIKE_DOC.col, HIKE_DOC.id))
+  if (!snap.exists()) return { ...DEFAULT_HIKE_CONTENT }
+  return { ...DEFAULT_HIKE_CONTENT, ...snap.data() }
+}
+
+export async function saveHikeContent(data) {
+  await setDoc(doc(db, HIKE_DOC.col, HIKE_DOC.id), {
+    ...data,
+    updatedAt: Timestamp.now(),
+  }, { merge: true })
+}
+
+// Read the highest existing applicationNumber and return the next one.
+async function getNextHikeApplicationNumber() {
+  const snap = await getDocs(collection(db, 'hikeApplications'))
+  let max = 0
+  snap.docs.forEach(d => {
+    const n = d.data().applicationNumber
+    if (typeof n === 'number' && n > max) max = n
+  })
+  return max + 1
+}
+
+export async function createHikeApplication(data) {
+  if (!data?.name || !data?.phone) throw new Error('INVALID_APPLICATION_DATA')
+  const applicationNumber = await getNextHikeApplicationNumber()
+  const ref = await addDoc(collection(db, 'hikeApplications'), {
+    name:      data.name.trim(),
+    phone:     data.phone.trim(),
+    email:     data.email?.trim() || '',
+    partySize: Number(data.partySize) || 1,
+    isResident: !!data.isResident,
+    eventDate: data.eventDate || '',
+    notes:     data.notes?.trim() || '',
+    applicationNumber,
+    status:    'pending',
+    createdAt: Timestamp.now(),
+  })
+  return { id: ref.id, applicationNumber }
+}
+
+export function buildHikeWhatsAppUrl(application, language = 'ar') {
+  const ref = application.applicationNumber != null
+    ? `#${formatBookingNumber(application.applicationNumber)}`
+    : ''
+  const dateStr = application.eventDate
+    ? new Date(application.eventDate).toLocaleDateString(
+        language === 'ar' ? 'ar-SY' : 'en-GB',
+        { year: 'numeric', month: 'long', day: 'numeric' })
+    : (language === 'ar' ? 'لم يُحدد' : 'Not selected')
+
+  let message
+  if (language === 'ar') {
+    message =
+      `*طلب انضمام — مسار العم سيفاك (هايكنغ)* 🥾\n\n` +
+      `رقم الطلب: ${ref}\n` +
+      `الاسم: ${application.name}\n` +
+      `الهاتف: ${application.phone}\n` +
+      `البريد: ${application.email || 'لم يُذكر'}\n` +
+      `عدد الأشخاص: ${application.partySize}\n` +
+      `${application.isResident ? 'نزيل في المنتجع: نعم' : 'من خارج الفندق'}\n` +
+      `تاريخ الرحلة: ${dateStr}\n` +
+      `${application.notes ? `ملاحظات: ${application.notes}\n` : ''}` +
+      `\nيرجى تأكيد المشاركة.`
+  } else {
+    message =
+      `*Hiking Application — Uncle Sevak's Trail* 🥾\n\n` +
+      `Application: ${ref}\n` +
+      `Name: ${application.name}\n` +
+      `Phone: ${application.phone}\n` +
+      `Email: ${application.email || 'Not provided'}\n` +
+      `Party size: ${application.partySize}\n` +
+      `${application.isResident ? 'Resort guest: Yes' : 'From outside the hotel'}\n` +
+      `Trip date: ${dateStr}\n` +
+      `${application.notes ? `Notes: ${application.notes}\n` : ''}` +
+      `\nPlease confirm participation.`
+  }
+  return `https://wa.me/${HOTEL_WHATSAPP}?text=${encodeURIComponent(message)}`
+}
+
+// WhatsApp the applicant back to confirm their hike participation.
+export function buildHikeCustomerWhatsAppUrl(application, content, language = 'ar') {
+  const phone = normalizeCustomerPhone(application.phone)
+  const title = language === 'ar'
+    ? (content?.titleAr || 'مسار العم سيفاك')
+    : (content?.titleEn || "Uncle Sevak's Trail")
+  const dateStr = application.eventDate
+    ? new Date(application.eventDate).toLocaleDateString(
+        language === 'ar' ? 'ar-SY' : 'en-GB',
+        { year: 'numeric', month: 'long', day: 'numeric' })
+    : ''
+
+  let message
+  if (language === 'ar') {
+    message =
+      `*منتجع العلبي — ${title}* 🥾\n\n` +
+      `مرحباً ${application.name || ''}،\n` +
+      `تم تأكيد مشاركتك في الرحلة.\n` +
+      `${dateStr ? `الموعد: ${dateStr}\n` : ''}` +
+      `عدد الأشخاص: ${application.partySize}\n\n` +
+      `نتطلع لاستقبالك. لأي استفسار يرجى الرد على هذه الرسالة.`
+  } else {
+    message =
+      `*Olabi Resort — ${title}* 🥾\n\n` +
+      `Hello ${application.name || ''},\n` +
+      `Your participation is confirmed.\n` +
+      `${dateStr ? `Date: ${dateStr}\n` : ''}` +
+      `Party size: ${application.partySize}\n\n` +
+      `We look forward to welcoming you. Reply to this message for any questions.`
+  }
+  return phone
+    ? `https://wa.me/${phone}?text=${encodeURIComponent(message)}`
+    : `https://wa.me/?text=${encodeURIComponent(message)}`
+}
+
 // Normalize phone to wa.me format: digits only, with country code.
 // Heuristic: assume Syrian (+963) when the user enters a local 09xxx number,
 // since the resort's customer base is Syria-first ([[project-olabi-audience]]).
