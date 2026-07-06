@@ -282,11 +282,11 @@ function Dashboard({ user }) {
     catch (e) { setStageErr(e?.message === 'NO_ROOM_ASSIGNED' ? 'يجب تعيين غرفة للحجز أولاً' : 'فشل تسجيل الوصول: ' + (e?.message || '')) }
     finally { setStageBusy(false) }
   }
-  const handleCheckOut = async (b) => {
+  const handleCheckOut = async (b, when = null) => {
     const fin = computeBookingFinance(b)
-    if (fin.balance > 0 && !confirm(`يوجد مبلغ متبقٍّ قدره $${fin.balance}. هل تريد متابعة تسجيل المغادرة؟`)) return
+    if (fin.balance > 0 && !confirm(`يوجد مبلغ متبقٍّ قدره ${fin.balance}. هل تريد متابعة تسجيل المغادرة؟`)) return
     setStageBusy(true); setStageErr('')
-    try { await checkOutBooking(b.id) }
+    try { await checkOutBooking(b.id, when) }
     catch (e) { setStageErr('فشل تسجيل المغادرة: ' + (e?.message || '')) }
     finally { setStageBusy(false) }
   }
@@ -434,7 +434,7 @@ function Dashboard({ user }) {
               stageBusy={stageBusy}
               stageErr={stageErr}
               onCheckIn={() => handleCheckIn(openBooking)}
-              onCheckOut={() => handleCheckOut(openBooking)}
+              onCheckOut={(when) => handleCheckOut(openBooking, when)}
             />
           ) : (
             <>
@@ -480,8 +480,8 @@ function DashboardTab({ rooms, bookings, setTab }) {
     { label: 'حجوزات نشطة',     value: occupied,      sub: 'ضيف داخل المنتجع',     Icon: FiUsers,      accent: '#1d4ed8' },
     { label: 'غير معينة',       value: unassigned,    sub: unassigned ? 'تحتاج تعيين غرفة' : 'الكل معين', Icon: FiHome, accent: unassigned ? '#b45309' : '#6b7280' },
     { label: 'بانتظار التأكيد', value: pending,       sub: pending ? 'تحتاج مراجعة' : 'لا يوجد معلق', Icon: FiClock, accent: pending ? '#b45309' : '#6b7280' },
-    { label: 'إجمالي الإيرادات',value: `$${revenue.toLocaleString()}`, sub: 'كل الحجوزات غير الملغاة', Icon: FiCreditCard, accent: '#15803d' },
-    { label: 'مستحقات (المتبقّي)', value: `$${outstanding.toLocaleString()}`, sub: outstanding ? 'مبالغ غير محصّلة' : 'لا مستحقات', Icon: FiTrendingDown, accent: outstanding ? '#b45309' : '#6b7280' },
+    { label: 'إجمالي الإيرادات',value: `${revenue.toLocaleString()}`, sub: 'كل الحجوزات غير الملغاة', Icon: FiCreditCard, accent: '#15803d' },
+    { label: 'مستحقات (المتبقّي)', value: `${outstanding.toLocaleString()}`, sub: outstanding ? 'مبالغ غير محصّلة' : 'لا مستحقات', Icon: FiTrendingDown, accent: outstanding ? '#b45309' : '#6b7280' },
   ]
 
   return (
@@ -859,7 +859,7 @@ function AvailabilityTab({ rooms, variants = [], bookings, loading }) {
                   <p style={{ fontWeight: 700, color: '#1E40AF', marginBottom: 3 }}>{booking.guestName}</p>
                   <p style={{ color: '#3B82F6', marginBottom: 3 }}>{booking.guestPhone}</p>
                   <p style={{ color: '#93C5FD', fontSize: 11 }}>{fmtD(booking.checkIn)} ← {fmtD(booking.checkOut)} · {booking.guests} أشخاص</p>
-                  {booking.totalPrice && <p style={{ color: '#1D4ED8', fontWeight: 700, marginTop: 4 }}>${booking.totalPrice}</p>}
+                  {booking.totalPrice && <p style={{ color: '#1D4ED8', fontWeight: 700, marginTop: 4 }}>{booking.totalPrice}</p>}
                 </div>
               </div>
             ))}
@@ -1113,9 +1113,9 @@ function BookingsTab({ bookings, loading, onOpen }) {
                     <td style={{ padding: '12px 14px', whiteSpace: 'nowrap' }}>
                       {b.totalPrice != null || fin.chargesTotal > 0 ? (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 3, alignItems: 'flex-start' }}>
-                          <span style={{ fontSize: 13, fontWeight: 700, color: '#111827' }}>${fin.grandTotal}</span>
+                          <span style={{ fontSize: 13, fontWeight: 700, color: '#111827' }}>{fin.grandTotal}</span>
                           {fin.balance > 0
-                            ? <span style={{ fontSize: 11, fontWeight: 700, color: '#b45309' }}>متبقّي ${fin.balance}</span>
+                            ? <span style={{ fontSize: 11, fontWeight: 700, color: '#b45309' }}>متبقّي {fin.balance}</span>
                             : <PaymentStatusPill status="paid" />}
                         </div>
                       ) : (
@@ -1285,12 +1285,20 @@ function BookingDetailPage({
   )
 }
 
+// Current local date-time as a value for <input type="datetime-local"> (YYYY-MM-DDTHH:mm).
+function nowLocalStr() {
+  const d = new Date()
+  d.setMinutes(d.getMinutes() - d.getTimezoneOffset())
+  return d.toISOString().slice(0, 16)
+}
+
 /* ─────────────────────────────────────────────────────────────
    Stage action bar — shows the guest's current stage in the stay
    lifecycle and the one obvious next action for the receptionist.
 ───────────────────────────────────────────────────────────── */
 function StageActionBar({ booking: b, fin, busy, error, onConfirm, onCheckIn, onCheckOut }) {
   const status = b.status || 'confirmed'
+  const [departAt, setDepartAt] = useState(nowLocalStr())
   const bigBtn = (bg, disabled = false) => ({
     display: 'inline-flex', alignItems: 'center', gap: 8, padding: '11px 22px', borderRadius: 10,
     background: disabled ? '#E5E7EB' : bg, color: disabled ? '#9CA3AF' : '#fff', border: 'none',
@@ -1304,16 +1312,23 @@ function StageActionBar({ booking: b, fin, busy, error, onConfirm, onCheckIn, on
     message = 'هذا الحجز ملغى.'
   } else if (status === 'checked-out') {
     tone = '#F0FDF4'; bTone = '#BBF7D0'
-    message = fin.balance > 0 ? `غادر الضيف — لكن يوجد مبلغ متبقٍّ $${fin.balance}.` : 'غادر الضيف. الحساب مسدَّد بالكامل. ✓'
+    message = fin.balance > 0 ? `غادر الضيف — لكن يوجد مبلغ متبقٍّ ${fin.balance}.` : 'غادر الضيف. الحساب مسدَّد بالكامل. ✓'
   } else if (status === 'checked-in') {
     tone = '#EFF6FF'; bTone = '#BFDBFE'
     message = fin.balance > 0
-      ? `الضيف داخل المنتجع. المتبقّي على الحساب: $${fin.balance}.`
+      ? `الضيف داخل المنتجع. المتبقّي على الحساب: ${fin.balance}.`
       : 'الضيف داخل المنتجع. الحساب مسدَّد.'
     action = (
-      <button onClick={onCheckOut} disabled={busy} style={bigBtn('#1d4ed8', busy)}>
-        <FiLogOut size={16} /> {busy ? 'جارٍ...' : 'تسجيل المغادرة'}
-      </button>
+      <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end', flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', flexDirection: 'column' }}>
+          <label style={{ fontSize: 10.5, fontWeight: 700, color: '#6B7280', marginBottom: 3 }}>وقت المغادرة</label>
+          <input type="datetime-local" value={departAt} onChange={e => setDepartAt(e.target.value)}
+            style={{ ...fieldStyle, padding: '8px 10px', fontSize: 12.5, width: 200 }} />
+        </div>
+        <button onClick={() => onCheckOut(departAt)} disabled={busy} style={bigBtn('#1d4ed8', busy)}>
+          <FiLogOut size={16} /> {busy ? 'جارٍ...' : 'تسجيل المغادرة'}
+        </button>
+      </div>
     )
   } else {
     // pending or confirmed → arriving guest
@@ -1483,7 +1498,7 @@ function FrontDeskCard({ booking: b, kind, busy, onOpen, onAction }) {
           <p style={{ fontSize: 12, color: '#9CA3AF' }}>{b.guestPhone} · {b.guests} ضيف</p>
         </div>
         {fin.balance > 0
-          ? <span style={{ fontSize: 11, fontWeight: 700, color: '#b45309', background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 6, padding: '3px 8px', whiteSpace: 'nowrap' }}>متبقّي ${fin.balance}</span>
+          ? <span style={{ fontSize: 11, fontWeight: 700, color: '#b45309', background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 6, padding: '3px 8px', whiteSpace: 'nowrap' }}>متبقّي {fin.balance}</span>
           : <PaymentStatusPill status="paid" />}
       </div>
 
@@ -1709,16 +1724,16 @@ function FolioPanel({ booking, editablePrice = false }) {
         </div>
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
           <span style={{ fontSize: 12, color: '#9CA3AF' }}>الإجمالي المتبقّي</span>
-          <span style={{ fontSize: 20, fontWeight: 800, color: fin.balance > 0 ? '#b45309' : '#15803d' }}>${fin.balance}</span>
+          <span style={{ fontSize: 20, fontWeight: 800, color: fin.balance > 0 ? '#b45309' : '#15803d' }}>{fin.balance}</span>
         </div>
       </div>
 
       {/* Grand summary */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, marginBottom: 14 }}>
         {[
-          ['الإجمالي', `$${fin.grandTotal}`, '#111827'],
-          ['المدفوع', `$${fin.paidTotal}`, '#15803d'],
-          ['المتبقّي', `$${fin.balance}`, fin.balance > 0 ? '#b45309' : '#15803d'],
+          ['الإجمالي', `${fin.grandTotal}`, '#111827'],
+          ['المدفوع', `${fin.paidTotal}`, '#15803d'],
+          ['المتبقّي', `${fin.balance}`, fin.balance > 0 ? '#b45309' : '#15803d'],
         ].map(([l, v, c]) => (
           <div key={l} style={{ background: '#F9FAFB', border: '1px solid #F3F4F6', borderRadius: 8, padding: '8px 10px', textAlign: 'center' }}>
             <p style={{ fontSize: 16, fontWeight: 700, color: c, lineHeight: 1.2 }}>{v}</p>
@@ -1740,14 +1755,14 @@ function FolioPanel({ booking, editablePrice = false }) {
             <span style={{ fontSize: 12, color: '#9CA3AF' }}>سعر الغرفة</span>
             {editingPrice ? (
               <div style={{ display: 'flex', gap: 5, alignItems: 'center' }}>
-                <input type="number" min={0} value={priceInput} onChange={e => setPriceInput(e.target.value)} placeholder="$" autoFocus style={{ ...fieldStyle, width: 90, padding: '5px 8px', fontSize: 12 }} />
+                <input type="number" min={0} value={priceInput} onChange={e => setPriceInput(e.target.value)} placeholder="0" autoFocus style={{ ...fieldStyle, width: 90, padding: '5px 8px', fontSize: 12 }} />
                 <button onClick={savePrice} disabled={busy} style={{ ...folioAddBtn, padding: '5px 10px' }}><FiCheck size={12} /></button>
                 <button onClick={() => { setEditingPrice(false); setPriceInput(booking.totalPrice != null ? String(booking.totalPrice) : '') }} style={{ background: 'none', border: 'none', color: '#9CA3AF', cursor: 'pointer', display: 'flex', padding: 3 }}><FiX size={14} /></button>
               </div>
             ) : (
               <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
                 <span style={{ fontSize: 15, fontWeight: 800, color: booking.totalPrice != null ? '#111827' : '#9CA3AF' }}>
-                  {booking.totalPrice != null ? `$${fin.roomTotal}` : 'غير محدد'}
+                  {booking.totalPrice != null ? `${fin.roomTotal}` : 'غير محدد'}
                 </span>
                 {editablePrice && (
                   <button onClick={() => setEditingPrice(true)} title="تعديل السعر" style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 11, fontWeight: 700, color: '#3d5a3a', background: '#F0F7F0', border: '1px solid #BBF7D0', borderRadius: 6, padding: '3px 8px', cursor: 'pointer', fontFamily: 'Cairo, sans-serif' }}>
@@ -1760,8 +1775,8 @@ function FolioPanel({ booking, editablePrice = false }) {
 
           {/* Room mini-stats */}
           <div style={{ display: 'flex', gap: 8, fontSize: 11.5, marginBottom: 10 }}>
-            <span style={{ color: '#15803d' }}>مدفوع: <strong>${fin.roomPaid}</strong></span>
-            <span style={{ color: fin.roomBalance > 0 ? '#b45309' : '#15803d' }}>المتبقّي: <strong>${Math.max(0, fin.roomBalance)}</strong></span>
+            <span style={{ color: '#15803d' }}>مدفوع: <strong>{fin.roomPaid}</strong></span>
+            <span style={{ color: fin.roomBalance > 0 ? '#b45309' : '#15803d' }}>المتبقّي: <strong>{Math.max(0, fin.roomBalance)}</strong></span>
           </div>
 
           {/* Room payments */}
@@ -1800,7 +1815,7 @@ function FolioPanel({ booking, editablePrice = false }) {
           {/* Add charge */}
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center', marginBottom: 10 }}>
             <input value={cLabel} onChange={e => setCLabel(e.target.value)} placeholder="الوصف (مثال: غداء)" style={{ ...fieldStyle, flex: 1, minWidth: 100, padding: '7px 10px', fontSize: 12 }} />
-            <input type="number" min={0} value={cAmount} onChange={e => setCAmount(e.target.value)} placeholder="$" style={{ ...fieldStyle, width: 64, padding: '7px 10px', fontSize: 12 }} />
+            <input type="number" min={0} value={cAmount} onChange={e => setCAmount(e.target.value)} placeholder="0" style={{ ...fieldStyle, width: 64, padding: '7px 10px', fontSize: 12 }} />
             <select value={cCat} onChange={e => setCCat(e.target.value)} style={{ ...fieldStyle, width: 96, padding: '7px 8px', fontSize: 12 }}>
               {CHARGE_CATEGORIES.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
             </select>
@@ -1809,9 +1824,9 @@ function FolioPanel({ booking, editablePrice = false }) {
 
           {/* Extras mini-stats */}
           <div style={{ display: 'flex', gap: 8, fontSize: 11.5, marginBottom: 10, paddingTop: 8, borderTop: '1px dashed #F3F4F6' }}>
-            <span style={{ color: '#374151' }}>المجموع: <strong>${fin.chargesTotal}</strong></span>
-            <span style={{ color: '#15803d' }}>مدفوع: <strong>${fin.extrasPaid}</strong></span>
-            <span style={{ color: fin.extrasBalance > 0 ? '#b45309' : '#15803d' }}>المتبقّي: <strong>${Math.max(0, fin.extrasBalance)}</strong></span>
+            <span style={{ color: '#374151' }}>المجموع: <strong>{fin.chargesTotal}</strong></span>
+            <span style={{ color: '#15803d' }}>مدفوع: <strong>{fin.extrasPaid}</strong></span>
+            <span style={{ color: fin.extrasBalance > 0 ? '#b45309' : '#15803d' }}>المتبقّي: <strong>{Math.max(0, fin.extrasBalance)}</strong></span>
           </div>
 
           {/* Extras payments */}
@@ -1849,7 +1864,7 @@ function FolioLineRow({ tone, badge, text, at, amount, onRemove, busy }) {
     <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12.5, padding: '6px 8px', background: bg, borderRadius: 7 }}>
       {badge && <span style={{ fontSize: 10, fontWeight: 700, borderRadius: 4, padding: '1px 6px', flexShrink: 0, ...badgeStyle }}>{badge}</span>}
       <span style={{ flex: 1, color: '#374151', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{text} <span style={{ color: '#C4C4C4', fontSize: 10 }}>{at}</span></span>
-      <span style={{ fontWeight: 700, color: pay ? '#15803d' : '#111827', flexShrink: 0 }}>{pay ? '−' : ''}${amount}</span>
+      <span style={{ fontWeight: 700, color: pay ? '#15803d' : '#111827', flexShrink: 0 }}>{pay ? '−' : ''}{amount}</span>
       {onRemove && <button onClick={onRemove} disabled={busy} title="حذف" style={{ padding: 3, borderRadius: 5, border: 'none', background: 'none', color: '#DC2626', cursor: 'pointer', display: 'flex', flexShrink: 0 }}><FiX size={13} /></button>}
     </div>
   )
@@ -1865,12 +1880,12 @@ function AddPaymentForm({ balance, busy, onAdd, label = 'دفعة' }) {
   }
   return (
     <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
-      <input type="number" min={0} value={amount} onChange={e => setAmount(e.target.value)} placeholder="$" style={{ ...fieldStyle, width: 64, padding: '7px 10px', fontSize: 12 }} />
+      <input type="number" min={0} value={amount} onChange={e => setAmount(e.target.value)} placeholder="0" style={{ ...fieldStyle, width: 64, padding: '7px 10px', fontSize: 12 }} />
       <select value={method} onChange={e => setMethod(e.target.value)} style={{ ...fieldStyle, width: 100, padding: '7px 8px', fontSize: 12 }}>
         {PAYMENT_METHODS.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
       </select>
       {balance > 0 && (
-        <button onClick={() => setAmount(String(balance))} disabled={busy} title="دفع كامل المتبقّي" style={{ ...folioAddBtn, background: '#F9FAFB', color: '#374151', border: '1px solid #E5E7EB' }}>${balance}</button>
+        <button onClick={() => setAmount(String(balance))} disabled={busy} title="دفع كامل المتبقّي" style={{ ...folioAddBtn, background: '#F9FAFB', color: '#374151', border: '1px solid #E5E7EB' }}>{balance}</button>
       )}
       <button onClick={submit} disabled={busy} style={{ ...folioAddBtn, background: '#15803d' }}><FiPlus size={13} /> {label}</button>
     </div>
@@ -1932,7 +1947,7 @@ function ChargeToRoomTab({ bookings, loading }) {
                     <p style={{ fontSize: 12, color: '#9CA3AF' }}>غرفة {b.roomNumber} · {b.roomNameAr || ''}</p>
                   </div>
                   <div style={{ textAlign: 'left', flexShrink: 0 }}>
-                    <p style={{ fontSize: 17, fontWeight: 800, color: fin.balance > 0 ? '#b45309' : '#15803d' }}>${fin.balance}</p>
+                    <p style={{ fontSize: 17, fontWeight: 800, color: fin.balance > 0 ? '#b45309' : '#15803d' }}>{fin.balance}</p>
                     <p style={{ fontSize: 10.5, color: '#9CA3AF' }}>المتبقّي</p>
                   </div>
                   <PaymentStatusPill status={fin.paymentStatus} />
@@ -2377,13 +2392,13 @@ function NewBookingTab({ rooms, variants = [], bookings, onDone }) {
                 style={fieldStyle} />
               {autoPrice != null && form.priceOverride === '' && (
                 <p style={{ fontSize: 11, color: '#9CA3AF', marginTop: 5 }}>
-                  ${selectedVariant.price} × {nights} ليالٍ = <strong style={{ color: '#374151' }}>${autoPrice}</strong>
+                  {selectedVariant.price} × {nights} ليالٍ = <strong style={{ color: '#374151' }}>{autoPrice}</strong>
                 </p>
               )}
               {totalPrice != null && (
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 10, paddingTop: 10, borderTop: '1px solid #F3F4F6' }}>
                   <span style={{ fontSize: 13, fontWeight: 700, color: '#111827' }}>الإجمالي</span>
-                  <span style={{ fontSize: 18, fontWeight: 700, color: '#3d5a3a' }}>${totalPrice}</span>
+                  <span style={{ fontSize: 18, fontWeight: 700, color: '#3d5a3a' }}>{totalPrice}</span>
                 </div>
               )}
             </div>
@@ -2395,7 +2410,7 @@ function NewBookingTab({ rooms, variants = [], bookings, onDone }) {
                 placeholder="0" style={fieldStyle} />
               {parseFloat(form.deposit) > 0 && totalPrice != null && (
                 <p style={{ fontSize: 11, color: '#b45309', marginTop: 5, fontWeight: 600 }}>
-                  المتبقّي بعد الدفعة: ${Math.max(0, totalPrice - parseFloat(form.deposit))}
+                  المتبقّي بعد الدفعة: {Math.max(0, totalPrice - parseFloat(form.deposit))}
                 </p>
               )}
             </div>

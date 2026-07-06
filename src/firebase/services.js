@@ -331,12 +331,18 @@ export async function checkInBooking(bookingId) {
 
 // Mark a guest as departed. The balance guard lives in the UI (the receptionist
 // is warned about any outstanding amount before confirming); here we just record
-// the departure and free the room for the next stay.
-export async function checkOutBooking(bookingId) {
+// the departure and free the room for the next stay. `checkedOutAt` may be an
+// explicit departure time (Date or parseable string); defaults to now.
+export async function checkOutBooking(bookingId, checkedOutAt = null) {
   if (!bookingId) throw new Error('INVALID_BOOKING_DATA')
+  let ts = Timestamp.now()
+  if (checkedOutAt) {
+    const d = new Date(checkedOutAt)
+    if (!isNaN(d.getTime())) ts = Timestamp.fromDate(d)
+  }
   await updateDoc(doc(db, 'bookings', bookingId), {
     status: 'checked-out',
-    checkedOutAt: Timestamp.now(),
+    checkedOutAt: ts,
     updatedAt: Timestamp.now(),
   })
 }
@@ -522,8 +528,8 @@ export function buildWhatsAppUrl(booking, language = 'ar') {
   const nights = Math.ceil(
     (new Date(booking.checkOut) - new Date(booking.checkIn)) / (1000 * 60 * 60 * 24)
   )
-  const priceStr = booking.totalPrice != null ? `$${booking.totalPrice}` : 'سيُحدد لاحقاً'
-  const priceStrEn = booking.totalPrice != null ? `$${booking.totalPrice}` : 'To be confirmed'
+  const priceStr = booking.totalPrice != null ? `${booking.totalPrice}` : 'سيُحدد لاحقاً'
+  const priceStrEn = booking.totalPrice != null ? `${booking.totalPrice}` : 'To be confirmed'
 
   const bookingRef = booking.bookingNumber != null
     ? `#${formatBookingNumber(booking.bookingNumber)}`
@@ -742,8 +748,8 @@ export function buildCustomerWhatsAppUrl(booking, language = 'ar') {
     ((booking.checkOut?.toDate ? booking.checkOut.toDate() : new Date(booking.checkOut))
    - (booking.checkIn?.toDate  ? booking.checkIn.toDate()  : new Date(booking.checkIn))) / 86400000
   ))
-  const priceStrAr = booking.totalPrice != null ? `$${booking.totalPrice}` : 'سيُحدد لاحقاً'
-  const priceStrEn = booking.totalPrice != null ? `$${booking.totalPrice}` : 'To be confirmed'
+  const priceStrAr = booking.totalPrice != null ? `${booking.totalPrice}` : 'سيُحدد لاحقاً'
+  const priceStrEn = booking.totalPrice != null ? `${booking.totalPrice}` : 'To be confirmed'
   const ref = booking.bookingNumber != null
     ? `#${formatBookingNumber(booking.bookingNumber)}`
     : (booking.id || booking.bookingId || '')
