@@ -7,7 +7,7 @@ import {
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage'
 import { auth, db, storage } from '../firebase/config'
 import { seedRooms, CATEGORIES } from '../firebase/seed'
-import { getNextBookingNumber, formatBookingNumber, buildCustomerWhatsAppUrl, extendBookingStay, assignRoomToBooking, setRoomBlock, clearRoomBlock, isRoomBlockedInRange, HIKE_DOC, DEFAULT_HIKE_CONTENT, saveHikeContent, buildHikeCustomerWhatsAppUrl, computeBookingFinance, addBookingCharge, removeBookingCharge, addBookingPayment, removeBookingPayment, updateBookingRoomPrice, checkInBooking, checkOutBooking } from '../firebase/services'
+import { getNextBookingNumber, formatBookingNumber, buildCustomerWhatsAppUrl, extendBookingStay, assignRoomToBooking, setRoomBlock, clearRoomBlock, isRoomBlockedInRange, HIKE_DOC, DEFAULT_HIKE_CONTENT, saveHikeContent, buildHikeCustomerWhatsAppUrl, computeBookingFinance, addBookingCharge, removeBookingCharge, addBookingPayment, removeBookingPayment, updateBookingRoomPrice, checkInBooking, checkOutBooking, unassignRoomFromBooking } from '../firebase/services'
 
 const CATEGORY_OPTIONS = [
   { value: 'superub', labelAr: 'سوبر' },
@@ -260,6 +260,13 @@ function Dashboard({ user }) {
     }
     finally { setAssigning(false) }
   }
+  const handleUnassign = async (id) => {
+    if (!confirm('إلغاء تعيين الغرفة لهذا الحجز؟ سيعود إلى قائمة «غير معيّنة».')) return
+    setAssigning(true); setAssignErr('')
+    try { await unassignRoomFromBooking(id) }
+    catch (e) { setAssignErr('فشل إلغاء التعيين: ' + (e?.message || '')) }
+    finally { setAssigning(false) }
+  }
   const handleExtend = async (id, newCheckOut) => {
     setExtending(true); setExtendErr('')
     try { await extendBookingStay(id, newCheckOut) }
@@ -426,6 +433,7 @@ function Dashboard({ user }) {
               assigning={assigning}
               assignErr={assignErr}
               onAssign={(rid) => handleAssign(openBooking.id, rid)}
+              onUnassign={() => handleUnassign(openBooking.id)}
               extending={extending}
               extendErr={extendErr}
               onExtend={(d) => handleExtend(openBooking.id, d)}
@@ -1169,7 +1177,7 @@ function BookingsTab({ bookings, loading, onOpen }) {
 function BookingDetailPage({
   booking: b, rooms, bookings, onBack,
   updating, onChangeStatus,
-  assigning, assignErr, onAssign,
+  assigning, assignErr, onAssign, onUnassign,
   extending, extendErr, onExtend,
   deleting, onDelete,
   stageBusy, stageErr, onCheckIn, onCheckOut,
@@ -1227,6 +1235,7 @@ function BookingDetailPage({
             busy={assigning}
             error={assignErr}
             onAssign={onAssign}
+            onUnassign={onUnassign}
           />
 
           <ExtendStayControl
@@ -1581,7 +1590,7 @@ function ExtendStayControl({ booking, busy, error, onSave }) {
 /* ─────────────────────────────────────────────────────────────
    Inline assign-room control (for type-only customer bookings)
 ───────────────────────────────────────────────────────────── */
-function AssignRoomControl({ booking, rooms, bookings, busy, error, onAssign }) {
+function AssignRoomControl({ booking, rooms, bookings, busy, error, onAssign, onUnassign }) {
   const [pick, setPick] = useState('')
   const assigned = !!booking.roomId
 
@@ -1654,6 +1663,20 @@ function AssignRoomControl({ booking, rooms, bookings, busy, error, onAssign }) 
           ? <><FiRefreshCw size={12} style={{ animation: 'spin 1s linear infinite' }} /> جارٍ الحفظ...</>
           : <><FiCheck size={12} /> {assigned ? 'تغيير' : 'تعيين'}</>}
       </button>
+      {assigned && onUnassign && (
+        <button
+          onClick={onUnassign}
+          disabled={busy}
+          title="إلغاء تعيين الغرفة"
+          style={{
+            padding: '6px 12px', borderRadius: 7, border: '1px solid #FECACA', background: '#FEF2F2',
+            color: '#DC2626', fontSize: 12, fontWeight: 700, fontFamily: 'Cairo, sans-serif',
+            cursor: busy ? 'not-allowed' : 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6,
+          }}
+        >
+          <FiX size={12} /> إلغاء التعيين
+        </button>
+      )}
       {error && (
         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12, color: '#b91c1c' }}>
           <FiAlertCircle size={12} /> {error}

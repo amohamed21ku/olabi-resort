@@ -513,6 +513,18 @@ export async function assignRoomToBooking(bookingId, roomId) {
   })
 }
 
+// Remove a concrete room from a booking, returning it to the "needs a room"
+// (variant-only) state. The category (roomType/roomCapacity) and its display
+// name are kept so it can be re-assigned later; the physical room is freed.
+export async function unassignRoomFromBooking(bookingId) {
+  if (!bookingId) throw new Error('INVALID_ASSIGN_DATA')
+  await updateDoc(doc(db, 'bookings', bookingId), {
+    roomId: null,
+    roomNumber: null,
+    updatedAt: Timestamp.now(),
+  })
+}
+
 // ─── WhatsApp notification ─────────────────────────────────
 
 export function buildWhatsAppUrl(booking, language = 'ar') {
