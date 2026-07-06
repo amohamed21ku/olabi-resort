@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, Fragment } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { onAuthStateChanged, signInWithEmailAndPassword, signOut } from 'firebase/auth'
 import {
   collection, doc, onSnapshot, setDoc, updateDoc, deleteDoc,
@@ -7,7 +7,7 @@ import {
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage'
 import { auth, db, storage } from '../firebase/config'
 import { seedRooms, CATEGORIES } from '../firebase/seed'
-import { getNextBookingNumber, formatBookingNumber, buildCustomerWhatsAppUrl, extendBookingStay, assignRoomToBooking, setRoomBlock, clearRoomBlock, isRoomBlockedInRange, HIKE_DOC, DEFAULT_HIKE_CONTENT, saveHikeContent, buildHikeCustomerWhatsAppUrl } from '../firebase/services'
+import { getNextBookingNumber, formatBookingNumber, buildCustomerWhatsAppUrl, extendBookingStay, assignRoomToBooking, setRoomBlock, clearRoomBlock, isRoomBlockedInRange, HIKE_DOC, DEFAULT_HIKE_CONTENT, saveHikeContent, buildHikeCustomerWhatsAppUrl, computeBookingFinance, addBookingCharge, removeBookingCharge, addBookingPayment, removeBookingPayment, updateBookingRoomPrice, checkInBooking, checkOutBooking } from '../firebase/services'
 
 const CATEGORY_OPTIONS = [
   { value: 'superub', labelAr: 'سوبر' },
@@ -20,12 +20,13 @@ import {
   FiLogOut, FiEdit2, FiTrash2, FiPlus, FiUpload, FiX, FiCheck,
   FiAlertCircle, FiHome, FiImage, FiEye, FiEyeOff, FiCalendar,
   FiSearch, FiBookOpen, FiPhone, FiUser, FiMail, FiMessageSquare,
-  FiMenu, FiChevronUp, FiChevronDown, FiChevronRight, FiLayers, FiActivity,
+  FiMenu, FiChevronUp, FiChevronDown, FiChevronRight, FiChevronLeft, FiLayers, FiActivity,
   FiCheckSquare, FiSliders, FiDatabase, FiClock, FiDollarSign,
   FiUsers, FiArrowUp, FiArrowDown, FiMoreVertical, FiRefreshCw,
   FiExternalLink, FiPlusCircle, FiMessageCircle,
   FiCreditCard, FiStar, FiBell, FiSettings, FiLock, FiUnlock,
-  FiCompass, FiSave,
+  FiCompass, FiSave, FiCoffee, FiTrendingDown, FiLogIn, FiClipboard,
+  FiGrid, FiPrinter,
 } from 'react-icons/fi'
 
 /* ─────────────────────────────────────────────────────────────
@@ -47,9 +48,33 @@ const SOURCE_LABELS = {
   other:    'أخرى',
 }
 
+// Payment status derived from the folio (paid vs. remaining balance).
+const PAYMENT_STATUS = {
+  paid:    { label: 'مدفوع بالكامل', color: '#15803d', bg: '#f0fdf4', border: '#bbf7d0' },
+  partial: { label: 'مدفوع جزئياً',  color: '#b45309', bg: '#fffbeb', border: '#fde68a' },
+  unpaid:  { label: 'غير مدفوع',      color: '#b91c1c', bg: '#fef2f2', border: '#fecaca' },
+}
+
+// Extra-charge categories (restaurant flow) and payment methods.
+const CHARGE_CATEGORIES = [
+  { value: 'restaurant', label: 'مطعم' },
+  { value: 'cafe',       label: 'كافيه' },
+  { value: 'room-service', label: 'خدمة الغرف' },
+  { value: 'other',      label: 'أخرى' },
+]
+const CHARGE_CATEGORY_LABEL = Object.fromEntries(CHARGE_CATEGORIES.map(c => [c.value, c.label]))
+
+const PAYMENT_METHODS = [
+  { value: 'cash',      label: 'نقد' },
+  { value: 'sham-cash', label: 'شام كاش' },
+  { value: 'card',      label: 'بطاقة' },
+]
+const PAYMENT_METHOD_LABEL = Object.fromEntries(PAYMENT_METHODS.map(m => [m.value, m.label]))
+
 const NAV_SECTIONS = [
   {
     items: [
+      { id: 'front-desk',   label: 'المكتب الأمامي', Icon: FiClipboard },
       { id: 'dashboard',    label: 'نظرة عامة',   Icon: FiActivity },
       { id: 'new-booking',  label: 'حجز جديد',    Icon: FiPlusCircle },
     ],
@@ -58,6 +83,8 @@ const NAV_SECTIONS = [
     title: 'الإدارة',
     items: [
       { id: 'bookings',     label: 'الحجوزات',    Icon: FiBookOpen },
+      { id: 'calendar',     label: 'تقويم الحجوزات', Icon: FiGrid },
+      { id: 'charge-room',  label: 'إضافة على الغرفة', Icon: FiCoffee },
       { id: 'availability', label: 'الإتاحة',     Icon: FiCalendar },
       { id: 'variants',     label: 'الفئات',       Icon: FiStar },
       { id: 'rooms',        label: 'الغرف',        Icon: FiLayers },
@@ -152,7 +179,7 @@ const loginInp = { width: '100%', padding: '10px 14px', border: '1px solid #E5E7
    Dashboard shell
 ───────────────────────────────────────────────────────────── */
 function Dashboard({ user }) {
-  const [tab, setTab]             = useState('dashboard')
+  const [tab, setTab]             = useState('front-desk')
   const [mobileSidebar, setMob]   = useState(false)
   const [rooms, setRooms]         = useState([])
   const [variants, setVariants]   = useState([])
@@ -202,13 +229,77 @@ function Dashboard({ user }) {
     finally { setSeeding(false); setTimeout(() => setSeedMsg(''), 4000) }
   }
 
+  // ── Booking detail: lifted here so any tab (Front Desk, Bookings) can open
+  //    the same full-screen detail page and share one set of action handlers.
+  const [openBookingId, setOpenBookingId] = useState(null)
+  const openBooking = openBookingId ? bookings.find(b => b.id === openBookingId) : null
+
+  const [updating,  setUpdating]  = useState(false)
+  const [assigning, setAssigning] = useState(false)
+  const [assignErr, setAssignErr] = useState('')
+  const [extending, setExtending] = useState(false)
+  const [extendErr, setExtendErr] = useState('')
+  const [deleting,  setDeleting]  = useState(false)
+  const [stageBusy, setStageBusy] = useState(false)
+  const [stageErr,  setStageErr]  = useState('')
+
+  const changeStatus = async (id, status) => {
+    setUpdating(true)
+    try { await updateDoc(doc(db, 'bookings', id), { status }) }
+    catch { alert('فشل التحديث') }
+    finally { setUpdating(false) }
+  }
+  const handleAssign = async (id, roomId) => {
+    setAssigning(true); setAssignErr('')
+    try { await assignRoomToBooking(id, roomId) }
+    catch (e) {
+      if (e?.code === 'ROOM_UNAVAILABLE')          setAssignErr('الغرفة محجوزة في هذه الفترة')
+      else if (e?.message === 'TYPE_MISMATCH')      setAssignErr('نوع الغرفة لا يطابق فئة الحجز')
+      else if (e?.message === 'CAPACITY_MISMATCH')  setAssignErr('سعة الغرفة لا تطابق سعة الحجز')
+      else setAssignErr('فشل التعيين: ' + (e?.message || ''))
+    }
+    finally { setAssigning(false) }
+  }
+  const handleExtend = async (id, newCheckOut) => {
+    setExtending(true); setExtendErr('')
+    try { await extendBookingStay(id, newCheckOut) }
+    catch (e) {
+      if (e?.code === 'ROOM_UNAVAILABLE') setExtendErr('الغرفة محجوزة في الفترة الجديدة')
+      else setExtendErr('فشل التمديد: ' + (e?.message || ''))
+    }
+    finally { setExtending(false) }
+  }
+  const handleDeleteBooking = async (b) => {
+    if (!confirm(`حذف حجز ${b.guestName}؟`)) return false
+    setDeleting(true)
+    try { await deleteDoc(doc(db, 'bookings', b.id)); return true }
+    catch { alert('فشل الحذف'); return false }
+    finally { setDeleting(false) }
+  }
+  const handleCheckIn = async (b) => {
+    setStageBusy(true); setStageErr('')
+    try { await checkInBooking(b.id) }
+    catch (e) { setStageErr(e?.message === 'NO_ROOM_ASSIGNED' ? 'يجب تعيين غرفة للحجز أولاً' : 'فشل تسجيل الوصول: ' + (e?.message || '')) }
+    finally { setStageBusy(false) }
+  }
+  const handleCheckOut = async (b) => {
+    const fin = computeBookingFinance(b)
+    if (fin.balance > 0 && !confirm(`يوجد مبلغ متبقٍّ قدره $${fin.balance}. هل تريد متابعة تسجيل المغادرة؟`)) return
+    setStageBusy(true); setStageErr('')
+    try { await checkOutBooking(b.id) }
+    catch (e) { setStageErr('فشل تسجيل المغادرة: ' + (e?.message || '')) }
+    finally { setStageBusy(false) }
+  }
+
   const pending = bookings.filter(b => b.status === 'pending').length
   const pendingHike = hikeApps.filter(a => a.status === 'pending').length
-  const navLabel = tab === 'room-form'
-    ? (editingRoom ? `تعديل غرفة ${editingRoom.number}` : 'إضافة غرفة جديدة')
-    : tab === 'variant-form'
-      ? (editingVariant ? `تعديل: ${editingVariant.nameAr || editingVariant.id}` : 'إضافة فئة جديدة')
-      : NAV_SECTIONS.flatMap(s => s.items).find(n => n.id === tab)?.label ?? ''
+  const navLabel = openBooking
+    ? 'تفاصيل الحجز'
+    : tab === 'room-form'
+      ? (editingRoom ? `تعديل غرفة ${editingRoom.number}` : 'إضافة غرفة جديدة')
+      : tab === 'variant-form'
+        ? (editingVariant ? `تعديل: ${editingVariant.nameAr || editingVariant.id}` : 'إضافة فئة جديدة')
+        : NAV_SECTIONS.flatMap(s => s.items).find(n => n.id === tab)?.label ?? ''
 
   return (
     <div dir="rtl" style={{ minHeight: '100vh', background: '#F4F6F4', fontFamily: 'Cairo, sans-serif', display: 'flex' }}>
@@ -251,7 +342,7 @@ function Dashboard({ user }) {
                   const badgeCount = id === 'bookings' ? pending : id === 'hike' ? pendingHike : 0
                   const hasBadge = badgeCount > 0
                   return (
-                    <button key={id} onClick={() => { setTab(id); setMob(false) }} style={{
+                    <button key={id} onClick={() => { setTab(id); setOpenBookingId(null); setMob(false) }} style={{
                       width: '100%', display: 'flex', alignItems: 'center', gap: 10,
                       padding: '9px 10px', borderRadius: 8, border: 'none', cursor: 'pointer',
                       background: active ? 'rgba(134,239,172,0.12)' : 'transparent',
@@ -324,15 +415,43 @@ function Dashboard({ user }) {
 
         {/* Content */}
         <main style={{ flex: 1, padding: '28px 28px' }}>
-          {tab === 'dashboard'    && <DashboardTab rooms={rooms} bookings={bookings} setTab={setTab} />}
-          {tab === 'variants'     && <VariantsTab variants={variants} rooms={rooms} loading={loadingV || loadingR} onAdd={() => { setEditingVariant(null); setTab('variant-form') }} onEdit={v => { setEditingVariant(v); setTab('variant-form') }} onSeed={handleSeed} seeding={seeding} />}
-          {tab === 'variant-form' && <VariantFormPage variant={editingVariant} onBack={() => setTab('variants')} />}
-          {tab === 'rooms'        && <RoomsTab rooms={rooms} variants={variants} bookings={bookings} loading={loadingR || loadingV} onAdd={() => { setEditingRoom(null); setTab('room-form') }} onEdit={r => { setEditingRoom(r); setTab('room-form') }} onSeed={handleSeed} seeding={seeding} />}
-          {tab === 'room-form'    && <RoomFormPage room={editingRoom} variants={variants} onBack={() => setTab('rooms')} />}
-          {tab === 'availability' && <AvailabilityTab rooms={rooms} variants={variants} bookings={bookings} loading={loadingR || loadingB} />}
-          {tab === 'bookings'     && <BookingsTab bookings={bookings} loading={loadingB} rooms={rooms} />}
-          {tab === 'new-booking'  && <NewBookingTab rooms={rooms} variants={variants} bookings={bookings} onDone={() => setTab('bookings')} />}
-          {tab === 'hike'         && <HikeTab content={hikeContent} applications={hikeApps} />}
+          {openBooking ? (
+            <BookingDetailPage
+              booking={openBooking}
+              rooms={rooms}
+              bookings={bookings}
+              onBack={() => setOpenBookingId(null)}
+              updating={updating}
+              onChangeStatus={(s) => changeStatus(openBooking.id, s)}
+              assigning={assigning}
+              assignErr={assignErr}
+              onAssign={(rid) => handleAssign(openBooking.id, rid)}
+              extending={extending}
+              extendErr={extendErr}
+              onExtend={(d) => handleExtend(openBooking.id, d)}
+              deleting={deleting}
+              onDelete={async () => { if (await handleDeleteBooking(openBooking)) setOpenBookingId(null) }}
+              stageBusy={stageBusy}
+              stageErr={stageErr}
+              onCheckIn={() => handleCheckIn(openBooking)}
+              onCheckOut={() => handleCheckOut(openBooking)}
+            />
+          ) : (
+            <>
+              {tab === 'front-desk'   && <FrontDeskTab bookings={bookings} rooms={rooms} loading={loadingB || loadingR} onOpen={setOpenBookingId} onCheckIn={handleCheckIn} onCheckOut={handleCheckOut} stageBusy={stageBusy} onNewBooking={() => setTab('new-booking')} />}
+              {tab === 'dashboard'    && <DashboardTab rooms={rooms} bookings={bookings} setTab={setTab} />}
+              {tab === 'variants'     && <VariantsTab variants={variants} rooms={rooms} loading={loadingV || loadingR} onAdd={() => { setEditingVariant(null); setTab('variant-form') }} onEdit={v => { setEditingVariant(v); setTab('variant-form') }} onSeed={handleSeed} seeding={seeding} />}
+              {tab === 'variant-form' && <VariantFormPage variant={editingVariant} onBack={() => setTab('variants')} />}
+              {tab === 'rooms'        && <RoomsTab rooms={rooms} variants={variants} bookings={bookings} loading={loadingR || loadingV} onAdd={() => { setEditingRoom(null); setTab('room-form') }} onEdit={r => { setEditingRoom(r); setTab('room-form') }} onSeed={handleSeed} seeding={seeding} />}
+              {tab === 'room-form'    && <RoomFormPage room={editingRoom} variants={variants} onBack={() => setTab('rooms')} />}
+              {tab === 'availability' && <AvailabilityTab rooms={rooms} variants={variants} bookings={bookings} loading={loadingR || loadingB} />}
+              {tab === 'bookings'     && <BookingsTab bookings={bookings} loading={loadingB} rooms={rooms} onOpen={setOpenBookingId} />}
+              {tab === 'calendar'     && <CalendarTab bookings={bookings} rooms={rooms} loading={loadingB || loadingR} onOpen={setOpenBookingId} />}
+              {tab === 'charge-room'  && <ChargeToRoomTab bookings={bookings} loading={loadingB} />}
+              {tab === 'new-booking'  && <NewBookingTab rooms={rooms} variants={variants} bookings={bookings} onDone={() => setTab('bookings')} />}
+              {tab === 'hike'         && <HikeTab content={hikeContent} applications={hikeApps} />}
+            </>
+          )}
         </main>
       </div>
 
@@ -349,6 +468,9 @@ function DashboardTab({ rooms, bookings, setTab }) {
   const pending    = bookings.filter(b => b.status === 'pending').length
   const unassigned = bookings.filter(b => !b.roomId && !['cancelled', 'checked-out'].includes(b.status)).length
   const revenue    = bookings.filter(b => b.status !== 'cancelled').reduce((s, b) => s + (b.totalPrice || 0), 0)
+  const outstanding = bookings
+    .filter(b => b.status !== 'cancelled')
+    .reduce((s, b) => s + Math.max(0, computeBookingFinance(b).balance), 0)
   const recent     = bookings.slice(0, 6)
 
   const fmtD = d => { try { return (d?.toDate ? d.toDate() : new Date(d)).toLocaleDateString('ar-SY', { day: 'numeric', month: 'short' }) } catch { return '—' } }
@@ -359,12 +481,13 @@ function DashboardTab({ rooms, bookings, setTab }) {
     { label: 'غير معينة',       value: unassigned,    sub: unassigned ? 'تحتاج تعيين غرفة' : 'الكل معين', Icon: FiHome, accent: unassigned ? '#b45309' : '#6b7280' },
     { label: 'بانتظار التأكيد', value: pending,       sub: pending ? 'تحتاج مراجعة' : 'لا يوجد معلق', Icon: FiClock, accent: pending ? '#b45309' : '#6b7280' },
     { label: 'إجمالي الإيرادات',value: `$${revenue.toLocaleString()}`, sub: 'كل الحجوزات غير الملغاة', Icon: FiCreditCard, accent: '#15803d' },
+    { label: 'مستحقات (المتبقّي)', value: `$${outstanding.toLocaleString()}`, sub: outstanding ? 'مبالغ غير محصّلة' : 'لا مستحقات', Icon: FiTrendingDown, accent: outstanding ? '#b45309' : '#6b7280' },
   ]
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
       {/* KPI cards */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 16 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: 16 }}>
         {kpis.map(k => (
           <div key={k.label} style={{ background: '#fff', borderRadius: 12, border: '1px solid #E5E7EB', padding: '20px 20px', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 14 }}>
@@ -865,19 +988,13 @@ function AvailableRoomCard({ room, label, busy, onBlock }) {
 /* ─────────────────────────────────────────────────────────────
    Bookings tab  (table layout)
 ───────────────────────────────────────────────────────────── */
-function BookingsTab({ bookings, loading, rooms = [] }) {
+function BookingsTab({ bookings, loading, onOpen }) {
   const [statusF,  setStatusF]  = useState('all')
   const [search,   setSearch]   = useState('')
   const [updating, setUpdating] = useState(null)
   const [deleting, setDel]      = useState(null)
-  const [expanded, setExpanded] = useState(null)
-  const [extending, setExtending] = useState(null)
-  const [extendErr, setExtendErr] = useState('')
-  const [assigning, setAssigning] = useState(null)
-  const [assignErr, setAssignErr] = useState('')
 
   const filtered = bookings.filter(b => {
-    const q = search.toLowerCase()
     const isUnassigned = !b.roomId
     const matchesUnassignedFilter = statusF === 'unassigned' ? isUnassigned : true
     const matchesStatus = statusF === 'all' || statusF === 'unassigned' || b.status === statusF
@@ -886,18 +1003,6 @@ function BookingsTab({ bookings, loading, rooms = [] }) {
           || b.roomNameAr?.includes(search) || b.roomNumber?.includes(search)
           || b.roomType?.includes(search))
   })
-
-  const handleAssign = async (bookingId, roomId) => {
-    setAssigning(bookingId); setAssignErr('')
-    try { await assignRoomToBooking(bookingId, roomId) }
-    catch (e) {
-      if (e?.code === 'ROOM_UNAVAILABLE')         setAssignErr('الغرفة محجوزة في هذه الفترة')
-      else if (e?.message === 'TYPE_MISMATCH')    setAssignErr('نوع الغرفة لا يطابق فئة الحجز')
-      else if (e?.message === 'CAPACITY_MISMATCH') setAssignErr('سعة الغرفة لا تطابق سعة الحجز')
-      else setAssignErr('فشل التعيين: ' + (e?.message || ''))
-    }
-    finally { setAssigning(null) }
-  }
 
   const changeStatus = async (id, status) => {
     setUpdating(id)
@@ -912,16 +1017,6 @@ function BookingsTab({ bookings, loading, rooms = [] }) {
     try { await deleteDoc(doc(db, 'bookings', b.id)) }
     catch { alert('فشل الحذف') }
     finally { setDel(null) }
-  }
-
-  const handleExtend = async (bookingId, newCheckOut) => {
-    setExtending(bookingId); setExtendErr('')
-    try { await extendBookingStay(bookingId, newCheckOut) }
-    catch (e) {
-      if (e?.code === 'ROOM_UNAVAILABLE') setExtendErr('الغرفة محجوزة في الفترة الجديدة')
-      else setExtendErr('فشل التمديد: ' + (e?.message || ''))
-    }
-    finally { setExtending(null) }
   }
 
   const fmtD = d => { try { return (d?.toDate ? d.toDate() : new Date(d)).toLocaleDateString('ar-SY', { day: 'numeric', month: 'short', year: '2-digit' }) } catch { return '—' } }
@@ -976,104 +1071,86 @@ function BookingsTab({ bookings, loading, rooms = [] }) {
               </tr>
             </thead>
             <tbody>
-              {filtered.map((b, i) => {
+              {filtered.map((b) => {
                 const nights = b.nights || Math.max(1, Math.ceil((new Date(b.checkOut?.toDate?.() || b.checkOut) - new Date(b.checkIn?.toDate?.() || b.checkIn)) / 86400000))
-                const isExp  = expanded === b.id
+                const fin    = computeBookingFinance(b)
                 return (
-                  <Fragment key={b.id}>
-                    <tr style={{ borderBottom: '1px solid #F9FAFB', transition: 'background 0.1s', cursor: 'pointer' }}
-                      onMouseEnter={e => e.currentTarget.style.background = '#FAFAFA'}
-                      onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-                      onClick={() => setExpanded(isExp ? null : b.id)}>
-                      <td style={{ padding: '12px 14px' }}>
-                        <code style={{ fontSize: 12, background: '#F3F4F6', color: '#6B7280', padding: '2px 8px', borderRadius: 5, fontFamily: 'monospace', fontWeight: 600 }}>
-                          #{b.bookingNumber != null ? formatBookingNumber(b.bookingNumber) : b.id.slice(0, 6).toUpperCase()}
-                        </code>
-                      </td>
-                      <td style={{ padding: '12px 14px' }}>
-                        <p style={{ fontSize: 13, fontWeight: 600, color: '#111827', marginBottom: 1 }}>{b.guestName}</p>
-                        <p style={{ fontSize: 11, color: '#9CA3AF' }}>{b.guestPhone}</p>
-                      </td>
-                      <td style={{ padding: '12px 14px', fontSize: 13, color: '#374151', whiteSpace: 'nowrap' }}>
-                        {b.roomId ? (
-                          <>
-                            {b.roomNameAr}<span style={{ color: '#9CA3AF', marginRight: 4 }}>#{b.roomNumber}</span>
-                          </>
-                        ) : (
-                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                            <span style={{ fontSize: 11, fontWeight: 700, color: '#b45309', background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 5, padding: '2px 8px' }}>
-                              غير معين
-                            </span>
-                            {b.roomType && (
-                              <span style={{ fontSize: 12, color: '#6B7280' }}>
-                                {CATEGORY_LABEL_AR[b.roomType] || b.roomType}
-                                {b.roomCapacity ? ` · ${b.roomCapacity} ${b.roomCapacity === 1 ? 'شخص' : 'أشخاص'}` : ''}
-                              </span>
-                            )}
+                  <tr key={b.id} style={{ borderBottom: '1px solid #F9FAFB', transition: 'background 0.1s', cursor: 'pointer' }}
+                    onMouseEnter={e => e.currentTarget.style.background = '#FAFAFA'}
+                    onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                    onClick={() => onOpen(b.id)}>
+                    <td style={{ padding: '12px 14px' }}>
+                      <code style={{ fontSize: 12, background: '#F3F4F6', color: '#6B7280', padding: '2px 8px', borderRadius: 5, fontFamily: 'monospace', fontWeight: 600 }}>
+                        #{b.bookingNumber != null ? formatBookingNumber(b.bookingNumber) : b.id.slice(0, 6).toUpperCase()}
+                      </code>
+                    </td>
+                    <td style={{ padding: '12px 14px' }}>
+                      <p style={{ fontSize: 13, fontWeight: 600, color: '#111827', marginBottom: 1 }}>{b.guestName}</p>
+                      <p style={{ fontSize: 11, color: '#9CA3AF' }}>{b.guestPhone}</p>
+                    </td>
+                    <td style={{ padding: '12px 14px', fontSize: 13, color: '#374151', whiteSpace: 'nowrap' }}>
+                      {b.roomId ? (
+                        <>
+                          {b.roomNameAr}<span style={{ color: '#9CA3AF', marginRight: 4 }}>#{b.roomNumber}</span>
+                        </>
+                      ) : (
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                          <span style={{ fontSize: 11, fontWeight: 700, color: '#b45309', background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 5, padding: '2px 8px' }}>
+                            غير معين
                           </span>
-                        )}
-                      </td>
-                      <td style={{ padding: '12px 14px', fontSize: 12, color: '#6B7280', whiteSpace: 'nowrap' }}>{fmtD(b.checkIn)}</td>
-                      <td style={{ padding: '12px 14px', fontSize: 12, color: '#6B7280', whiteSpace: 'nowrap' }}>{fmtD(b.checkOut)}</td>
-                      <td style={{ padding: '12px 14px', fontSize: 13, fontWeight: 600, color: '#374151', textAlign: 'center' }}>{nights}</td>
-                      <td style={{ padding: '12px 14px', fontSize: 13, fontWeight: 700, color: '#111827', whiteSpace: 'nowrap' }}>
-                        {b.totalPrice != null ? `$${b.totalPrice}` : <span style={{ color: '#9CA3AF', fontWeight: 400, fontSize: 12 }}>عند الطلب</span>}
-                      </td>
-                      <td style={{ padding: '12px 14px' }} onClick={e => e.stopPropagation()}>
-                        <select value={b.status || 'confirmed'} onChange={e => changeStatus(b.id, e.target.value)} disabled={updating === b.id}
-                          style={{ fontSize: 11, fontWeight: 700, padding: '4px 8px', borderRadius: 6, border: `1px solid ${STATUS[b.status]?.border || '#E5E7EB'}`, background: STATUS[b.status]?.bg || '#F9FAFB', color: STATUS[b.status]?.color || '#374151', cursor: 'pointer', outline: 'none', fontFamily: 'Cairo, sans-serif', opacity: updating === b.id ? 0.5 : 1 }}>
-                          {Object.entries(STATUS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
-                        </select>
-                      </td>
-                      <td style={{ padding: '12px 14px' }} onClick={e => e.stopPropagation()}>
-                        <div style={{ display: 'flex', gap: 4 }}>
-                          <a
-                            href={buildCustomerWhatsAppUrl(b, 'ar')}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            title={`تأكيد الحجز مع ${b.guestName} عبر واتساب`}
-                            style={{ padding: '5px 7px', borderRadius: 6, border: '1px solid #BBF7D0', background: '#F0FDF4', color: '#15803d', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', textDecoration: 'none' }}
-                          >
-                            <FiMessageCircle size={13} />
-                          </a>
-                          <button onClick={() => setExpanded(isExp ? null : b.id)} style={{ padding: '5px 7px', borderRadius: 6, border: '1px solid #E5E7EB', background: '#F9FAFB', color: '#6B7280', cursor: 'pointer' }}>
-                            <FiChevronDown size={13} style={{ transform: isExp ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />
-                          </button>
-                          <button onClick={() => handleDelete(b)} disabled={deleting === b.id} style={{ padding: '5px 7px', borderRadius: 6, border: '1px solid #FECACA', background: '#FEF2F2', color: '#DC2626', cursor: 'pointer' }}>
-                            <FiTrash2 size={13} />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                    {isExp && (
-                      <tr key={b.id + '-exp'} style={{ background: '#FAFAFA', borderBottom: '1px solid #F3F4F6' }}>
-                        <td colSpan={9} style={{ padding: '14px 20px' }}>
-                          <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap', fontSize: 13, marginBottom: 14 }}>
-                            {b.guestEmail && <InfoItem icon={<FiMail size={13} />} label="البريد" value={b.guestEmail} />}
-                            {b.notes      && <InfoItem icon={<FiMessageSquare size={13} />} label="ملاحظات" value={b.notes} />}
-                            {b.source     && <InfoItem icon={<FiSliders size={13} />} label="المصدر" value={SOURCE_LABELS[b.source] || b.source} />}
-                            <InfoItem icon={<FiClock size={13} />} label="تاريخ الحجز" value={fmtD(b.createdAt)} />
-                          </div>
-                          {!b.roomId && (
-                            <AssignRoomControl
-                              booking={b}
-                              rooms={rooms}
-                              bookings={bookings}
-                              busy={assigning === b.id}
-                              error={assigning === b.id ? assignErr : ''}
-                              onAssign={(rid) => handleAssign(b.id, rid)}
-                            />
+                          {b.roomType && (
+                            <span style={{ fontSize: 12, color: '#6B7280' }}>
+                              {CATEGORY_LABEL_AR[b.roomType] || b.roomType}
+                              {b.roomCapacity ? ` · ${b.roomCapacity} ${b.roomCapacity === 1 ? 'شخص' : 'أشخاص'}` : ''}
+                            </span>
                           )}
-                          <ExtendStayControl
-                            booking={b}
-                            busy={extending === b.id}
-                            error={extending === b.id ? extendErr : ''}
-                            onSave={(d) => handleExtend(b.id, d)}
-                          />
-                        </td>
-                      </tr>
-                    )}
-                  </Fragment>
+                        </span>
+                      )}
+                    </td>
+                    <td style={{ padding: '12px 14px', fontSize: 12, color: '#6B7280', whiteSpace: 'nowrap' }}>{fmtD(b.checkIn)}</td>
+                    <td style={{ padding: '12px 14px', fontSize: 12, color: '#6B7280', whiteSpace: 'nowrap' }}>{fmtD(b.checkOut)}</td>
+                    <td style={{ padding: '12px 14px', fontSize: 13, fontWeight: 600, color: '#374151', textAlign: 'center' }}>{nights}</td>
+                    <td style={{ padding: '12px 14px', whiteSpace: 'nowrap' }}>
+                      {b.totalPrice != null || fin.chargesTotal > 0 ? (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 3, alignItems: 'flex-start' }}>
+                          <span style={{ fontSize: 13, fontWeight: 700, color: '#111827' }}>${fin.grandTotal}</span>
+                          {fin.balance > 0
+                            ? <span style={{ fontSize: 11, fontWeight: 700, color: '#b45309' }}>متبقّي ${fin.balance}</span>
+                            : <PaymentStatusPill status="paid" />}
+                        </div>
+                      ) : (
+                        <span style={{ color: '#9CA3AF', fontWeight: 400, fontSize: 12 }}>عند الطلب</span>
+                      )}
+                    </td>
+                    <td style={{ padding: '12px 14px' }} onClick={e => e.stopPropagation()}>
+                      <StatusPill status={b.status} />
+                    </td>
+                    <td style={{ padding: '12px 14px' }} onClick={e => e.stopPropagation()}>
+                      <div style={{ display: 'flex', gap: 4 }}>
+                        {b.status === 'pending' && (
+                          <button onClick={() => changeStatus(b.id, 'confirmed')} disabled={updating === b.id} title="تأكيد الحجز"
+                            style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '5px 10px', borderRadius: 6, border: '1px solid #BFDBFE', background: '#EFF6FF', color: '#1d4ed8', cursor: 'pointer', fontSize: 12, fontWeight: 700, fontFamily: 'Cairo, sans-serif', whiteSpace: 'nowrap' }}>
+                            <FiCheck size={12} /> تأكيد
+                          </button>
+                        )}
+                        <a
+                          href={buildCustomerWhatsAppUrl(b, 'ar')}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          title={`تأكيد الحجز مع ${b.guestName} عبر واتساب`}
+                          style={{ padding: '5px 7px', borderRadius: 6, border: '1px solid #BBF7D0', background: '#F0FDF4', color: '#15803d', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', textDecoration: 'none' }}
+                        >
+                          <FiMessageCircle size={13} />
+                        </a>
+                        <button onClick={() => onOpen(b.id)} title="عرض التفاصيل" style={{ padding: '5px 10px', borderRadius: 6, border: '1px solid #E5E7EB', background: '#F9FAFB', color: '#374151', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12, fontWeight: 700, fontFamily: 'Cairo, sans-serif', whiteSpace: 'nowrap' }}>
+                          التفاصيل <FiChevronLeft size={13} />
+                        </button>
+                        <button onClick={() => handleDelete(b)} disabled={deleting === b.id} style={{ padding: '5px 7px', borderRadius: 6, border: '1px solid #FECACA', background: '#FEF2F2', color: '#DC2626', cursor: 'pointer' }}>
+                          <FiTrash2 size={13} />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
                 )
               })}
             </tbody>
@@ -1085,7 +1162,356 @@ function BookingsTab({ bookings, loading, rooms = [] }) {
 }
 
 /* ─────────────────────────────────────────────────────────────
-   Inline extend-stay editor (rendered inside the expanded row)
+   Booking detail — full page opened when a booking row is clicked.
+   Clearer than the old inline dropdown: all guest, stay, room and
+   money controls on one screen.
+───────────────────────────────────────────────────────────── */
+function BookingDetailPage({
+  booking: b, rooms, bookings, onBack,
+  updating, onChangeStatus,
+  assigning, assignErr, onAssign,
+  extending, extendErr, onExtend,
+  deleting, onDelete,
+  stageBusy, stageErr, onCheckIn, onCheckOut,
+}) {
+  const fin = computeBookingFinance(b)
+  const nights = b.nights || Math.max(1, Math.ceil((new Date(b.checkOut?.toDate?.() || b.checkOut) - new Date(b.checkIn?.toDate?.() || b.checkIn)) / 86400000))
+  const fmtFull = d => { try { return (d?.toDate ? d.toDate() : new Date(d)).toLocaleDateString('ar-SY', { weekday: 'short', day: 'numeric', month: 'long', year: 'numeric' }) } catch { return '—' } }
+  const fmtTime = d => { try { return (d?.toDate ? d.toDate() : new Date(d)).toLocaleString('ar-SY', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) } catch { return '—' } }
+  const ref = b.bookingNumber != null ? formatBookingNumber(b.bookingNumber) : b.id.slice(0, 6).toUpperCase()
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      {/* Header */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
+        <button onClick={onBack}
+          style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 8, border: '1px solid #E5E7EB', background: '#fff', color: '#374151', fontSize: 12, fontFamily: 'Cairo, sans-serif', fontWeight: 600, cursor: 'pointer' }}>
+          <FiChevronRight size={14} /> رجوع إلى الحجوزات
+        </button>
+        <div style={{ width: 1, height: 20, background: '#E5E7EB', flexShrink: 0 }} />
+        <div style={{ flex: 1, minWidth: 180 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+            <h2 style={{ fontSize: 18, fontWeight: 700, color: '#111827' }}>{b.guestName}</h2>
+            <code style={{ fontSize: 12, background: '#F3F4F6', color: '#6B7280', padding: '2px 8px', borderRadius: 5, fontFamily: 'monospace', fontWeight: 600 }}>#{ref}</code>
+            <StatusPill status={b.status} />
+            <PaymentStatusPill status={fin.paymentStatus} />
+          </div>
+        </div>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <a href={buildCustomerWhatsAppUrl(b, 'ar')} target="_blank" rel="noopener noreferrer"
+            style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '9px 16px', borderRadius: 9, background: '#15803d', color: '#fff', border: 'none', fontSize: 13, fontFamily: 'Cairo, sans-serif', fontWeight: 700, textDecoration: 'none' }}>
+            <FiMessageCircle size={14} /> واتساب
+          </a>
+          <button onClick={onDelete} disabled={deleting}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '9px 14px', borderRadius: 9, background: '#FEF2F2', color: '#DC2626', border: '1px solid #FECACA', fontSize: 13, fontFamily: 'Cairo, sans-serif', fontWeight: 700, cursor: deleting ? 'wait' : 'pointer' }}>
+            <FiTrash2 size={13} /> حذف
+          </button>
+        </div>
+      </div>
+
+      {/* Stage action bar — the receptionist's primary next step */}
+      <StageActionBar
+        booking={b} fin={fin} busy={stageBusy} error={stageErr}
+        onConfirm={() => onChangeStatus('confirmed')} onCheckIn={onCheckIn} onCheckOut={onCheckOut}
+      />
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 300px', gap: 16, alignItems: 'start' }}>
+        {/* Left column: money + controls */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <FolioPanel booking={b} editablePrice />
+
+          {!b.roomId && (
+            <AssignRoomControl
+              booking={b}
+              rooms={rooms}
+              bookings={bookings}
+              busy={assigning}
+              error={assignErr}
+              onAssign={onAssign}
+            />
+          )}
+
+          <ExtendStayControl
+            booking={b}
+            busy={extending}
+            error={extendErr}
+            onSave={onExtend}
+          />
+        </div>
+
+        {/* Right column: guest + stay info */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <div style={{ background: '#fff', border: '1px solid #E5E7EB', borderRadius: 12, boxShadow: '0 1px 3px rgba(0,0,0,0.04)', overflow: 'hidden' }}>
+            <div style={{ padding: '12px 16px', borderBottom: '1px solid #F3F4F6', background: '#FAFAFA', display: 'flex', alignItems: 'center', gap: 8 }}>
+              <FiUser size={14} color="#6B7280" />
+              <span style={{ fontSize: 13, fontWeight: 700, color: '#374151' }}>معلومات الضيف</span>
+            </div>
+            <div style={{ padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 10, fontSize: 13 }}>
+              <InfoItem icon={<FiPhone size={13} />} label="الهاتف" value={b.guestPhone} />
+              {b.guestEmail && <InfoItem icon={<FiMail size={13} />} label="البريد" value={b.guestEmail} />}
+              <InfoItem icon={<FiUsers size={13} />} label="الأشخاص" value={`${b.guests} ضيف`} />
+              {b.source && <InfoItem icon={<FiSliders size={13} />} label="المصدر" value={SOURCE_LABELS[b.source] || b.source} />}
+              <InfoItem icon={<FiClock size={13} />} label="تاريخ الحجز" value={fmtFull(b.createdAt)} />
+              {b.notes && <InfoItem icon={<FiMessageSquare size={13} />} label="ملاحظات" value={b.notes} />}
+            </div>
+          </div>
+
+          <div style={{ background: '#fff', border: '1px solid #E5E7EB', borderRadius: 12, boxShadow: '0 1px 3px rgba(0,0,0,0.04)', overflow: 'hidden' }}>
+            <div style={{ padding: '12px 16px', borderBottom: '1px solid #F3F4F6', background: '#FAFAFA', display: 'flex', alignItems: 'center', gap: 8 }}>
+              <FiCalendar size={14} color="#6B7280" />
+              <span style={{ fontSize: 13, fontWeight: 700, color: '#374151' }}>تفاصيل الإقامة</span>
+            </div>
+            <div style={{ padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 10, fontSize: 13 }}>
+              <InfoItem icon={<FiHome size={13} />} label="الغرفة" value={b.roomId ? `${b.roomNameAr || ''} · ${b.roomNumber}` : 'غير معيّنة'} />
+              <InfoItem icon={<FiCalendar size={13} />} label="الوصول" value={fmtFull(b.checkIn)} />
+              <InfoItem icon={<FiCalendar size={13} />} label="المغادرة" value={fmtFull(b.checkOut)} />
+              <InfoItem icon={<FiClock size={13} />} label="الليالي" value={`${nights} ليلة`} />
+              {b.checkedInAt  && <InfoItem icon={<FiLogIn size={13} />}  label="سجّل الوصول"  value={fmtTime(b.checkedInAt)} />}
+              {b.checkedOutAt && <InfoItem icon={<FiLogOut size={13} />} label="سجّل المغادرة" value={fmtTime(b.checkedOutAt)} />}
+            </div>
+          </div>
+
+          {/* Status control */}
+          <div style={{ background: '#fff', border: '1px solid #E5E7EB', borderRadius: 12, boxShadow: '0 1px 3px rgba(0,0,0,0.04)', padding: '14px 16px' }}>
+            <label style={smallLbl}>حالة الحجز</label>
+            <select value={b.status || 'confirmed'} onChange={e => onChangeStatus(e.target.value)} disabled={updating}
+              style={{ ...fieldStyle, fontWeight: 700, color: STATUS[b.status]?.color || '#374151', opacity: updating ? 0.5 : 1 }}>
+              {Object.entries(STATUS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
+            </select>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+/* ─────────────────────────────────────────────────────────────
+   Stage action bar — shows the guest's current stage in the stay
+   lifecycle and the one obvious next action for the receptionist.
+───────────────────────────────────────────────────────────── */
+function StageActionBar({ booking: b, fin, busy, error, onConfirm, onCheckIn, onCheckOut }) {
+  const status = b.status || 'confirmed'
+  const bigBtn = (bg, disabled = false) => ({
+    display: 'inline-flex', alignItems: 'center', gap: 8, padding: '11px 22px', borderRadius: 10,
+    background: disabled ? '#E5E7EB' : bg, color: disabled ? '#9CA3AF' : '#fff', border: 'none',
+    fontSize: 14, fontWeight: 700, fontFamily: 'Cairo, sans-serif', cursor: disabled ? 'not-allowed' : 'pointer',
+  })
+
+  let tone = '#F9FAFB', bTone = '#E5E7EB', message = null, action = null
+
+  if (status === 'cancelled') {
+    tone = '#FEF2F2'; bTone = '#FECACA'
+    message = 'هذا الحجز ملغى.'
+  } else if (status === 'checked-out') {
+    tone = '#F0FDF4'; bTone = '#BBF7D0'
+    message = fin.balance > 0 ? `غادر الضيف — لكن يوجد مبلغ متبقٍّ $${fin.balance}.` : 'غادر الضيف. الحساب مسدَّد بالكامل. ✓'
+  } else if (status === 'checked-in') {
+    tone = '#EFF6FF'; bTone = '#BFDBFE'
+    message = fin.balance > 0
+      ? `الضيف داخل المنتجع. المتبقّي على الحساب: $${fin.balance}.`
+      : 'الضيف داخل المنتجع. الحساب مسدَّد.'
+    action = (
+      <button onClick={onCheckOut} disabled={busy} style={bigBtn('#1d4ed8', busy)}>
+        <FiLogOut size={16} /> {busy ? 'جارٍ...' : 'تسجيل المغادرة'}
+      </button>
+    )
+  } else {
+    // pending or confirmed → arriving guest
+    if (!b.roomId) {
+      tone = '#FFFBEB'; bTone = '#FDE68A'
+      message = 'قبل تسجيل الوصول، عيّن غرفة للحجز من الأسفل.'
+    } else {
+      tone = '#F0FDF4'; bTone = '#BBF7D0'
+      message = status === 'pending' ? 'حجز غير مؤكد — أكّده ثم سجّل وصول الضيف.' : 'جاهز لتسجيل وصول الضيف.'
+    }
+    action = (
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+        {status === 'pending' && (
+          <button onClick={onConfirm} disabled={busy} style={bigBtn('#3d5a3a', busy)}>
+            <FiCheck size={16} /> تأكيد الحجز
+          </button>
+        )}
+        <button onClick={onCheckIn} disabled={busy || !b.roomId} style={bigBtn('#15803d', busy || !b.roomId)}>
+          <FiLogIn size={16} /> {busy ? 'جارٍ...' : 'تسجيل الوصول'}
+        </button>
+      </div>
+    )
+  }
+
+  return (
+    <div style={{ background: tone, border: `1px solid ${bTone}`, borderRadius: 12, padding: '14px 18px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 14, flexWrap: 'wrap' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        <StatusPill status={status} />
+        <span style={{ fontSize: 13.5, fontWeight: 600, color: '#374151' }}>{message}</span>
+      </div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+        {error && <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12.5, color: '#b91c1c' }}><FiAlertCircle size={13} /> {error}</span>}
+        {action}
+      </div>
+    </div>
+  )
+}
+
+/* ─────────────────────────────────────────────────────────────
+   Front Desk — the receptionist's home screen: today's arrivals,
+   in-house guests, and today's departures, with one-click actions.
+───────────────────────────────────────────────────────────── */
+function FrontDeskTab({ bookings, rooms, loading, onOpen, onCheckIn, onCheckOut, stageBusy, onNewBooking }) {
+  const [search, setSearch] = useState('')
+  if (loading) return <PageLoader />
+
+  const todayStr = new Date().toISOString().split('T')[0]
+  const dayStr = d => {
+    const dt = d?.toDate ? d.toDate() : (d ? new Date(d) : null)
+    if (!dt || isNaN(dt.getTime())) return ''
+    return dt.toISOString().split('T')[0]
+  }
+  const active = b => !['cancelled', 'checked-out'].includes(b.status)
+  const matchesSearch = b => {
+    if (!search) return true
+    const q = search.toLowerCase()
+    return b.guestName?.toLowerCase().includes(q) || b.guestPhone?.includes(search) || String(b.roomNumber || '').includes(search)
+  }
+
+  const arrivals = bookings.filter(b => active(b) && b.status !== 'checked-in'
+    && dayStr(b.checkIn) <= todayStr && dayStr(b.checkOut) > todayStr && matchesSearch(b))
+  const inHouse  = bookings.filter(b => b.status === 'checked-in' && matchesSearch(b))
+  const departures = bookings.filter(b => b.status === 'checked-in'
+    && dayStr(b.checkOut) <= todayStr && matchesSearch(b))
+
+  const activeRooms = rooms.filter(r => r.active !== false).length
+  const occupied = new Set(inHouse.map(b => b.roomId).filter(Boolean)).size
+
+  const kpis = [
+    { label: 'وصول اليوم',   value: arrivals.length,   accent: '#15803d', Icon: FiLogIn },
+    { label: 'داخل المنتجع', value: inHouse.length,    accent: '#1d4ed8', Icon: FiUsers },
+    { label: 'مغادرة اليوم', value: departures.length, accent: '#b45309', Icon: FiLogOut },
+    { label: 'الإشغال',      value: `${occupied}/${activeRooms}`, accent: '#3d5a3a', Icon: FiHome },
+  ]
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+      {/* Header row */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+        <div>
+          <h2 style={{ fontSize: 18, fontWeight: 700, color: '#111827' }}>المكتب الأمامي</h2>
+          <p style={{ fontSize: 13, color: '#9CA3AF' }}>{new Date().toLocaleDateString('ar-SY', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</p>
+        </div>
+        <Btn onClick={onNewBooking} icon={<FiPlusCircle size={15} />}>حجز جديد</Btn>
+      </div>
+
+      {/* KPIs */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 12 }}>
+        {kpis.map(k => (
+          <div key={k.label} style={{ background: '#fff', borderRadius: 12, border: '1px solid #E5E7EB', padding: '16px 18px', boxShadow: '0 1px 3px rgba(0,0,0,0.04)', display: 'flex', alignItems: 'center', gap: 12 }}>
+            <div style={{ width: 38, height: 38, background: k.accent + '14', borderRadius: 9, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <k.Icon size={17} color={k.accent} />
+            </div>
+            <div>
+              <p style={{ fontSize: 22, fontWeight: 800, color: '#111827', lineHeight: 1 }}>{k.value}</p>
+              <p style={{ fontSize: 12, color: '#9CA3AF', marginTop: 3 }}>{k.label}</p>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Search */}
+      <div style={{ position: 'relative', maxWidth: 420 }}>
+        <FiSearch size={14} style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', color: '#9CA3AF', pointerEvents: 'none' }} />
+        <input value={search} onChange={e => setSearch(e.target.value)} placeholder="بحث بالاسم، الهاتف، أو رقم الغرفة..." style={{ ...fieldStyle, paddingRight: 36 }} />
+      </div>
+
+      {/* Departures first — most time-sensitive */}
+      <FrontDeskSection title="مغادرة اليوم" count={departures.length} color="#b45309" empty="لا مغادرات اليوم.">
+        {departures.map(b => (
+          <FrontDeskCard key={b.id} booking={b} kind="departure" busy={stageBusy}
+            onOpen={() => onOpen(b.id)} onAction={() => onCheckOut(b)} />
+        ))}
+      </FrontDeskSection>
+
+      <FrontDeskSection title="وصول اليوم" count={arrivals.length} color="#15803d" empty="لا وصول متوقع اليوم.">
+        {arrivals.map(b => (
+          <FrontDeskCard key={b.id} booking={b} kind="arrival" busy={stageBusy}
+            onOpen={() => onOpen(b.id)} onAction={() => onCheckIn(b)} />
+        ))}
+      </FrontDeskSection>
+
+      <FrontDeskSection title="نزلاء داخل المنتجع" count={inHouse.length} color="#1d4ed8" empty="لا يوجد نزلاء حالياً.">
+        {inHouse.map(b => (
+          <FrontDeskCard key={b.id} booking={b} kind="in-house" busy={stageBusy}
+            onOpen={() => onOpen(b.id)} onAction={() => onCheckOut(b)} />
+        ))}
+      </FrontDeskSection>
+    </div>
+  )
+}
+
+function FrontDeskSection({ title, count, color, empty, children }) {
+  return (
+    <div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+        <div style={{ width: 10, height: 10, borderRadius: '50%', background: color, flexShrink: 0 }} />
+        <p style={{ fontSize: 14, fontWeight: 700, color: '#111827' }}>{title}</p>
+        <span style={{ fontSize: 12, fontWeight: 700, color, background: color + '14', borderRadius: 100, padding: '1px 9px' }}>{count}</span>
+      </div>
+      {count === 0
+        ? <p style={{ fontSize: 13, color: '#9CA3AF', padding: '2px 2px 4px' }}>{empty}</p>
+        : <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 10 }}>{children}</div>}
+    </div>
+  )
+}
+
+function FrontDeskCard({ booking: b, kind, busy, onOpen, onAction }) {
+  const fin = computeBookingFinance(b)
+  const hasRoom = !!b.roomId
+  const fmtD = d => { try { return (d?.toDate ? d.toDate() : new Date(d)).toLocaleDateString('ar-SY', { day: 'numeric', month: 'short' }) } catch { return '—' } }
+
+  const cfg = {
+    arrival:   { btn: 'تسجيل الوصول',  Icon: FiLogIn,  bg: '#15803d' },
+    departure: { btn: 'تسجيل المغادرة', Icon: FiLogOut, bg: '#1d4ed8' },
+    'in-house':{ btn: 'تسجيل المغادرة', Icon: FiLogOut, bg: '#1d4ed8' },
+  }[kind]
+
+  return (
+    <div style={{ background: '#fff', border: '1px solid #E5E7EB', borderRadius: 12, padding: '14px 16px', boxShadow: '0 1px 3px rgba(0,0,0,0.04)', display: 'flex', flexDirection: 'column', gap: 10 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+        <div style={{ width: 44, height: 40, borderRadius: 9, background: hasRoom ? '#1C2B1C' : '#FEF3C7', color: hasRoom ? '#86efac' : '#b45309', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, fontWeight: 800, flexShrink: 0 }}>
+          {hasRoom ? b.roomNumber : '—'}
+        </div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <p style={{ fontSize: 14, fontWeight: 700, color: '#111827', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{b.guestName}</p>
+          <p style={{ fontSize: 12, color: '#9CA3AF' }}>{b.guestPhone} · {b.guests} ضيف</p>
+        </div>
+        {fin.balance > 0
+          ? <span style={{ fontSize: 11, fontWeight: 700, color: '#b45309', background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 6, padding: '3px 8px', whiteSpace: 'nowrap' }}>متبقّي ${fin.balance}</span>
+          : <PaymentStatusPill status="paid" />}
+      </div>
+
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#6B7280' }}>
+        <FiCalendar size={12} />
+        <span>{fmtD(b.checkIn)} ← {fmtD(b.checkOut)}</span>
+        {!hasRoom && <span style={{ fontSize: 11, fontWeight: 700, color: '#b45309', background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 5, padding: '1px 7px', marginRight: 'auto' }}>بحاجة لتعيين غرفة</span>}
+      </div>
+
+      <div style={{ display: 'flex', gap: 8 }}>
+        <button onClick={onAction} disabled={busy || (kind === 'arrival' && !hasRoom)}
+          style={{ flex: 1, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '9px 0', borderRadius: 9, border: 'none', fontSize: 13, fontWeight: 700, fontFamily: 'Cairo, sans-serif',
+            background: (busy || (kind === 'arrival' && !hasRoom)) ? '#E5E7EB' : cfg.bg,
+            color: (busy || (kind === 'arrival' && !hasRoom)) ? '#9CA3AF' : '#fff',
+            cursor: (busy || (kind === 'arrival' && !hasRoom)) ? 'not-allowed' : 'pointer' }}>
+          <cfg.Icon size={14} /> {cfg.btn}
+        </button>
+        <button onClick={onOpen} title="التفاصيل"
+          style={{ padding: '9px 14px', borderRadius: 9, border: '1px solid #E5E7EB', background: '#F9FAFB', color: '#374151', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12.5, fontWeight: 700, fontFamily: 'Cairo, sans-serif' }}>
+          التفاصيل <FiChevronLeft size={13} />
+        </button>
+      </div>
+    </div>
+  )
+}
+
+/* ─────────────────────────────────────────────────────────────
+   Inline extend-stay editor (rendered inside the booking detail)
 ───────────────────────────────────────────────────────────── */
 function ExtendStayControl({ booking, busy, error, onSave }) {
   const current = booking.checkOut?.toDate
@@ -1218,6 +1644,475 @@ function AssignRoomControl({ booking, rooms, bookings, busy, error, onAssign }) 
 }
 
 /* ─────────────────────────────────────────────────────────────
+   Folio panel — TWO separate ledgers so the room bill stays clear
+   of the extras (restaurant/café) bill. Each ledger has its own
+   total, paid, and remaining. Shared by the booking detail page and
+   the Charge-to-Room tab.
+───────────────────────────────────────────────────────────── */
+function FolioPanel({ booking, editablePrice = false }) {
+  const fin = computeBookingFinance(booking)
+  const charges  = Array.isArray(booking.charges)  ? booking.charges  : []
+  const payments = Array.isArray(booking.payments) ? booking.payments : []
+  const roomPayments   = payments.filter(p => (p.ledger || 'room') === 'room')
+  const extrasPayments = payments.filter(p => p.ledger === 'extras')
+
+  const [busy, setBusy]   = useState(false)
+  const [error, setError] = useState('')
+
+  // Room-price editor
+  const [editingPrice, setEditingPrice] = useState(false)
+  const [priceInput, setPriceInput]     = useState(booking.totalPrice != null ? String(booking.totalPrice) : '')
+  useEffect(() => { setPriceInput(booking.totalPrice != null ? String(booking.totalPrice) : '') }, [booking.totalPrice])
+
+  // Add-charge form
+  const [cLabel, setCLabel] = useState('')
+  const [cAmount, setCAmount] = useState('')
+  const [cCat, setCCat]     = useState('restaurant')
+
+  const run = async (fn) => {
+    setBusy(true); setError('')
+    try { await fn() }
+    catch (e) { setError(e?.message === 'INVALID_AMOUNT' ? 'المبلغ غير صالح' : 'فشل الحفظ: ' + (e?.message || '')) }
+    finally { setBusy(false) }
+  }
+
+  const savePrice = () => run(async () => {
+    await updateBookingRoomPrice(booking.id, priceInput)
+    setEditingPrice(false)
+  })
+  const submitCharge = () => {
+    if (!(parseFloat(cAmount) > 0)) { setError('أدخل مبلغاً صحيحاً للرسم'); return }
+    run(async () => {
+      await addBookingCharge(booking.id, { label: cLabel, amount: parseFloat(cAmount), category: cCat })
+      setCLabel(''); setCAmount('')
+    })
+  }
+  const addPayment = (ledger, { amount, method }, reset) => run(async () => {
+    await addBookingPayment(booking.id, { amount, method, ledger })
+    reset && reset()
+  })
+
+  const fmtAt = (at) => {
+    const d = at?.toDate ? at.toDate() : (at ? new Date(at) : null)
+    if (!d || isNaN(d.getTime())) return ''
+    return d.toLocaleDateString('ar-SY', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
+  }
+
+  return (
+    <div style={{ background: '#fff', border: '1px solid #E5E7EB', borderRadius: 10, padding: '14px 16px' }}>
+      {/* Header + grand remaining */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 12, flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <FiCreditCard size={15} color="#6B7280" />
+          <span style={{ fontSize: 13, fontWeight: 700, color: '#374151' }}>الحساب والمدفوعات</span>
+          <PaymentStatusPill status={fin.paymentStatus} />
+        </div>
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
+          <span style={{ fontSize: 12, color: '#9CA3AF' }}>الإجمالي المتبقّي</span>
+          <span style={{ fontSize: 20, fontWeight: 800, color: fin.balance > 0 ? '#b45309' : '#15803d' }}>${fin.balance}</span>
+        </div>
+      </div>
+
+      {/* Grand summary */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, marginBottom: 14 }}>
+        {[
+          ['الإجمالي', `$${fin.grandTotal}`, '#111827'],
+          ['المدفوع', `$${fin.paidTotal}`, '#15803d'],
+          ['المتبقّي', `$${fin.balance}`, fin.balance > 0 ? '#b45309' : '#15803d'],
+        ].map(([l, v, c]) => (
+          <div key={l} style={{ background: '#F9FAFB', border: '1px solid #F3F4F6', borderRadius: 8, padding: '8px 10px', textAlign: 'center' }}>
+            <p style={{ fontSize: 16, fontWeight: 700, color: c, lineHeight: 1.2 }}>{v}</p>
+            <p style={{ fontSize: 10.5, color: '#9CA3AF', marginTop: 2 }}>{l}</p>
+          </div>
+        ))}
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 14 }}>
+        {/* ── Room ledger ── */}
+        <div style={{ border: '1px solid #E5E7EB', borderRadius: 9, padding: '12px 12px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10 }}>
+            <FiHome size={13} color="#3d5a3a" />
+            <span style={{ fontSize: 12.5, fontWeight: 700, color: '#374151' }}>حساب الغرفة</span>
+          </div>
+
+          {/* Price row */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 8, flexWrap: 'wrap' }}>
+            <span style={{ fontSize: 12, color: '#9CA3AF' }}>سعر الغرفة</span>
+            {editingPrice ? (
+              <div style={{ display: 'flex', gap: 5, alignItems: 'center' }}>
+                <input type="number" min={0} value={priceInput} onChange={e => setPriceInput(e.target.value)} placeholder="$" autoFocus style={{ ...fieldStyle, width: 90, padding: '5px 8px', fontSize: 12 }} />
+                <button onClick={savePrice} disabled={busy} style={{ ...folioAddBtn, padding: '5px 10px' }}><FiCheck size={12} /></button>
+                <button onClick={() => { setEditingPrice(false); setPriceInput(booking.totalPrice != null ? String(booking.totalPrice) : '') }} style={{ background: 'none', border: 'none', color: '#9CA3AF', cursor: 'pointer', display: 'flex', padding: 3 }}><FiX size={14} /></button>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                <span style={{ fontSize: 15, fontWeight: 800, color: booking.totalPrice != null ? '#111827' : '#9CA3AF' }}>
+                  {booking.totalPrice != null ? `$${fin.roomTotal}` : 'غير محدد'}
+                </span>
+                {editablePrice && (
+                  <button onClick={() => setEditingPrice(true)} title="تعديل السعر" style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 11, fontWeight: 700, color: '#3d5a3a', background: '#F0F7F0', border: '1px solid #BBF7D0', borderRadius: 6, padding: '3px 8px', cursor: 'pointer', fontFamily: 'Cairo, sans-serif' }}>
+                    <FiEdit2 size={11} /> تعديل
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Room mini-stats */}
+          <div style={{ display: 'flex', gap: 8, fontSize: 11.5, marginBottom: 10 }}>
+            <span style={{ color: '#15803d' }}>مدفوع: <strong>${fin.roomPaid}</strong></span>
+            <span style={{ color: fin.roomBalance > 0 ? '#b45309' : '#15803d' }}>المتبقّي: <strong>${Math.max(0, fin.roomBalance)}</strong></span>
+          </div>
+
+          {/* Room payments */}
+          {roomPayments.length > 0 && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 10 }}>
+              {roomPayments.map(p => (
+                <FolioLineRow key={p.id} tone="pay" badge={PAYMENT_METHOD_LABEL[p.method] || p.method}
+                  text={p.note || 'دفعة غرفة'} at={fmtAt(p.at)} amount={p.amount}
+                  busy={busy} onRemove={() => run(() => removeBookingPayment(booking.id, p.id))} />
+              ))}
+            </div>
+          )}
+          <AddPaymentForm balance={Math.max(0, fin.roomBalance)} busy={busy} label="دفعة غرفة"
+            onAdd={(pmt, reset) => addPayment('room', pmt, reset)} />
+        </div>
+
+        {/* ── Extras ledger ── */}
+        <div style={{ border: '1px solid #E5E7EB', borderRadius: 9, padding: '12px 12px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10 }}>
+            <FiCoffee size={13} color="#b45309" />
+            <span style={{ fontSize: 12.5, fontWeight: 700, color: '#374151' }}>الرسوم الإضافية (مطعم، كافيه…)</span>
+          </div>
+
+          {/* Charges list */}
+          {charges.length === 0
+            ? <p style={{ fontSize: 12, color: '#9CA3AF', marginBottom: 8 }}>لا توجد رسوم بعد.</p>
+            : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 8 }}>
+                {charges.map(c => (
+                  <FolioLineRow key={c.id} tone="charge" badge={CHARGE_CATEGORY_LABEL[c.category] || c.category}
+                    text={c.label} at={fmtAt(c.at)} amount={c.amount}
+                    busy={busy} onRemove={() => run(() => removeBookingCharge(booking.id, c.id))} />
+                ))}
+              </div>
+            )}
+          {/* Add charge */}
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center', marginBottom: 10 }}>
+            <input value={cLabel} onChange={e => setCLabel(e.target.value)} placeholder="الوصف (مثال: غداء)" style={{ ...fieldStyle, flex: 1, minWidth: 100, padding: '7px 10px', fontSize: 12 }} />
+            <input type="number" min={0} value={cAmount} onChange={e => setCAmount(e.target.value)} placeholder="$" style={{ ...fieldStyle, width: 64, padding: '7px 10px', fontSize: 12 }} />
+            <select value={cCat} onChange={e => setCCat(e.target.value)} style={{ ...fieldStyle, width: 96, padding: '7px 8px', fontSize: 12 }}>
+              {CHARGE_CATEGORIES.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
+            </select>
+            <button onClick={submitCharge} disabled={busy} style={{ ...folioAddBtn, background: '#b45309' }}><FiPlus size={13} /> رسم</button>
+          </div>
+
+          {/* Extras mini-stats */}
+          <div style={{ display: 'flex', gap: 8, fontSize: 11.5, marginBottom: 10, paddingTop: 8, borderTop: '1px dashed #F3F4F6' }}>
+            <span style={{ color: '#374151' }}>المجموع: <strong>${fin.chargesTotal}</strong></span>
+            <span style={{ color: '#15803d' }}>مدفوع: <strong>${fin.extrasPaid}</strong></span>
+            <span style={{ color: fin.extrasBalance > 0 ? '#b45309' : '#15803d' }}>المتبقّي: <strong>${Math.max(0, fin.extrasBalance)}</strong></span>
+          </div>
+
+          {/* Extras payments */}
+          {extrasPayments.length > 0 && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 10 }}>
+              {extrasPayments.map(p => (
+                <FolioLineRow key={p.id} tone="pay" badge={PAYMENT_METHOD_LABEL[p.method] || p.method}
+                  text={p.note || 'دفعة رسوم'} at={fmtAt(p.at)} amount={p.amount}
+                  busy={busy} onRemove={() => run(() => removeBookingPayment(booking.id, p.id))} />
+              ))}
+            </div>
+          )}
+          <AddPaymentForm balance={Math.max(0, fin.extrasBalance)} busy={busy} label="دفعة رسوم"
+            onAdd={(pmt, reset) => addPayment('extras', pmt, reset)} />
+        </div>
+      </div>
+
+      {error && (
+        <div style={{ display: 'inline-flex', alignItems: 'center', gap: 5, marginTop: 10, fontSize: 12, color: '#b91c1c' }}>
+          <FiAlertCircle size={12} /> {error}
+        </div>
+      )}
+    </div>
+  )
+}
+
+/* One line in a folio ledger — a charge (tone="charge") or a payment (tone="pay"). */
+function FolioLineRow({ tone, badge, text, at, amount, onRemove, busy }) {
+  const pay = tone === 'pay'
+  const bg  = pay ? '#F0FDF4' : '#FAFAFA'
+  const badgeStyle = pay
+    ? { color: '#15803d', background: '#fff', border: '1px solid #BBF7D0' }
+    : { color: '#b45309', background: '#FFFBEB', border: '1px solid #FDE68A' }
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12.5, padding: '6px 8px', background: bg, borderRadius: 7 }}>
+      {badge && <span style={{ fontSize: 10, fontWeight: 700, borderRadius: 4, padding: '1px 6px', flexShrink: 0, ...badgeStyle }}>{badge}</span>}
+      <span style={{ flex: 1, color: '#374151', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{text} <span style={{ color: '#C4C4C4', fontSize: 10 }}>{at}</span></span>
+      <span style={{ fontWeight: 700, color: pay ? '#15803d' : '#111827', flexShrink: 0 }}>{pay ? '−' : ''}${amount}</span>
+      {onRemove && <button onClick={onRemove} disabled={busy} title="حذف" style={{ padding: 3, borderRadius: 5, border: 'none', background: 'none', color: '#DC2626', cursor: 'pointer', display: 'flex', flexShrink: 0 }}><FiX size={13} /></button>}
+    </div>
+  )
+}
+
+/* Amount + method + "pay the remaining" shortcut + submit. */
+function AddPaymentForm({ balance, busy, onAdd, label = 'دفعة' }) {
+  const [amount, setAmount] = useState('')
+  const [method, setMethod] = useState('cash')
+  const submit = () => {
+    if (!(parseFloat(amount) > 0)) return
+    onAdd({ amount: parseFloat(amount), method }, () => setAmount(''))
+  }
+  return (
+    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+      <input type="number" min={0} value={amount} onChange={e => setAmount(e.target.value)} placeholder="$" style={{ ...fieldStyle, width: 64, padding: '7px 10px', fontSize: 12 }} />
+      <select value={method} onChange={e => setMethod(e.target.value)} style={{ ...fieldStyle, width: 100, padding: '7px 8px', fontSize: 12 }}>
+        {PAYMENT_METHODS.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
+      </select>
+      {balance > 0 && (
+        <button onClick={() => setAmount(String(balance))} disabled={busy} title="دفع كامل المتبقّي" style={{ ...folioAddBtn, background: '#F9FAFB', color: '#374151', border: '1px solid #E5E7EB' }}>${balance}</button>
+      )}
+      <button onClick={submit} disabled={busy} style={{ ...folioAddBtn, background: '#15803d' }}><FiPlus size={13} /> {label}</button>
+    </div>
+  )
+}
+
+const folioAddBtn = {
+  display: 'inline-flex', alignItems: 'center', gap: 4, padding: '7px 12px', borderRadius: 7,
+  border: 'none', background: '#1C2B1C', color: '#fff', fontSize: 12, fontWeight: 700,
+  fontFamily: 'Cairo, sans-serif', cursor: 'pointer', whiteSpace: 'nowrap',
+}
+
+/* ─────────────────────────────────────────────────────────────
+   Charge-to-Room tab — the restaurant / café flow.
+   Staff pick an in-house guest and push a bill onto their room.
+───────────────────────────────────────────────────────────── */
+function ChargeToRoomTab({ bookings, loading }) {
+  const [search, setSearch]   = useState('')
+  const [openId, setOpenId]   = useState(null)
+
+  if (loading) return <PageLoader />
+
+  // In-house guests: an assigned room and an active (not left/cancelled) stay.
+  const inHouse = bookings
+    .filter(b => b.roomId && ['confirmed', 'checked-in', 'pending'].includes(b.status))
+    .filter(b => {
+      if (!search) return true
+      const q = search.toLowerCase()
+      return b.guestName?.toLowerCase().includes(q)
+        || b.guestPhone?.includes(search)
+        || String(b.roomNumber || '').includes(search)
+    })
+    .sort((a, b) => +(a.roomNumber || 0) - +(b.roomNumber || 0))
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+      <div style={{ background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 10, padding: '12px 16px', fontSize: 13, color: '#92400E', lineHeight: 1.6 }}>
+        أضف فاتورة المطعم أو الكافيه على غرفة النزيل مباشرةً. اختر النزيل ثم أضف الرسم — يُحسب المتبقّي تلقائياً.
+      </div>
+
+      <div style={{ position: 'relative', maxWidth: 420 }}>
+        <FiSearch size={14} style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', color: '#9CA3AF', pointerEvents: 'none' }} />
+        <input value={search} onChange={e => setSearch(e.target.value)} placeholder="بحث برقم الغرفة أو اسم النزيل..." style={{ ...fieldStyle, paddingRight: 36 }} />
+      </div>
+
+      {inHouse.length === 0 ? (
+        <Empty icon={<FiCoffee size={28} />} text="لا يوجد نزلاء بغرف معيّنة حالياً." />
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {inHouse.map(b => {
+            const fin  = computeBookingFinance(b)
+            const open = openId === b.id
+            return (
+              <div key={b.id} style={{ background: '#fff', border: '1px solid #E5E7EB', borderRadius: 12, overflow: 'hidden', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
+                <button onClick={() => setOpenId(open ? null : b.id)} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 14, padding: '14px 16px', background: 'none', border: 'none', cursor: 'pointer', textAlign: 'right', fontFamily: 'Cairo, sans-serif' }}>
+                  <div style={{ width: 46, height: 40, borderRadius: 9, background: '#1C2B1C', color: '#86efac', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, fontWeight: 800, flexShrink: 0 }}>{b.roomNumber}</div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <p style={{ fontSize: 14, fontWeight: 700, color: '#111827' }}>{b.guestName}</p>
+                    <p style={{ fontSize: 12, color: '#9CA3AF' }}>غرفة {b.roomNumber} · {b.roomNameAr || ''}</p>
+                  </div>
+                  <div style={{ textAlign: 'left', flexShrink: 0 }}>
+                    <p style={{ fontSize: 17, fontWeight: 800, color: fin.balance > 0 ? '#b45309' : '#15803d' }}>${fin.balance}</p>
+                    <p style={{ fontSize: 10.5, color: '#9CA3AF' }}>المتبقّي</p>
+                  </div>
+                  <PaymentStatusPill status={fin.paymentStatus} />
+                  <FiChevronDown size={16} color="#9CA3AF" style={{ transform: open ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s', flexShrink: 0 }} />
+                </button>
+                {open && (
+                  <div style={{ padding: '0 16px 16px' }}>
+                    <FolioPanel booking={b} />
+                  </div>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
+
+/* ─────────────────────────────────────────────────────────────
+   Reservation calendar — a room × day "tape chart". Rooms are rows,
+   days are columns; each booking is a bar spanning its nights, colored
+   by status. Slide week by week, and export the view to PDF.
+───────────────────────────────────────────────────────────── */
+const CAL_DAYS = 7
+
+function CalendarTab({ bookings, rooms, loading, onOpen }) {
+  const [anchor, setAnchor] = useState(() => new Date(new Date().toISOString().split('T')[0]))
+  const gridRef = useRef(null)
+
+  if (loading) return <PageLoader />
+
+  const toStr = d => d.toISOString().split('T')[0]
+  const todayStr = toStr(new Date())
+  const dayStr = v => {
+    const dt = v?.toDate ? v.toDate() : (v ? new Date(v) : null)
+    return dt && !isNaN(dt.getTime()) ? toStr(dt) : ''
+  }
+
+  const days = Array.from({ length: CAL_DAYS }, (_, i) => {
+    const d = new Date(anchor); d.setDate(d.getDate() + i); return d
+  })
+  const dayStrs = days.map(toStr)
+
+  const sortedRooms = rooms.slice().sort((a, b) => (+a.number || 0) - (+b.number || 0))
+  const bookingsFor = (roomId) => bookings.filter(b => b.roomId === roomId && b.status !== 'cancelled')
+  const covering = (list, ds) => list.find(b => {
+    const ci = dayStr(b.checkIn), co = dayStr(b.checkOut)
+    return ci && co && ds >= ci && ds < co
+  })
+
+  const shift = n => setAnchor(a => { const d = new Date(a); d.setDate(d.getDate() + n); return d })
+  const rangeLabel = `${days[0].toLocaleDateString('ar-SY', { day: 'numeric', month: 'short' })} — ${days[CAL_DAYS - 1].toLocaleDateString('ar-SY', { day: 'numeric', month: 'short', year: 'numeric' })}`
+
+  const exportPdf = () => {
+    const html = gridRef.current?.outerHTML || ''
+    const w = window.open('', '_blank')
+    if (!w) { alert('يرجى السماح بالنوافذ المنبثقة لتصدير PDF'); return }
+    const legend = Object.entries(STATUS)
+      .filter(([k]) => k !== 'cancelled')
+      .map(([, s]) => `<span style="display:inline-flex;align-items:center;gap:5px;margin-left:14px;font-size:11px"><span style="width:11px;height:11px;border-radius:3px;background:${s.bg};border:1px solid ${s.color}"></span>${s.label}</span>`)
+      .join('')
+    w.document.write(`<!doctype html><html dir="rtl" lang="ar"><head><meta charset="utf-8"><title>تقويم الحجوزات — ${rangeLabel}</title>
+      <style>
+        *{ -webkit-print-color-adjust:exact; print-color-adjust:exact; box-sizing:border-box; font-family:'Cairo','Segoe UI',Arial,sans-serif; }
+        body{ margin:22px; color:#111827; }
+        h1{ font-size:17px; margin:0 0 3px; }
+        p.sub{ color:#6B7280; font-size:12px; margin:0 0 10px; }
+        .legend{ margin:0 0 14px; }
+        table{ width:100%; border-collapse:collapse; table-layout:fixed; }
+        th,td{ border:1px solid #E5E7EB; padding:5px 6px; font-size:11px; text-align:center; vertical-align:middle; }
+        @page{ size:landscape; margin:12mm; }
+      </style></head><body>
+      <h1>منتجع العلبي — تقويم الحجوزات</h1>
+      <p class="sub">${rangeLabel}</p>
+      <div class="legend">${legend}</div>
+      ${html}
+      </body></html>`)
+    w.document.close(); w.focus()
+    setTimeout(() => w.print(), 350)
+  }
+
+  const renderRow = (list) => {
+    const cells = []
+    let i = 0
+    while (i < CAL_DAYS) {
+      const ds = dayStrs[i]
+      const b = covering(list, ds)
+      if (b) {
+        let span = 1
+        while (i + span < CAL_DAYS && covering(list, dayStrs[i + span])?.id === b.id) span++
+        const s = STATUS[b.status] || STATUS.confirmed
+        cells.push(
+          <td key={ds} colSpan={span} onClick={() => onOpen(b.id)}
+            style={{ border: '1px solid #E5E7EB', padding: 3, cursor: 'pointer', background: '#fff' }}>
+            <div title={`${b.guestName} · ${s.label}`}
+              style={{ background: s.bg, border: `1px solid ${s.border}`, borderRight: `3px solid ${s.color}`, borderRadius: 6, padding: '5px 8px', textAlign: 'right', overflow: 'hidden' }}>
+              <span style={{ display: 'block', fontSize: 11.5, fontWeight: 700, color: s.color, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{b.guestName}</span>
+              <span style={{ fontSize: 10, color: s.color, opacity: 0.8 }}>{s.label}</span>
+            </div>
+          </td>
+        )
+        i += span
+      } else {
+        cells.push(<td key={ds} style={{ border: '1px solid #E5E7EB', background: ds === todayStr ? '#F0FDF4' : '#fff' }} />)
+        i++
+      }
+    }
+    return cells
+  }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      {/* Toolbar */}
+      <div style={{ background: '#fff', borderRadius: 10, border: '1px solid #E5E7EB', padding: '12px 16px', display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
+        <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+          <button onClick={() => shift(-CAL_DAYS)} title="الأسبوع السابق" style={calNavBtn}><FiChevronRight size={16} /></button>
+          <button onClick={() => setAnchor(new Date(todayStr))} style={{ ...calNavBtn, width: 'auto', padding: '0 14px', fontSize: 12.5, fontWeight: 700 }}>اليوم</button>
+          <button onClick={() => shift(CAL_DAYS)} title="الأسبوع التالي" style={calNavBtn}><FiChevronLeft size={16} /></button>
+        </div>
+        <span style={{ fontSize: 14, fontWeight: 700, color: '#111827' }}>{rangeLabel}</span>
+        <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginRight: 'auto', flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+            {Object.entries(STATUS).filter(([k]) => k !== 'cancelled').map(([k, s]) => (
+              <span key={k} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11.5, color: '#6B7280' }}>
+                <span style={{ width: 11, height: 11, borderRadius: 3, background: s.bg, border: `1px solid ${s.color}` }} />{s.label}
+              </span>
+            ))}
+          </div>
+          <Btn onClick={exportPdf} variant="outline" icon={<FiPrinter size={14} />}>تصدير PDF</Btn>
+        </div>
+      </div>
+
+      {sortedRooms.length === 0 ? (
+        <Empty icon={<FiGrid size={28} />} text="لا توجد غرف لعرضها." />
+      ) : (
+        <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #E5E7EB', overflowX: 'auto', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
+          <table ref={gridRef} style={{ width: '100%', minWidth: 720, borderCollapse: 'collapse', tableLayout: 'fixed' }}>
+            <colgroup>
+              <col style={{ width: 120 }} />
+              {days.map((d, i) => <col key={i} />)}
+            </colgroup>
+            <thead>
+              <tr>
+                <th style={{ ...calHeadCell, textAlign: 'right', position: 'sticky', right: 0, background: '#FAFAFA', zIndex: 2 }}>الغرفة</th>
+                {days.map(d => {
+                  const isToday = toStr(d) === todayStr
+                  return (
+                    <th key={toStr(d)} style={{ ...calHeadCell, background: isToday ? '#ECFDF3' : '#FAFAFA', color: isToday ? '#15803d' : '#6B7280' }}>
+                      <div style={{ fontSize: 10.5, fontWeight: 600 }}>{d.toLocaleDateString('ar-SY', { weekday: 'short' })}</div>
+                      <div style={{ fontSize: 13, fontWeight: 800, color: isToday ? '#15803d' : '#111827' }}>{d.getDate()}</div>
+                      <div style={{ fontSize: 9.5, color: '#9CA3AF' }}>{d.toLocaleDateString('ar-SY', { month: 'short' })}</div>
+                    </th>
+                  )
+                })}
+              </tr>
+            </thead>
+            <tbody>
+              {sortedRooms.map(room => (
+                <tr key={room.id}>
+                  <td style={{ ...calRoomCell, position: 'sticky', right: 0, zIndex: 1 }}>
+                    <div style={{ fontSize: 12.5, fontWeight: 700, color: '#111827' }}>غرفة {room.number}</div>
+                    <div style={{ fontSize: 10.5, color: '#9CA3AF' }}>{CATEGORY_LABEL_AR[room.type] || room.type} · {room.capacity}</div>
+                  </td>
+                  {renderRow(bookingsFor(room.id))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  )
+}
+
+const calNavBtn = { width: 34, height: 34, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', borderRadius: 8, border: '1px solid #E5E7EB', background: '#F9FAFB', color: '#374151', cursor: 'pointer', fontFamily: 'Cairo, sans-serif' }
+const calHeadCell = { border: '1px solid #E5E7EB', padding: '6px 4px', textAlign: 'center', whiteSpace: 'nowrap' }
+const calRoomCell = { border: '1px solid #E5E7EB', padding: '8px 10px', textAlign: 'right', background: '#fff', whiteSpace: 'nowrap' }
+
+/* ─────────────────────────────────────────────────────────────
    New Booking tab
 ───────────────────────────────────────────────────────────── */
 function NewBookingTab({ rooms, variants = [], bookings, onDone }) {
@@ -1233,7 +2128,7 @@ function NewBookingTab({ rooms, variants = [], bookings, onDone }) {
   const [guests,   setGuests]   = useState(2)
   const [roomId,   setRoomId]   = useState('')
   const [roomQ,    setRoomQ]    = useState('')
-  const [form,     setForm]     = useState({ guestName: '', guestPhone: '', guestEmail: '', notes: '', source: 'phone', status: 'confirmed', priceOverride: '' })
+  const [form,     setForm]     = useState({ guestName: '', guestPhone: '', guestEmail: '', notes: '', source: 'phone', status: 'confirmed', priceOverride: '', deposit: '' })
   const [saving,   setSaving]   = useState(false)
   const [error,    setError]    = useState('')
   const [success,  setSuccess]  = useState('')
@@ -1281,6 +2176,10 @@ function NewBookingTab({ rooms, variants = [], bookings, onDone }) {
       const room = selectedRoom
       const v    = selectedVariant
       const bookingNumber = await getNextBookingNumber()
+      const depositVal = parseFloat(form.deposit)
+      const payments = depositVal > 0
+        ? [{ id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6), amount: depositVal, method: 'cash', note: 'دفعة مقدمة', ledger: 'room', at: Timestamp.now() }]
+        : []
       await addDoc(collection(db, 'bookings'), {
         roomId: room.id, roomNumber: room.number,
         roomType: room.type, roomCapacity: room.capacity,
@@ -1290,11 +2189,11 @@ function NewBookingTab({ rooms, variants = [], bookings, onDone }) {
         guestName: form.guestName.trim(), guestPhone: form.guestPhone.trim(),
         guestEmail: form.guestEmail.trim(), notes: form.notes.trim(),
         source: form.source, status: form.status,
-        bookingNumber,
+        bookingNumber, payments, charges: [],
         createdAt: Timestamp.now(), createdBy: 'admin',
       })
       setSuccess(`تم إنشاء الحجز — رقم: #${formatBookingNumber(bookingNumber)}`)
-      setRoomId(''); setForm({ guestName: '', guestPhone: '', guestEmail: '', notes: '', source: 'phone', status: 'confirmed', priceOverride: '' })
+      setRoomId(''); setForm({ guestName: '', guestPhone: '', guestEmail: '', notes: '', source: 'phone', status: 'confirmed', priceOverride: '', deposit: '' })
       setCheckIn(today); setCheckOut(tomorrow); setGuests(2)
     } catch (e) { setError('فشل إنشاء الحجز: ' + e.message) }
     finally { setSaving(false) }
@@ -1486,6 +2385,18 @@ function NewBookingTab({ rooms, variants = [], bookings, onDone }) {
                   <span style={{ fontSize: 13, fontWeight: 700, color: '#111827' }}>الإجمالي</span>
                   <span style={{ fontSize: 18, fontWeight: 700, color: '#3d5a3a' }}>${totalPrice}</span>
                 </div>
+              )}
+            </div>
+
+            {/* Deposit paid now */}
+            <div style={{ padding: '12px 16px', borderBottom: '1px solid #F3F4F6' }}>
+              <label style={smallLbl}>دفعة مقدمة الآن ($) — اختياري</label>
+              <input type="number" value={form.deposit} onChange={e => set('deposit', e.target.value)} min={0}
+                placeholder="0" style={fieldStyle} />
+              {parseFloat(form.deposit) > 0 && totalPrice != null && (
+                <p style={{ fontSize: 11, color: '#b45309', marginTop: 5, fontWeight: 600 }}>
+                  المتبقّي بعد الدفعة: ${Math.max(0, totalPrice - parseFloat(form.deposit))}
+                </p>
               )}
             </div>
 
@@ -2209,6 +3120,16 @@ function StatusPill({ status }) {
   return (
     <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11, fontWeight: 700, padding: '3px 9px', borderRadius: 6, background: s.bg, color: s.color, border: `1px solid ${s.border}`, whiteSpace: 'nowrap' }}>
       <span style={{ width: 5, height: 5, borderRadius: '50%', background: s.color, flexShrink: 0 }} />
+      {s.label}
+    </span>
+  )
+}
+
+function PaymentStatusPill({ status }) {
+  const s = PAYMENT_STATUS[status] || PAYMENT_STATUS.unpaid
+  return (
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11, fontWeight: 700, padding: '3px 9px', borderRadius: 6, background: s.bg, color: s.color, border: `1px solid ${s.border}`, whiteSpace: 'nowrap' }}>
+      <FiCreditCard size={10} style={{ flexShrink: 0 }} />
       {s.label}
     </span>
   )

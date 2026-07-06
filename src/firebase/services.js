@@ -175,6 +175,114 @@ export async function countAvailableUnitsForVariant(roomType, roomCapacity, chec
   return Math.max(0, rooms.length - blocked - unassigned)
 }
 
+// ─── Folio: payments & extra charges ──────────────────────
+// A booking carries two optional arrays: `payments` (money received) and
+// `charges` (extra bills added to the room, e.g. the restaurant). The room
+// cost stays in `totalPrice`. Everything below is DERIVED — never stored —
+// so it can never drift out of sync with the arrays.
+//
+// Money is tracked as TWO separate ledgers so paying for the room is kept
+// distinct from paying for extras (restaurant, café…):
+//   • room   — pays down the room price (deposits, the rest on arrival,
+//              extra nights when a stay is extended). Payments with no
+//              `ledger` field are treated as room payments (legacy/deposit).
+//   • extras — pays down the `charges` (the restaurant bill, etc.).
+export function computeBookingFinance(booking) {
+  const roomTotal = Number(booking?.totalPrice) || 0
+  const charges   = Array.isArray(booking?.charges)  ? booking.charges  : []
+  const payments  = Array.isArray(booking?.payments) ? booking.payments : []
+  const chargesTotal = charges.reduce((s, c) => s + (Number(c?.amount) || 0), 0)
+
+  const roomPaid   = payments
+    .filter(p => (p?.ledger || 'room') === 'room')
+    .reduce((s, p) => s + (Number(p?.amount) || 0), 0)
+  const extrasPaid = payments
+    .filter(p => p?.ledger === 'extras')
+    .reduce((s, p) => s + (Number(p?.amount) || 0), 0)
+
+  const paidTotal     = roomPaid + extrasPaid
+  const grandTotal    = roomTotal + chargesTotal
+  const roomBalance   = roomTotal - roomPaid
+  const extrasBalance = chargesTotal - extrasPaid
+  const balance       = grandTotal - paidTotal
+
+  let paymentStatus = 'unpaid'
+  if (grandTotal > 0 && paidTotal >= grandTotal) paymentStatus = 'paid'
+  else if (paidTotal > 0) paymentStatus = 'partial'
+
+  return {
+    roomTotal, chargesTotal, grandTotal,
+    roomPaid, extrasPaid, paidTotal,
+    roomBalance, extrasBalance, balance,
+    paymentStatus,
+  }
+}
+
+// Set (or clear, when price is '' / null) the room price on a booking.
+export async function updateBookingRoomPrice(bookingId, price) {
+  if (!bookingId) throw new Error('INVALID_FOLIO_DATA')
+  const val = (price === '' || price == null) ? null : Number(price)
+  if (val != null && !(val >= 0)) throw new Error('INVALID_AMOUNT')
+  await updateDoc(doc(db, 'bookings', bookingId), { totalPrice: val, updatedAt: Timestamp.now() })
+}
+
+// Short, collision-resistant id for a folio line (client-generated).
+function folioLineId() {
+  return Date.now().toString(36) + Math.random().toString(36).slice(2, 6)
+}
+
+// Append a folio line to `field` ('charges' | 'payments') inside a transaction
+// so two staff adding at once can't clobber each other's array.
+async function appendFolioLine(bookingId, field, line) {
+  if (!bookingId) throw new Error('INVALID_FOLIO_DATA')
+  if (!(Number(line?.amount) > 0)) throw new Error('INVALID_AMOUNT')
+  const bookingRef = doc(db, 'bookings', bookingId)
+  const entry = { ...line, id: folioLineId(), amount: Number(line.amount), at: Timestamp.now() }
+  return await runTransaction(db, async (tx) => {
+    const snap = await tx.get(bookingRef)
+    if (!snap.exists()) throw new Error('BOOKING_NOT_FOUND')
+    const existing = Array.isArray(snap.data()[field]) ? snap.data()[field] : []
+    tx.update(bookingRef, { [field]: [...existing, entry], updatedAt: Timestamp.now() })
+    return entry
+  })
+}
+
+async function removeFolioLine(bookingId, field, lineId) {
+  if (!bookingId || !lineId) throw new Error('INVALID_FOLIO_DATA')
+  const bookingRef = doc(db, 'bookings', bookingId)
+  return await runTransaction(db, async (tx) => {
+    const snap = await tx.get(bookingRef)
+    if (!snap.exists()) throw new Error('BOOKING_NOT_FOUND')
+    const existing = Array.isArray(snap.data()[field]) ? snap.data()[field] : []
+    tx.update(bookingRef, { [field]: existing.filter(l => l.id !== lineId), updatedAt: Timestamp.now() })
+  })
+}
+
+export function addBookingCharge(bookingId, { label, amount, category }) {
+  return appendFolioLine(bookingId, 'charges', {
+    label: (label || '').trim() || 'رسم',
+    amount,
+    category: category || 'other',
+  })
+}
+
+export function removeBookingCharge(bookingId, chargeId) {
+  return removeFolioLine(bookingId, 'charges', chargeId)
+}
+
+export function addBookingPayment(bookingId, { amount, method, note, ledger }) {
+  return appendFolioLine(bookingId, 'payments', {
+    amount,
+    method: method || 'cash',
+    note: (note || '').trim(),
+    ledger: ledger === 'extras' ? 'extras' : 'room',
+  })
+}
+
+export function removeBookingPayment(bookingId, paymentId) {
+  return removeFolioLine(bookingId, 'payments', paymentId)
+}
+
 export async function getBookingById(bookingId) {
   const snap = await getDoc(doc(db, 'bookings', bookingId))
   if (!snap.exists()) return null
@@ -200,6 +308,37 @@ export async function getAllBookings() {
 
 export async function updateBookingStatus(bookingId, status) {
   await updateDoc(doc(db, 'bookings', bookingId), { status })
+}
+
+// ─── Front-desk: check-in / check-out ─────────────────────
+// Mark a guest as arrived. Requires a concrete room to be assigned first
+// (you can't hand over a key to an unassigned booking). Stamps checkedInAt.
+export async function checkInBooking(bookingId) {
+  if (!bookingId) throw new Error('INVALID_BOOKING_DATA')
+  const bookingRef = doc(db, 'bookings', bookingId)
+  return await runTransaction(db, async (tx) => {
+    const snap = await tx.get(bookingRef)
+    if (!snap.exists()) throw new Error('BOOKING_NOT_FOUND')
+    const b = snap.data()
+    if (!b.roomId) throw new Error('NO_ROOM_ASSIGNED')
+    tx.update(bookingRef, {
+      status: 'checked-in',
+      checkedInAt: b.checkedInAt || Timestamp.now(),
+      updatedAt: Timestamp.now(),
+    })
+  })
+}
+
+// Mark a guest as departed. The balance guard lives in the UI (the receptionist
+// is warned about any outstanding amount before confirming); here we just record
+// the departure and free the room for the next stay.
+export async function checkOutBooking(bookingId) {
+  if (!bookingId) throw new Error('INVALID_BOOKING_DATA')
+  await updateDoc(doc(db, 'bookings', bookingId), {
+    status: 'checked-out',
+    checkedOutAt: Timestamp.now(),
+    updatedAt: Timestamp.now(),
+  })
 }
 
 // Extend (or shorten) an existing booking's checkOut date.
