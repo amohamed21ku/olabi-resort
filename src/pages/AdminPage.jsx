@@ -1220,16 +1220,14 @@ function BookingDetailPage({
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           <FolioPanel booking={b} editablePrice />
 
-          {!b.roomId && (
-            <AssignRoomControl
-              booking={b}
-              rooms={rooms}
-              bookings={bookings}
-              busy={assigning}
-              error={assignErr}
-              onAssign={onAssign}
-            />
-          )}
+          <AssignRoomControl
+            booking={b}
+            rooms={rooms}
+            bookings={bookings}
+            busy={assigning}
+            error={assignErr}
+            onAssign={onAssign}
+          />
 
           <ExtendStayControl
             booking={b}
@@ -1585,6 +1583,7 @@ function ExtendStayControl({ booking, busy, error, onSave }) {
 ───────────────────────────────────────────────────────────── */
 function AssignRoomControl({ booking, rooms, bookings, busy, error, onAssign }) {
   const [pick, setPick] = useState('')
+  const assigned = !!booking.roomId
 
   const bIn  = booking.checkIn?.toDate  ? booking.checkIn.toDate()  : new Date(booking.checkIn)
   const bOut = booking.checkOut?.toDate ? booking.checkOut.toDate() : new Date(booking.checkOut)
@@ -1592,12 +1591,14 @@ function AssignRoomControl({ booking, rooms, bookings, busy, error, onAssign }) 
 
   // Match rooms with exact (type, capacity). Capacity must match because
   // each variant is a separate listing — a Premium-4 booking cannot be
-  // filled with a Premium-5 room (and vice versa).
+  // filled with a Premium-5 room (and vice versa). The room currently
+  // assigned to this booking is flagged so it can't be re-picked.
   const candidates = rooms
     .filter(r => r.active !== false
       && r.type === booking.roomType
       && (reqCap == null || Number(r.capacity) === reqCap))
     .map(r => {
+      const isCurrent = r.id === booking.roomId
       const bookingConflict = bookings.some(o => {
         if (o.id === booking.id) return false
         if (o.roomId !== r.id) return false
@@ -1607,29 +1608,33 @@ function AssignRoomControl({ booking, rooms, bookings, busy, error, onAssign }) 
         return oIn < bOut && oOut > bIn
       })
       const blocked = isRoomBlockedInRange(r, bIn, bOut)
-      return { room: r, conflict: bookingConflict || blocked, blocked }
+      return { room: r, isCurrent, conflict: bookingConflict || blocked, blocked }
     })
     .sort((a, b) => +a.room.number - +b.room.number)
 
+  const accent = assigned ? '#374151' : '#b45309'
+  const bg     = assigned ? '#F9FAFB' : '#FFFBEB'
+  const border = assigned ? '#E5E7EB' : '#FDE68A'
+
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 8, flexWrap: 'wrap', marginBottom: 10 }}>
-      <FiHome size={14} color="#b45309" />
-      <span style={{ fontSize: 12, fontWeight: 700, color: '#b45309' }}>تعيين غرفة</span>
-      <span style={{ fontSize: 11, color: '#92400E' }}>
-        الفئة: {CATEGORY_LABEL_AR[booking.roomType] || booking.roomType}
+    <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', background: bg, border: `1px solid ${border}`, borderRadius: 8, flexWrap: 'wrap' }}>
+      <FiHome size={14} color={accent} />
+      <span style={{ fontSize: 12, fontWeight: 700, color: accent }}>{assigned ? 'تغيير الغرفة' : 'تعيين غرفة'}</span>
+      <span style={{ fontSize: 11, color: assigned ? '#6B7280' : '#92400E' }}>
+        {assigned ? `الحالية: غرفة ${booking.roomNumber} · ` : ''}
+        {CATEGORY_LABEL_AR[booking.roomType] || booking.roomType}
         {reqCap ? ` · ${reqCap} ${reqCap === 1 ? 'شخص' : 'أشخاص'}` : ''}
-        {booking.guests ? ` · ${booking.guests} ضيف` : ''}
       </span>
       <select
         value={pick}
         onChange={e => setPick(e.target.value)}
         style={{ ...fieldStyle, padding: '6px 10px', width: 220, fontSize: 12 }}
       >
-        <option value="">— اختر غرفة —</option>
+        <option value="">{assigned ? '— اختر غرفة أخرى —' : '— اختر غرفة —'}</option>
         {candidates.length === 0 && <option disabled>لا توجد غرف بهذه السعة</option>}
-        {candidates.map(({ room, conflict, blocked }) => (
-          <option key={room.id} value={room.id} disabled={conflict}>
-            غرفة {room.number} · سعة {room.capacity}{conflict ? (blocked ? ' — محظورة' : ' — محجوزة') : ''}
+        {candidates.map(({ room, isCurrent, conflict, blocked }) => (
+          <option key={room.id} value={room.id} disabled={conflict || isCurrent}>
+            غرفة {room.number} · سعة {room.capacity}{isCurrent ? ' — الحالية' : conflict ? (blocked ? ' — محظورة' : ' — محجوزة') : ''}
           </option>
         ))}
       </select>
@@ -1646,8 +1651,8 @@ function AssignRoomControl({ booking, rooms, bookings, busy, error, onAssign }) 
         }}
       >
         {busy
-          ? <><FiRefreshCw size={12} style={{ animation: 'spin 1s linear infinite' }} /> جارٍ التعيين...</>
-          : <><FiCheck size={12} /> تعيين</>}
+          ? <><FiRefreshCw size={12} style={{ animation: 'spin 1s linear infinite' }} /> جارٍ الحفظ...</>
+          : <><FiCheck size={12} /> {assigned ? 'تغيير' : 'تعيين'}</>}
       </button>
       {error && (
         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12, color: '#b91c1c' }}>
