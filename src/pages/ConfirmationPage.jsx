@@ -2,10 +2,18 @@ import { useEffect, useRef, useState } from 'react'
 import { useParams, useSearchParams, Link } from 'react-router-dom'
 import { useLanguage } from '../App'
 import { t } from '../translations'
-import { getBookingById, buildWhatsAppUrl, formatBookingNumber } from '../firebase/services'
+import { getBookingById, buildWhatsAppUrl, formatBookingNumber, getBookingRooms } from '../firebase/services'
 import { FiCheck, FiHome, FiMessageCircle } from 'react-icons/fi'
 
 const AUTO_OPEN_DELAY_MS = 3000
+
+const STATUS_LABEL = {
+  pending:      { ar: 'قيد الانتظار', en: 'Pending' },
+  confirmed:    { ar: 'مؤكد',        en: 'Confirmed' },
+  'checked-in': { ar: 'داخل الفندق', en: 'Checked in' },
+  'checked-out':{ ar: 'غادر',        en: 'Checked out' },
+  cancelled:    { ar: 'ملغى',        en: 'Cancelled' },
+}
 
 export default function ConfirmationPage() {
   const { bookingId }   = useParams()
@@ -154,14 +162,21 @@ export default function ConfirmationPage() {
             {/* Booking info */}
             {booking && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '32px' }}>
-                {[
-                  { label: tr('booking_room'),     value: isRTL ? booking.roomNameAr : booking.roomNameEn },
+                {(() => {
+                  const lines = getBookingRooms(booking)
+                  const roomsVal = lines.length > 1
+                    ? `${lines.length} ${isRTL ? 'غرف' : 'rooms'} — ${lines.map(l => isRTL ? l.roomNameAr : (l.roomNameEn || l.roomNameAr)).filter(Boolean).join('، ')}`
+                    : (isRTL ? (lines[0]?.roomNameAr || booking.roomNameAr) : (lines[0]?.roomNameEn || booking.roomNameEn))
+                  const st = STATUS_LABEL[booking.status] || STATUS_LABEL.pending
+                  return [
+                  { label: tr('booking_room'),     value: roomsVal },
+                  { label: isRTL ? 'الحالة' : 'Status', value: isRTL ? st.ar : st.en },
                   { label: tr('booking_checkIn'),  value: formatDate(booking.checkIn) },
                   { label: tr('booking_checkOut'), value: formatDate(booking.checkOut) },
                   { label: tr('booking_nights'),   value: booking.nights },
                   { label: tr('booking_guests'),   value: booking.guests },
-                  { label: tr('booking_total'),    value: booking.totalPrice != null ? `$${booking.totalPrice}` : (isRTL ? 'عند الطلب' : 'On Request') },
-                ].map(({ label, value }) => (
+                  { label: tr('booking_total'),    value: booking.totalPrice != null ? `${booking.totalPrice}` : (isRTL ? 'عند الطلب' : 'On Request') },
+                ]})().map(({ label, value }) => (
                   <div key={label} style={{
                     display: 'flex',
                     justifyContent: 'space-between',

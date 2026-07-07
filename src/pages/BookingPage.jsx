@@ -6,6 +6,13 @@ import { useRoomVariant } from '../hooks/useRooms'
 import { createBooking, countAvailableUnitsForVariant } from '../firebase/services'
 import { FiArrowLeft, FiArrowRight, FiCheck, FiAlertCircle } from 'react-icons/fi'
 
+const qtyBtn = (disabled) => ({
+  width: 34, height: 34, borderRadius: 8, border: '1px solid var(--border)',
+  background: disabled ? '#f3f0ea' : 'var(--white)', color: disabled ? '#bbb' : 'var(--ink)',
+  fontSize: 20, fontWeight: 700, lineHeight: 1, cursor: disabled ? 'not-allowed' : 'pointer',
+  display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'inherit',
+})
+
 export default function BookingPage() {
   // :roomId param now carries the variant slug like 'superub-5'.
   const { roomId: variantSlug }    = useParams()
@@ -27,8 +34,9 @@ export default function BookingPage() {
   const [submitting, setSubmit]   = useState(false)
   const [error, setError]         = useState('')
   const [form, setForm]           = useState({ guestName: '', guestPhone: '', guestEmail: '', notes: '' })
-  const [available,    setAvailable] = useState(null)
+  const [available,    setAvailable] = useState(null)  // number of free units (null = unknown)
   const [checkingAvail, setChecking] = useState(false)
+  const [qty,          setQty]       = useState(1)     // how many rooms of this category
 
   const nights      = Math.max(1, Math.ceil((new Date(checkOut) - new Date(checkIn)) / 86400000))
   const minCheckOut = new Date(new Date(checkIn).getTime() + 86400000).toISOString().split('T')[0]
@@ -59,8 +67,8 @@ export default function BookingPage() {
     if (!variant || !checkIn || !checkOut) return
     setChecking(true)
     countAvailableUnitsForVariant(variant.type, variant.capacity, checkIn, checkOut)
-      .then(n => setAvailable(n > 0))
-      .catch(() => setAvailable(true))
+      .then(n => { setAvailable(n); setQty(q => Math.min(Math.max(1, q), Math.max(1, n))) })
+      .catch(() => setAvailable(null))
       .finally(() => setChecking(false))
   }, [variant?.id, checkIn, checkOut])
 
@@ -96,10 +104,12 @@ export default function BookingPage() {
     ? (variant.nameAr || `${categoryName} — لـ ${variant.capacity} أشخاص`)
     : (variant.nameEn || `${categoryName} — for ${variant.capacity} persons`)
   const mainImage = variant.heroImage
-  const isFull    = available === false
+  const isFull    = available === 0
+  const maxQty    = (typeof available === 'number' && available > 0) ? available : 8
 
   const summaryItems = [
     { label: isRTL ? 'الفئة' : 'Category', value: `${categoryName} — ${variant.capacity} ${tr('rooms_guests')}` },
+    { label: isRTL ? 'عدد الغرف' : 'Rooms', value: qty },
     { label: tr('booking_checkIn'),  value: formatDate(checkIn) },
     { label: tr('booking_checkOut'), value: formatDate(checkOut) },
     { label: tr('booking_nights'),   value: nights },
@@ -116,13 +126,17 @@ export default function BookingPage() {
     setSubmit(true)
 
     try {
+      const roomNameEn = variant.nameEn || `${tr(`type_${variant.type}`)} — for ${variant.capacity} persons`
+      const roomNameAr = variant.nameAr || `${tr(`type_${variant.type}`)} — لـ ${variant.capacity} أشخاص`
+      const count = Math.max(1, Math.min(qty, maxQty))
+      const roomLines = Array.from({ length: count }, () => ({
+        roomType: variant.type, roomCapacity: variant.capacity,
+        roomNameEn, roomNameAr,
+        checkIn, checkOut, price: variant.price ? variant.price * nights : null,
+      }))
       const { id } = await createBooking({
-        roomType:     variant.type,
-        roomCapacity: variant.capacity,
-        roomNameEn:   variant.nameEn || `${tr(`type_${variant.type}`)} — for ${variant.capacity} persons`,
-        roomNameAr:   variant.nameAr || `${tr(`type_${variant.type}`)} — لـ ${variant.capacity} أشخاص`,
+        rooms: roomLines,
         checkIn, checkOut, nights, guests,
-        totalPrice: null,
         guestName:  form.guestName.trim(),
         guestPhone: form.guestPhone.trim(),
         guestEmail: form.guestEmail.trim(),
@@ -132,7 +146,7 @@ export default function BookingPage() {
     } catch (err) {
       console.error('createBooking failed:', err?.code, err?.message, err)
       if (err?.code === 'ROOM_UNAVAILABLE' || err?.message === 'ROOM_UNAVAILABLE') {
-        setAvailable(false)
+        setAvailable(0)
         setError(unavailableMsg)
       } else {
         const code = err?.code || err?.message
@@ -203,6 +217,23 @@ export default function BookingPage() {
                   <input type="date" value={checkOut} min={minCheckOut}
                     onChange={e => handleCheckOutChange(e.target.value)}
                     className="form-input" style={{ padding: '12px 14px' }} />
+                </div>
+              </div>
+
+              {/* Number of rooms of this category */}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginTop: 14, paddingTop: 14, borderTop: '1px solid var(--border)' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--ink)', fontFamily: isRTL ? 'var(--font-ar)' : undefined }}>{isRTL ? 'عدد الغرف' : 'Number of rooms'}</span>
+                  {typeof available === 'number' && !isFull && (
+                    <span style={{ fontSize: 11, color: 'var(--muted)' }}>{isRTL ? `متاح: ${available}` : `${available} available`}</span>
+                  )}
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <button type="button" onClick={() => setQty(q => Math.max(1, q - 1))} disabled={qty <= 1}
+                    style={qtyBtn(qty <= 1)}>−</button>
+                  <span style={{ fontSize: 16, fontWeight: 800, minWidth: 24, textAlign: 'center', color: 'var(--ink)' }}>{qty}</span>
+                  <button type="button" onClick={() => setQty(q => Math.min(maxQty, q + 1))} disabled={qty >= maxQty}
+                    style={qtyBtn(qty >= maxQty)}>+</button>
                 </div>
               </div>
             </div>

@@ -2,12 +2,12 @@ import { useState, useEffect, useRef } from 'react'
 import { onAuthStateChanged, signInWithEmailAndPassword, signOut } from 'firebase/auth'
 import {
   collection, doc, onSnapshot, setDoc, updateDoc, deleteDoc,
-  query, orderBy, Timestamp, addDoc,
+  query, orderBy, Timestamp,
 } from 'firebase/firestore'
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage'
 import { auth, db, storage } from '../firebase/config'
 import { seedRooms, CATEGORIES } from '../firebase/seed'
-import { getNextBookingNumber, formatBookingNumber, buildCustomerWhatsAppUrl, extendBookingStay, assignRoomToBooking, setRoomBlock, clearRoomBlock, isRoomBlockedInRange, HIKE_DOC, DEFAULT_HIKE_CONTENT, saveHikeContent, buildHikeCustomerWhatsAppUrl, computeBookingFinance, addBookingCharge, removeBookingCharge, addBookingPayment, removeBookingPayment, updateBookingRoomPrice, checkInBooking, checkOutBooking, unassignRoomFromBooking } from '../firebase/services'
+import { createBooking, formatBookingNumber, buildCustomerWhatsAppUrl, setRoomBlock, clearRoomBlock, isRoomBlockedInRange, HIKE_DOC, DEFAULT_HIKE_CONTENT, saveHikeContent, buildHikeCustomerWhatsAppUrl, computeBookingFinance, addBookingCharge, removeBookingCharge, addBookingPayment, removeBookingPayment, checkInBooking, checkOutBooking, getBookingRooms, assignRoomLine, unassignRoomLine, addBookingRoomLine, removeBookingRoomLine, updateBookingRoomLine, setBookingDatesAllRooms } from '../firebase/services'
 
 const CATEGORY_OPTIONS = [
   { value: 'superub', labelAr: 'سوبر' },
@@ -70,6 +70,48 @@ const PAYMENT_METHODS = [
   { value: 'card',      label: 'بطاقة' },
 ]
 const PAYMENT_METHOD_LABEL = Object.fromEntries(PAYMENT_METHODS.map(m => [m.value, m.label]))
+
+/* ─── Multi-room helpers (read a booking's room-lines uniformly) ─── */
+function bookingRoomsInfo(b) {
+  const lines = getBookingRooms(b)
+  return {
+    lines,
+    count: lines.length,
+    numbers: lines.filter(l => l.roomId).map(l => l.roomNumber),
+    anyUnassigned: lines.some(l => !l.roomId),
+    hasAnyRoom: lines.some(l => l.roomId),
+  }
+}
+function roomsLabel(b) {
+  const { lines, numbers, anyUnassigned } = bookingRoomsInfo(b)
+  if (lines.length === 1) {
+    const l = lines[0]
+    return l.roomId ? `${l.roomNameAr || ''}${l.roomNumber ? ` #${l.roomNumber}` : ''}`.trim() : 'غير معيّنة'
+  }
+  const nums = numbers.join('، ')
+  return `${lines.length} غرف${nums ? ` · ${nums}` : ''}${anyUnassigned ? ' · بعضها غير معيّن' : ''}`
+}
+function bookingOccupiesRoom(b, roomId) {
+  return getBookingRooms(b).some(l => l.roomId === roomId)
+}
+function occupiedRoomIdSet(bookings) {
+  const s = new Set()
+  for (const b of bookings) {
+    if (['cancelled', 'checked-out'].includes(b.status)) continue
+    for (const l of getBookingRooms(b)) if (l.roomId) s.add(l.roomId)
+  }
+  return s
+}
+function bookingMatchesRoomSearch(b, search) {
+  if (!search) return true
+  const q = search.toLowerCase()
+  if (b.guestName?.toLowerCase().includes(q) || b.guestPhone?.includes(search)) return true
+  return getBookingRooms(b).some(l =>
+    String(l.roomNumber || '').includes(search)
+    || (l.roomNameAr || '').includes(search)
+    || (l.roomType || '').toLowerCase().includes(q)
+  )
+}
 
 const NAV_SECTIONS = [
   {
@@ -235,13 +277,11 @@ function Dashboard({ user }) {
   const openBooking = openBookingId ? bookings.find(b => b.id === openBookingId) : null
 
   const [updating,  setUpdating]  = useState(false)
-  const [assigning, setAssigning] = useState(false)
-  const [assignErr, setAssignErr] = useState('')
-  const [extending, setExtending] = useState(false)
-  const [extendErr, setExtendErr] = useState('')
   const [deleting,  setDeleting]  = useState(false)
   const [stageBusy, setStageBusy] = useState(false)
   const [stageErr,  setStageErr]  = useState('')
+  const [roomsBusy, setRoomsBusy] = useState(false)
+  const [roomsErr,  setRoomsErr]  = useState('')
 
   const changeStatus = async (id, status) => {
     setUpdating(true)
@@ -249,32 +289,21 @@ function Dashboard({ user }) {
     catch { alert('فشل التحديث') }
     finally { setUpdating(false) }
   }
-  const handleAssign = async (id, roomId) => {
-    setAssigning(true); setAssignErr('')
-    try { await assignRoomToBooking(id, roomId) }
-    catch (e) {
-      if (e?.code === 'ROOM_UNAVAILABLE')          setAssignErr('الغرفة محجوزة في هذه الفترة')
-      else if (e?.message === 'TYPE_MISMATCH')      setAssignErr('نوع الغرفة لا يطابق فئة الحجز')
-      else if (e?.message === 'CAPACITY_MISMATCH')  setAssignErr('سعة الغرفة لا تطابق سعة الحجز')
-      else setAssignErr('فشل التعيين: ' + (e?.message || ''))
-    }
-    finally { setAssigning(false) }
+
+  // One busy/error pair for all room-line edits (only one runs at a time).
+  const mapRoomErr = (e) => {
+    if (e?.code === 'ROOM_UNAVAILABLE')         return 'الغرفة محجوزة في هذه الفترة'
+    if (e?.message === 'TYPE_MISMATCH')         return 'نوع الغرفة لا يطابق فئة الحجز'
+    if (e?.message === 'CAPACITY_MISMATCH')     return 'سعة الغرفة لا تطابق سعة الحجز'
+    if (e?.message === 'LAST_ROOM')             return 'لا يمكن حذف آخر غرفة — احذف الحجز بدلاً من ذلك'
+    if (e?.message === 'INVALID_DATES')         return 'تواريخ غير صحيحة'
+    return 'تعذّر الحفظ: ' + (e?.message || '')
   }
-  const handleUnassign = async (id) => {
-    if (!confirm('إلغاء تعيين الغرفة لهذا الحجز؟ سيعود إلى قائمة «غير معيّنة».')) return
-    setAssigning(true); setAssignErr('')
-    try { await unassignRoomFromBooking(id) }
-    catch (e) { setAssignErr('فشل إلغاء التعيين: ' + (e?.message || '')) }
-    finally { setAssigning(false) }
-  }
-  const handleExtend = async (id, newCheckOut) => {
-    setExtending(true); setExtendErr('')
-    try { await extendBookingStay(id, newCheckOut) }
-    catch (e) {
-      if (e?.code === 'ROOM_UNAVAILABLE') setExtendErr('الغرفة محجوزة في الفترة الجديدة')
-      else setExtendErr('فشل التمديد: ' + (e?.message || ''))
-    }
-    finally { setExtending(false) }
+  const runRooms = async (fn) => {
+    setRoomsBusy(true); setRoomsErr('')
+    try { await fn() }
+    catch (e) { setRoomsErr(mapRoomErr(e)) }
+    finally { setRoomsBusy(false) }
   }
   const handleDeleteBooking = async (b) => {
     if (!confirm(`حذف حجز ${b.guestName}؟`)) return false
@@ -430,13 +459,14 @@ function Dashboard({ user }) {
               onBack={() => setOpenBookingId(null)}
               updating={updating}
               onChangeStatus={(s) => changeStatus(openBooking.id, s)}
-              assigning={assigning}
-              assignErr={assignErr}
-              onAssign={(rid) => handleAssign(openBooking.id, rid)}
-              onUnassign={() => handleUnassign(openBooking.id)}
-              extending={extending}
-              extendErr={extendErr}
-              onExtend={(d) => handleExtend(openBooking.id, d)}
+              roomsBusy={roomsBusy}
+              roomsErr={roomsErr}
+              onAssignLine={(lineId, rid) => runRooms(() => assignRoomLine(openBooking.id, lineId, rid))}
+              onUnassignLine={(lineId) => runRooms(() => unassignRoomLine(openBooking.id, lineId))}
+              onUpdateLine={(lineId, patch) => runRooms(() => updateBookingRoomLine(openBooking.id, lineId, patch))}
+              onAddLine={(data) => runRooms(() => addBookingRoomLine(openBooking.id, data))}
+              onRemoveLine={(lineId) => { if (confirm('حذف هذه الغرفة من الحجز؟')) runRooms(() => removeBookingRoomLine(openBooking.id, lineId)) }}
+              onSetAllDates={(ci, co) => runRooms(() => setBookingDatesAllRooms(openBooking.id, ci, co))}
               deleting={deleting}
               onDelete={async () => { if (await handleDeleteBooking(openBooking)) setOpenBookingId(null) }}
               stageBusy={stageBusy}
@@ -474,7 +504,7 @@ function DashboardTab({ rooms, bookings, setTab }) {
   const active     = rooms.filter(r => r.active !== false).length
   const occupied   = bookings.filter(b => ['confirmed', 'checked-in'].includes(b.status)).length
   const pending    = bookings.filter(b => b.status === 'pending').length
-  const unassigned = bookings.filter(b => !b.roomId && !['cancelled', 'checked-out'].includes(b.status)).length
+  const unassigned = bookings.filter(b => bookingRoomsInfo(b).anyUnassigned && !['cancelled', 'checked-out'].includes(b.status)).length
   const revenue    = bookings.filter(b => b.status !== 'cancelled').reduce((s, b) => s + (b.totalPrice || 0), 0)
   const outstanding = bookings
     .filter(b => b.status !== 'cancelled')
@@ -543,7 +573,7 @@ function DashboardTab({ rooms, bookings, setTab }) {
                         <p style={{ fontSize: 13, fontWeight: 600, color: '#111827' }}>{b.guestName}</p>
                         <p style={{ fontSize: 11, color: '#9CA3AF' }}>{b.guestPhone}</p>
                       </td>
-                      <td style={{ padding: '12px 16px', fontSize: 13, color: '#374151' }}>{b.roomNameAr}</td>
+                      <td style={{ padding: '12px 16px', fontSize: 13, color: '#374151' }}>{roomsLabel(b)}</td>
                       <td style={{ padding: '12px 16px', fontSize: 12, color: '#6B7280' }}>{fmtD(b.checkIn)}</td>
                       <td style={{ padding: '12px 16px', fontSize: 12, color: '#6B7280' }}>{fmtD(b.checkOut)}</td>
                       <td style={{ padding: '12px 16px' }}>
@@ -612,7 +642,7 @@ function RoomsTab({ rooms, variants, bookings, loading, onAdd, onEdit, onSeed, s
   const floors   = ['all', ...new Set(rooms.map(r => r.floor).filter(Boolean).sort())]
   const types    = ['all', ...new Set(rooms.map(r => r.type).filter(Boolean).sort())]
   const activeBookings  = bookings.filter(b => ['confirmed', 'pending', 'checked-in'].includes(b.status))
-  const occupiedIds     = new Set(activeBookings.map(b => b.roomId))
+  const occupiedIds     = occupiedRoomIdSet(activeBookings)
 
   const filtered = rooms.filter(r => {
     const q = search.toLowerCase()
@@ -687,7 +717,7 @@ function RoomsTab({ rooms, variants, bookings, loading, onAdd, onEdit, onSeed, s
           {filtered.map(room => (
             <RoomCard key={room.id} room={room} onEdit={onEdit} onDelete={handleDelete} onToggle={toggleActive}
               deleting={deleting === room.id} isOccupied={occupiedIds.has(room.id)}
-              booking={activeBookings.find(b => b.roomId === room.id)} />
+              booking={activeBookings.find(b => bookingOccupiesRoom(b, room.id))} />
           ))}
         </div>
       )}
@@ -764,10 +794,11 @@ function AvailabilityTab({ rooms, variants = [], bookings, loading }) {
 
   const setRange = d => { setFrom(new Date().toISOString().split('T')[0]); setTo(new Date(Date.now() + d * 86400000).toISOString().split('T')[0]) }
   const getBooking = room => bookings.find(b => {
-    if (b.roomId !== room.id || ['cancelled', 'checked-out'].includes(b.status)) return false
-    const bIn  = b.checkIn?.toDate  ? b.checkIn.toDate()  : new Date(b.checkIn)
-    const bOut = b.checkOut?.toDate ? b.checkOut.toDate() : new Date(b.checkOut)
-    return bIn < new Date(to) && bOut > new Date(from)
+    if (['cancelled', 'checked-out'].includes(b.status)) return false
+    return getBookingRooms(b).some(l => {
+      if (l.roomId !== room.id) return false
+      return new Date(l.checkIn) < new Date(to) && new Date(l.checkOut) > new Date(from)
+    })
   })
   const fmtD = d => { try { return (d?.toDate ? d.toDate() : new Date(d)).toLocaleDateString('ar-SY', { day: 'numeric', month: 'short' }) } catch { return '—' } }
 
@@ -1003,13 +1034,10 @@ function BookingsTab({ bookings, loading, onOpen }) {
   const [deleting, setDel]      = useState(null)
 
   const filtered = bookings.filter(b => {
-    const isUnassigned = !b.roomId
+    const isUnassigned = bookingRoomsInfo(b).anyUnassigned
     const matchesUnassignedFilter = statusF === 'unassigned' ? isUnassigned : true
     const matchesStatus = statusF === 'all' || statusF === 'unassigned' || b.status === statusF
-    return matchesStatus && matchesUnassignedFilter
-      && (!search || b.guestName?.includes(search) || b.guestPhone?.includes(search)
-          || b.roomNameAr?.includes(search) || b.roomNumber?.includes(search)
-          || b.roomType?.includes(search))
+    return matchesStatus && matchesUnassignedFilter && bookingMatchesRoomSearch(b, search)
   })
 
   const changeStatus = async (id, status) => {
@@ -1048,7 +1076,7 @@ function BookingsTab({ bookings, loading, onOpen }) {
           ].map(([k, l]) => {
             const active = statusF === k
             const count = k === 'unassigned'
-              ? bookings.filter(b => !b.roomId && !['cancelled', 'checked-out'].includes(b.status)).length
+              ? bookings.filter(b => bookingRoomsInfo(b).anyUnassigned && !['cancelled', 'checked-out'].includes(b.status)).length
               : k === 'all'
                 ? null
                 : bookings.filter(b => b.status === k).length
@@ -1097,23 +1125,17 @@ function BookingsTab({ bookings, loading, onOpen }) {
                       <p style={{ fontSize: 11, color: '#9CA3AF' }}>{b.guestPhone}</p>
                     </td>
                     <td style={{ padding: '12px 14px', fontSize: 13, color: '#374151', whiteSpace: 'nowrap' }}>
-                      {b.roomId ? (
-                        <>
-                          {b.roomNameAr}<span style={{ color: '#9CA3AF', marginRight: 4 }}>#{b.roomNumber}</span>
-                        </>
-                      ) : (
-                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                          <span style={{ fontSize: 11, fontWeight: 700, color: '#b45309', background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 5, padding: '2px 8px' }}>
-                            غير معين
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                        {bookingRoomsInfo(b).count > 1 && (
+                          <span style={{ fontSize: 11, fontWeight: 700, color: '#1d4ed8', background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 5, padding: '2px 7px' }}>
+                            {bookingRoomsInfo(b).count} غرف
                           </span>
-                          {b.roomType && (
-                            <span style={{ fontSize: 12, color: '#6B7280' }}>
-                              {CATEGORY_LABEL_AR[b.roomType] || b.roomType}
-                              {b.roomCapacity ? ` · ${b.roomCapacity} ${b.roomCapacity === 1 ? 'شخص' : 'أشخاص'}` : ''}
-                            </span>
-                          )}
-                        </span>
-                      )}
+                        )}
+                        {bookingRoomsInfo(b).anyUnassigned && (
+                          <span style={{ fontSize: 11, fontWeight: 700, color: '#b45309', background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 5, padding: '2px 8px' }}>غير معين</span>
+                        )}
+                        <span style={{ fontSize: 12.5, color: '#374151' }}>{roomsLabel(b)}</span>
+                      </span>
                     </td>
                     <td style={{ padding: '12px 14px', fontSize: 12, color: '#6B7280', whiteSpace: 'nowrap' }}>{fmtD(b.checkIn)}</td>
                     <td style={{ padding: '12px 14px', fontSize: 12, color: '#6B7280', whiteSpace: 'nowrap' }}>{fmtD(b.checkOut)}</td>
@@ -1177,16 +1199,19 @@ function BookingsTab({ bookings, loading, onOpen }) {
 function BookingDetailPage({
   booking: b, rooms, bookings, onBack,
   updating, onChangeStatus,
-  assigning, assignErr, onAssign, onUnassign,
-  extending, extendErr, onExtend,
+  roomsBusy, roomsErr, onAssignLine, onUnassignLine, onUpdateLine, onAddLine, onRemoveLine, onSetAllDates,
   deleting, onDelete,
   stageBusy, stageErr, onCheckIn, onCheckOut,
 }) {
   const fin = computeBookingFinance(b)
+  const roomLines = getBookingRooms(b)
   const nights = b.nights || Math.max(1, Math.ceil((new Date(b.checkOut?.toDate?.() || b.checkOut) - new Date(b.checkIn?.toDate?.() || b.checkIn)) / 86400000))
   const fmtFull = d => { try { return (d?.toDate ? d.toDate() : new Date(d)).toLocaleDateString('ar-SY', { weekday: 'short', day: 'numeric', month: 'long', year: 'numeric' }) } catch { return '—' } }
   const fmtTime = d => { try { return (d?.toDate ? d.toDate() : new Date(d)).toLocaleString('ar-SY', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) } catch { return '—' } }
   const ref = b.bookingNumber != null ? formatBookingNumber(b.bookingNumber) : b.id.slice(0, 6).toUpperCase()
+  const roomsSummary = roomLines.length === 1
+    ? (roomLines[0].roomId ? `${roomLines[0].roomNameAr || ''} · ${roomLines[0].roomNumber}` : 'غير معيّنة')
+    : `${roomLines.length} غرف`
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -1224,26 +1249,22 @@ function BookingDetailPage({
       />
 
       <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 300px', gap: 16, alignItems: 'start' }}>
-        {/* Left column: money + controls */}
+        {/* Left column: rooms + money */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-          <FolioPanel booking={b} editablePrice />
-
-          <AssignRoomControl
+          <RoomsPanel
             booking={b}
             rooms={rooms}
             bookings={bookings}
-            busy={assigning}
-            error={assignErr}
-            onAssign={onAssign}
-            onUnassign={onUnassign}
+            busy={roomsBusy}
+            error={roomsErr}
+            onAssignLine={onAssignLine}
+            onUnassignLine={onUnassignLine}
+            onUpdateLine={onUpdateLine}
+            onAddLine={onAddLine}
+            onRemoveLine={onRemoveLine}
+            onSetAllDates={onSetAllDates}
           />
-
-          <ExtendStayControl
-            booking={b}
-            busy={extending}
-            error={extendErr}
-            onSave={onExtend}
-          />
+          <FolioPanel booking={b} />
         </div>
 
         {/* Right column: guest + stay info */}
@@ -1269,7 +1290,7 @@ function BookingDetailPage({
               <span style={{ fontSize: 13, fontWeight: 700, color: '#374151' }}>تفاصيل الإقامة</span>
             </div>
             <div style={{ padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 10, fontSize: 13 }}>
-              <InfoItem icon={<FiHome size={13} />} label="الغرفة" value={b.roomId ? `${b.roomNameAr || ''} · ${b.roomNumber}` : 'غير معيّنة'} />
+              <InfoItem icon={<FiHome size={13} />} label={roomLines.length > 1 ? 'الغرف' : 'الغرفة'} value={roomsSummary} />
               <InfoItem icon={<FiCalendar size={13} />} label="الوصول" value={fmtFull(b.checkIn)} />
               <InfoItem icon={<FiCalendar size={13} />} label="المغادرة" value={fmtFull(b.checkOut)} />
               <InfoItem icon={<FiClock size={13} />} label="الليالي" value={`${nights} ليلة`} />
@@ -1313,6 +1334,7 @@ function StageActionBar({ booking: b, fin, busy, error, onConfirm, onCheckIn, on
   })
 
   let tone = '#F9FAFB', bTone = '#E5E7EB', message = null, action = null
+  const hasAnyRoom = getBookingRooms(b).some(l => l.roomId)
 
   if (status === 'cancelled') {
     tone = '#FEF2F2'; bTone = '#FECACA'
@@ -1339,7 +1361,7 @@ function StageActionBar({ booking: b, fin, busy, error, onConfirm, onCheckIn, on
     )
   } else {
     // pending or confirmed → arriving guest
-    if (!b.roomId) {
+    if (!hasAnyRoom) {
       tone = '#FFFBEB'; bTone = '#FDE68A'
       message = 'قبل تسجيل الوصول، عيّن غرفة للحجز من الأسفل.'
     } else {
@@ -1353,7 +1375,7 @@ function StageActionBar({ booking: b, fin, busy, error, onConfirm, onCheckIn, on
             <FiCheck size={16} /> تأكيد الحجز
           </button>
         )}
-        <button onClick={onCheckIn} disabled={busy || !b.roomId} style={bigBtn('#15803d', busy || !b.roomId)}>
+        <button onClick={onCheckIn} disabled={busy || !hasAnyRoom} style={bigBtn('#15803d', busy || !hasAnyRoom)}>
           <FiLogIn size={16} /> {busy ? 'جارٍ...' : 'تسجيل الوصول'}
         </button>
       </div>
@@ -1389,11 +1411,7 @@ function FrontDeskTab({ bookings, rooms, loading, onOpen, onCheckIn, onCheckOut,
     return dt.toISOString().split('T')[0]
   }
   const active = b => !['cancelled', 'checked-out'].includes(b.status)
-  const matchesSearch = b => {
-    if (!search) return true
-    const q = search.toLowerCase()
-    return b.guestName?.toLowerCase().includes(q) || b.guestPhone?.includes(search) || String(b.roomNumber || '').includes(search)
-  }
+  const matchesSearch = b => bookingMatchesRoomSearch(b, search)
 
   const arrivals = bookings.filter(b => active(b) && b.status !== 'checked-in'
     && dayStr(b.checkIn) <= todayStr && dayStr(b.checkOut) > todayStr && matchesSearch(b))
@@ -1402,7 +1420,7 @@ function FrontDeskTab({ bookings, rooms, loading, onOpen, onCheckIn, onCheckOut,
     && dayStr(b.checkOut) <= todayStr && matchesSearch(b))
 
   const activeRooms = rooms.filter(r => r.active !== false).length
-  const occupied = new Set(inHouse.map(b => b.roomId).filter(Boolean)).size
+  const occupied = occupiedRoomIdSet(inHouse).size
 
   const kpis = [
     { label: 'وصول اليوم',   value: arrivals.length,   accent: '#15803d', Icon: FiLogIn },
@@ -1485,7 +1503,9 @@ function FrontDeskSection({ title, count, color, empty, children }) {
 
 function FrontDeskCard({ booking: b, kind, busy, onOpen, onAction }) {
   const fin = computeBookingFinance(b)
-  const hasRoom = !!b.roomId
+  const info = bookingRoomsInfo(b)
+  const hasRoom = info.hasAnyRoom
+  const roomBadge = info.count > 1 ? `${info.count}` : (info.numbers[0] || '—')
   const fmtD = d => { try { return (d?.toDate ? d.toDate() : new Date(d)).toLocaleDateString('ar-SY', { day: 'numeric', month: 'short' }) } catch { return '—' } }
 
   const cfg = {
@@ -1497,12 +1517,12 @@ function FrontDeskCard({ booking: b, kind, busy, onOpen, onAction }) {
   return (
     <div style={{ background: '#fff', border: '1px solid #E5E7EB', borderRadius: 12, padding: '14px 16px', boxShadow: '0 1px 3px rgba(0,0,0,0.04)', display: 'flex', flexDirection: 'column', gap: 10 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-        <div style={{ width: 44, height: 40, borderRadius: 9, background: hasRoom ? '#1C2B1C' : '#FEF3C7', color: hasRoom ? '#86efac' : '#b45309', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, fontWeight: 800, flexShrink: 0 }}>
-          {hasRoom ? b.roomNumber : '—'}
+        <div style={{ width: 44, height: 40, borderRadius: 9, background: hasRoom ? '#1C2B1C' : '#FEF3C7', color: hasRoom ? '#86efac' : '#b45309', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: info.count > 1 ? 12 : 14, fontWeight: 800, flexShrink: 0 }}>
+          {hasRoom ? (info.count > 1 ? `${roomBadge}غرف` : roomBadge) : '—'}
         </div>
         <div style={{ flex: 1, minWidth: 0 }}>
           <p style={{ fontSize: 14, fontWeight: 700, color: '#111827', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{b.guestName}</p>
-          <p style={{ fontSize: 12, color: '#9CA3AF' }}>{b.guestPhone} · {b.guests} ضيف</p>
+          <p style={{ fontSize: 12, color: '#9CA3AF' }}>{b.guestPhone} · {b.guests} ضيف{info.count > 1 ? ` · غرف: ${info.numbers.join('،') || '—'}` : ''}</p>
         </div>
         {fin.balance > 0
           ? <span style={{ fontSize: 11, fontWeight: 700, color: '#b45309', background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 6, padding: '3px 8px', whiteSpace: 'nowrap' }}>متبقّي {fin.balance}</span>
@@ -1533,155 +1553,229 @@ function FrontDeskCard({ booking: b, kind, busy, onOpen, onAction }) {
 }
 
 /* ─────────────────────────────────────────────────────────────
-   Inline extend-stay editor (rendered inside the booking detail)
+   Rooms panel — the multi-room manager inside the booking detail.
+   Lists every room-line; each can be assigned/changed/unassigned, given
+   its own dates + price, or removed. Rooms can be added to the booking.
 ───────────────────────────────────────────────────────────── */
-function ExtendStayControl({ booking, busy, error, onSave }) {
-  const current = booking.checkOut?.toDate
-    ? booking.checkOut.toDate().toISOString().split('T')[0]
-    : new Date(booking.checkOut).toISOString().split('T')[0]
-  const checkInISO = booking.checkIn?.toDate
-    ? booking.checkIn.toDate().toISOString().split('T')[0]
-    : new Date(booking.checkIn).toISOString().split('T')[0]
-
-  const minDate = new Date(new Date(checkInISO).getTime() + 86400000).toISOString().split('T')[0]
-  const [newOut, setNewOut] = useState(current)
-
-  useEffect(() => { setNewOut(current) }, [current])
-
-  const changed = newOut && newOut !== current
+function RoomsPanel({ booking, rooms, bookings, busy, error, onAssignLine, onUnassignLine, onUpdateLine, onAddLine, onRemoveLine, onSetAllDates }) {
+  const lines = getBookingRooms(booking)
+  const [adding, setAdding] = useState(false)
+  const [bulkDates, setBulkDates] = useState(false)
 
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', background: '#fff', border: '1px solid #E5E7EB', borderRadius: 8, flexWrap: 'wrap' }}>
-      <FiCalendar size={14} color="#6B7280" />
-      <span style={{ fontSize: 12, fontWeight: 700, color: '#374151' }}>تمديد الإقامة</span>
-      <span style={{ fontSize: 11, color: '#9CA3AF' }}>المغادرة الحالية: {current}</span>
-      <input
-        type="date"
-        value={newOut}
-        min={minDate}
-        onChange={e => setNewOut(e.target.value)}
-        style={{ ...fieldStyle, padding: '6px 10px', width: 160, fontSize: 12 }}
-      />
-      <button
-        onClick={() => changed && onSave(newOut)}
-        disabled={!changed || busy}
-        style={{
-          padding: '6px 14px', borderRadius: 7, border: 'none', fontSize: 12, fontWeight: 700,
-          fontFamily: 'Cairo, sans-serif',
-          background: (!changed || busy) ? '#E5E7EB' : '#1C2B1C',
-          color:      (!changed || busy) ? '#9CA3AF' : '#fff',
-          cursor:     (!changed || busy) ? 'not-allowed' : 'pointer',
-          display: 'inline-flex', alignItems: 'center', gap: 6,
-        }}
-      >
-        {busy
-          ? <><FiRefreshCw size={12} style={{ animation: 'spin 1s linear infinite' }} /> جارٍ الحفظ...</>
-          : <><FiCheck size={12} /> حفظ</>}
-      </button>
+    <div style={{ background: '#fff', border: '1px solid #E5E7EB', borderRadius: 10, padding: '14px 16px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 12, flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <FiHome size={15} color="#6B7280" />
+          <span style={{ fontSize: 13, fontWeight: 700, color: '#374151' }}>الغرف ({lines.length})</span>
+        </div>
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+          {lines.length > 1 && (
+            <button onClick={() => setBulkDates(v => !v)} style={roomsSmallBtn}>
+              <FiCalendar size={12} /> توحيد التواريخ
+            </button>
+          )}
+          <button onClick={() => setAdding(v => !v)} style={{ ...roomsSmallBtn, background: '#1C2B1C', color: '#fff', border: 'none' }}>
+            <FiPlus size={12} /> أضف غرفة
+          </button>
+        </div>
+      </div>
+
+      {bulkDates && (
+        <BulkDatesRow lines={lines} busy={busy} onApply={(ci, co) => { onSetAllDates(ci, co); setBulkDates(false) }} onCancel={() => setBulkDates(false)} />
+      )}
+      {adding && (
+        <AddRoomLineRow booking={booking} onAdd={(data) => { onAddLine(data); setAdding(false) }} onCancel={() => setAdding(false)} busy={busy} />
+      )}
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        {lines.map(line => (
+          <RoomLineRow
+            key={line.lineId}
+            booking={booking} line={line} rooms={rooms} bookings={bookings} busy={busy}
+            canRemove={lines.length > 1}
+            onAssign={(roomId) => onAssignLine(line.lineId, roomId)}
+            onUnassign={() => onUnassignLine(line.lineId)}
+            onUpdate={(patch) => onUpdateLine(line.lineId, patch)}
+            onRemove={() => onRemoveLine(line.lineId)}
+          />
+        ))}
+      </div>
+
       {error && (
-        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12, color: '#b91c1c' }}>
+        <div style={{ display: 'inline-flex', alignItems: 'center', gap: 5, marginTop: 10, fontSize: 12, color: '#b91c1c' }}>
           <FiAlertCircle size={12} /> {error}
-        </span>
+        </div>
       )}
     </div>
   )
 }
 
-/* ─────────────────────────────────────────────────────────────
-   Inline assign-room control (for type-only customer bookings)
-───────────────────────────────────────────────────────────── */
-function AssignRoomControl({ booking, rooms, bookings, busy, error, onAssign, onUnassign }) {
-  const [pick, setPick] = useState('')
-  const assigned = !!booking.roomId
+const roomsSmallBtn = { display: 'inline-flex', alignItems: 'center', gap: 5, padding: '6px 12px', borderRadius: 7, border: '1px solid #E5E7EB', background: '#F9FAFB', color: '#374151', fontSize: 12, fontWeight: 700, fontFamily: 'Cairo, sans-serif', cursor: 'pointer' }
 
-  const bIn  = booking.checkIn?.toDate  ? booking.checkIn.toDate()  : new Date(booking.checkIn)
-  const bOut = booking.checkOut?.toDate ? booking.checkOut.toDate() : new Date(booking.checkOut)
-  const reqCap = Number(booking.roomCapacity) || null
-
-  // Match rooms with exact (type, capacity). Capacity must match because
-  // each variant is a separate listing — a Premium-4 booking cannot be
-  // filled with a Premium-5 room (and vice versa). The room currently
-  // assigned to this booking is flagged so it can't be re-picked.
-  const candidates = rooms
-    .filter(r => r.active !== false
-      && r.type === booking.roomType
-      && (reqCap == null || Number(r.capacity) === reqCap))
+// Candidate concrete rooms for a room-line: same (type, capacity), flagged if
+// blocked/occupied for the LINE's own window, and if it's the current room.
+function roomCandidatesForLine(line, rooms, bookings, bookingId) {
+  const reqCap = Number(line.roomCapacity) || null
+  const lIn = new Date(line.checkIn), lOut = new Date(line.checkOut)
+  return rooms
+    .filter(r => r.active !== false && r.type === line.roomType && (reqCap == null || Number(r.capacity) === reqCap))
     .map(r => {
-      const isCurrent = r.id === booking.roomId
-      const bookingConflict = bookings.some(o => {
-        if (o.id === booking.id) return false
-        if (o.roomId !== r.id) return false
+      const isCurrent = r.id === line.roomId
+      const conflict = bookings.some(o => {
         if (['cancelled', 'checked-out'].includes(o.status)) return false
-        const oIn  = o.checkIn?.toDate  ? o.checkIn.toDate()  : new Date(o.checkIn)
-        const oOut = o.checkOut?.toDate ? o.checkOut.toDate() : new Date(o.checkOut)
-        return oIn < bOut && oOut > bIn
+        return getBookingRooms(o).some(ol => {
+          if (ol.roomId !== r.id) return false
+          if (o.id === bookingId && ol.lineId === line.lineId) return false
+          return new Date(ol.checkIn) < lOut && new Date(ol.checkOut) > lIn
+        })
       })
-      const blocked = isRoomBlockedInRange(r, bIn, bOut)
-      return { room: r, isCurrent, conflict: bookingConflict || blocked, blocked }
+      const blocked = isRoomBlockedInRange(r, lIn, lOut)
+      return { room: r, isCurrent, conflict: conflict || blocked, blocked }
     })
     .sort((a, b) => +a.room.number - +b.room.number)
+}
 
-  const accent = assigned ? '#374151' : '#b45309'
-  const bg     = assigned ? '#F9FAFB' : '#FFFBEB'
-  const border = assigned ? '#E5E7EB' : '#FDE68A'
+function RoomLineRow({ booking, line, rooms, bookings, busy, canRemove, onAssign, onUnassign, onUpdate, onRemove }) {
+  const [pick, setPick] = useState('')
+  const [ci, setCi] = useState(line.checkIn)
+  const [co, setCo] = useState(line.checkOut)
+  const [price, setPrice] = useState(line.price != null ? String(line.price) : '')
+  useEffect(() => { setCi(line.checkIn); setCo(line.checkOut); setPrice(line.price != null ? String(line.price) : '') }, [line.checkIn, line.checkOut, line.price])
+
+  const assigned = !!line.roomId
+  const candidates = roomCandidatesForLine(line, rooms, bookings, booking.id)
+  const datesChanged = ci !== line.checkIn || co !== line.checkOut
+  const priceChanged = (price === '' ? null : Number(price)) !== line.price
+  const label = CATEGORY_LABEL_AR[line.roomType] || line.roomType || '—'
 
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', background: bg, border: `1px solid ${border}`, borderRadius: 8, flexWrap: 'wrap' }}>
-      <FiHome size={14} color={accent} />
-      <span style={{ fontSize: 12, fontWeight: 700, color: accent }}>{assigned ? 'تغيير الغرفة' : 'تعيين غرفة'}</span>
-      <span style={{ fontSize: 11, color: assigned ? '#6B7280' : '#92400E' }}>
-        {assigned ? `الحالية: غرفة ${booking.roomNumber} · ` : ''}
-        {CATEGORY_LABEL_AR[booking.roomType] || booking.roomType}
-        {reqCap ? ` · ${reqCap} ${reqCap === 1 ? 'شخص' : 'أشخاص'}` : ''}
-      </span>
-      <select
-        value={pick}
-        onChange={e => setPick(e.target.value)}
-        style={{ ...fieldStyle, padding: '6px 10px', width: 220, fontSize: 12 }}
-      >
-        <option value="">{assigned ? '— اختر غرفة أخرى —' : '— اختر غرفة —'}</option>
-        {candidates.length === 0 && <option disabled>لا توجد غرف بهذه السعة</option>}
-        {candidates.map(({ room, isCurrent, conflict, blocked }) => (
-          <option key={room.id} value={room.id} disabled={conflict || isCurrent}>
-            غرفة {room.number} · سعة {room.capacity}{isCurrent ? ' — الحالية' : conflict ? (blocked ? ' — محظورة' : ' — محجوزة') : ''}
-          </option>
-        ))}
-      </select>
-      <button
-        onClick={() => pick && onAssign(pick)}
-        disabled={!pick || busy}
-        style={{
-          padding: '6px 14px', borderRadius: 7, border: 'none', fontSize: 12, fontWeight: 700,
-          fontFamily: 'Cairo, sans-serif',
-          background: (!pick || busy) ? '#E5E7EB' : '#1C2B1C',
-          color:      (!pick || busy) ? '#9CA3AF' : '#fff',
-          cursor:     (!pick || busy) ? 'not-allowed' : 'pointer',
-          display: 'inline-flex', alignItems: 'center', gap: 6,
-        }}
-      >
-        {busy
-          ? <><FiRefreshCw size={12} style={{ animation: 'spin 1s linear infinite' }} /> جارٍ الحفظ...</>
-          : <><FiCheck size={12} /> {assigned ? 'تغيير' : 'تعيين'}</>}
-      </button>
-      {assigned && onUnassign && (
-        <button
-          onClick={onUnassign}
-          disabled={busy}
-          title="إلغاء تعيين الغرفة"
-          style={{
-            padding: '6px 12px', borderRadius: 7, border: '1px solid #FECACA', background: '#FEF2F2',
-            color: '#DC2626', fontSize: 12, fontWeight: 700, fontFamily: 'Cairo, sans-serif',
-            cursor: busy ? 'not-allowed' : 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6,
-          }}
-        >
-          <FiX size={12} /> إلغاء التعيين
+    <div style={{ border: '1px solid #E5E7EB', borderRadius: 9, padding: '12px' }}>
+      {/* Top: identity + assign */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginBottom: 10 }}>
+        <div style={{ width: 42, height: 36, borderRadius: 8, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 800, background: assigned ? '#1C2B1C' : '#FEF3C7', color: assigned ? '#86efac' : '#b45309' }}>
+          {assigned ? line.roomNumber : '—'}
+        </div>
+        <div style={{ flex: 1, minWidth: 120 }}>
+          <p style={{ fontSize: 13, fontWeight: 700, color: '#111827' }}>{assigned ? (line.roomNameAr || `غرفة ${line.roomNumber}`) : 'غير معيّنة'}</p>
+          <p style={{ fontSize: 11, color: '#9CA3AF' }}>{label}{line.roomCapacity ? ` · ${line.roomCapacity} أشخاص` : ''}</p>
+        </div>
+        <select value={pick} onChange={e => setPick(e.target.value)} style={{ ...fieldStyle, padding: '6px 10px', width: 190, fontSize: 12 }}>
+          <option value="">{assigned ? '— غرفة أخرى —' : '— اختر غرفة —'}</option>
+          {candidates.length === 0 && <option disabled>لا توجد غرف بهذه السعة</option>}
+          {candidates.map(({ room, isCurrent, conflict, blocked }) => (
+            <option key={room.id} value={room.id} disabled={conflict || isCurrent}>
+              غرفة {room.number}{isCurrent ? ' — الحالية' : conflict ? (blocked ? ' — محظورة' : ' — محجوزة') : ''}
+            </option>
+          ))}
+        </select>
+        <button onClick={() => pick && onAssign(pick)} disabled={!pick || busy}
+          style={{ ...roomsSmallBtn, background: (!pick || busy) ? '#E5E7EB' : '#1C2B1C', color: (!pick || busy) ? '#9CA3AF' : '#fff', border: 'none' }}>
+          <FiCheck size={12} /> {assigned ? 'تغيير' : 'تعيين'}
         </button>
-      )}
-      {error && (
-        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12, color: '#b91c1c' }}>
-          <FiAlertCircle size={12} /> {error}
-        </span>
-      )}
+        {assigned && (
+          <button onClick={onUnassign} disabled={busy} title="إلغاء التعيين" style={{ ...roomsSmallBtn, background: '#FEF2F2', color: '#DC2626', border: '1px solid #FECACA' }}>
+            <FiX size={12} />
+          </button>
+        )}
+        {canRemove && (
+          <button onClick={onRemove} disabled={busy} title="حذف الغرفة من الحجز" style={{ ...roomsSmallBtn, background: '#FEF2F2', color: '#DC2626', border: '1px solid #FECACA' }}>
+            <FiTrash2 size={12} />
+          </button>
+        )}
+      </div>
+
+      {/* Dates + price */}
+      <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8, flexWrap: 'wrap' }}>
+        <div>
+          <label style={{ ...smallLbl, marginBottom: 3 }}>الوصول</label>
+          <input type="date" value={ci} onChange={e => setCi(e.target.value)} style={{ ...fieldStyle, padding: '6px 8px', width: 140, fontSize: 12 }} />
+        </div>
+        <div>
+          <label style={{ ...smallLbl, marginBottom: 3 }}>المغادرة</label>
+          <input type="date" value={co} min={ci} onChange={e => setCo(e.target.value)} style={{ ...fieldStyle, padding: '6px 8px', width: 140, fontSize: 12 }} />
+        </div>
+        <div>
+          <label style={{ ...smallLbl, marginBottom: 3 }}>السعر</label>
+          <input type="number" min={0} value={price} onChange={e => setPrice(e.target.value)} placeholder="0" style={{ ...fieldStyle, padding: '6px 8px', width: 90, fontSize: 12 }} />
+        </div>
+        <span style={{ fontSize: 11, color: '#9CA3AF', paddingBottom: 8 }}>{line.nights} ليلة</span>
+        <button
+          onClick={() => onUpdate({ checkIn: ci, checkOut: co, ...(priceChanged ? { price: price === '' ? null : Number(price) } : {}) })}
+          disabled={busy || (!datesChanged && !priceChanged)}
+          style={{ ...roomsSmallBtn, marginBottom: 1, background: (busy || (!datesChanged && !priceChanged)) ? '#E5E7EB' : '#1C2B1C', color: (busy || (!datesChanged && !priceChanged)) ? '#9CA3AF' : '#fff', border: 'none' }}>
+          <FiCheck size={12} /> حفظ
+        </button>
+      </div>
+    </div>
+  )
+}
+
+// Add-a-room form: pick a variant + dates (defaulting to the booking dates).
+function AddRoomLineRow({ booking, onAdd, onCancel, busy }) {
+  const bIn = getBookingRooms(booking)[0]?.checkIn || new Date().toISOString().split('T')[0]
+  const bOut = getBookingRooms(booking)[0]?.checkOut || new Date(Date.now() + 86400000).toISOString().split('T')[0]
+  const [variantKey, setVariantKey] = useState('')
+  const [ci, setCi] = useState(bIn)
+  const [co, setCo] = useState(bOut)
+  const opts = CATEGORY_OPTIONS
+
+  // Capacity choices come from CATEGORY defaults — but we don't have variants
+  // here, so accept a free (type, capacity) via two selects driven by variants
+  // in the parent would be ideal; keep it simple with type + capacity number.
+  const [cap, setCap] = useState('2')
+
+  const submit = () => {
+    if (!variantKey) return
+    onAdd({ roomType: variantKey, roomCapacity: Number(cap), checkIn: ci, checkOut: co })
+  }
+
+  return (
+    <div style={{ background: '#F9FAFB', border: '1px dashed #86efac', borderRadius: 9, padding: '12px', marginBottom: 10, display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+      <div>
+        <label style={{ ...smallLbl, marginBottom: 3 }}>الفئة</label>
+        <select value={variantKey} onChange={e => setVariantKey(e.target.value)} style={{ ...fieldStyle, padding: '6px 8px', width: 130, fontSize: 12 }}>
+          <option value="">— اختر —</option>
+          {opts.map(o => <option key={o.value} value={o.value}>{o.labelAr}</option>)}
+        </select>
+      </div>
+      <div>
+        <label style={{ ...smallLbl, marginBottom: 3 }}>السعة</label>
+        <input type="number" min={1} value={cap} onChange={e => setCap(e.target.value)} style={{ ...fieldStyle, padding: '6px 8px', width: 70, fontSize: 12 }} />
+      </div>
+      <div>
+        <label style={{ ...smallLbl, marginBottom: 3 }}>الوصول</label>
+        <input type="date" value={ci} onChange={e => setCi(e.target.value)} style={{ ...fieldStyle, padding: '6px 8px', width: 140, fontSize: 12 }} />
+      </div>
+      <div>
+        <label style={{ ...smallLbl, marginBottom: 3 }}>المغادرة</label>
+        <input type="date" value={co} min={ci} onChange={e => setCo(e.target.value)} style={{ ...fieldStyle, padding: '6px 8px', width: 140, fontSize: 12 }} />
+      </div>
+      <button onClick={submit} disabled={busy || !variantKey} style={{ ...roomsSmallBtn, marginBottom: 1, background: (busy || !variantKey) ? '#E5E7EB' : '#1C2B1C', color: (busy || !variantKey) ? '#9CA3AF' : '#fff', border: 'none' }}>
+        <FiPlus size={12} /> إضافة
+      </button>
+      <button onClick={onCancel} style={{ ...roomsSmallBtn, marginBottom: 1 }}><FiX size={12} /></button>
+    </div>
+  )
+}
+
+// Apply one check-in/check-out to every room in the booking.
+function BulkDatesRow({ lines, busy, onApply, onCancel }) {
+  const [ci, setCi] = useState(lines[0]?.checkIn || new Date().toISOString().split('T')[0])
+  const [co, setCo] = useState(lines[0]?.checkOut || new Date(Date.now() + 86400000).toISOString().split('T')[0])
+  return (
+    <div style={{ background: '#F9FAFB', border: '1px solid #E5E7EB', borderRadius: 9, padding: '12px', marginBottom: 10, display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+      <span style={{ fontSize: 12, fontWeight: 700, color: '#374151', paddingBottom: 8 }}>تطبيق على كل الغرف:</span>
+      <div>
+        <label style={{ ...smallLbl, marginBottom: 3 }}>الوصول</label>
+        <input type="date" value={ci} onChange={e => setCi(e.target.value)} style={{ ...fieldStyle, padding: '6px 8px', width: 140, fontSize: 12 }} />
+      </div>
+      <div>
+        <label style={{ ...smallLbl, marginBottom: 3 }}>المغادرة</label>
+        <input type="date" value={co} min={ci} onChange={e => setCo(e.target.value)} style={{ ...fieldStyle, padding: '6px 8px', width: 140, fontSize: 12 }} />
+      </div>
+      <button onClick={() => onApply(ci, co)} disabled={busy} style={{ ...roomsSmallBtn, marginBottom: 1, background: '#1C2B1C', color: '#fff', border: 'none' }}><FiCheck size={12} /> تطبيق</button>
+      <button onClick={onCancel} style={{ ...roomsSmallBtn, marginBottom: 1 }}><FiX size={12} /></button>
     </div>
   )
 }
@@ -1692,7 +1786,7 @@ function AssignRoomControl({ booking, rooms, bookings, busy, error, onAssign, on
    total, paid, and remaining. Shared by the booking detail page and
    the Charge-to-Room tab.
 ───────────────────────────────────────────────────────────── */
-function FolioPanel({ booking, editablePrice = false }) {
+function FolioPanel({ booking }) {
   const fin = computeBookingFinance(booking)
   const charges  = Array.isArray(booking.charges)  ? booking.charges  : []
   const payments = Array.isArray(booking.payments) ? booking.payments : []
@@ -1701,11 +1795,6 @@ function FolioPanel({ booking, editablePrice = false }) {
 
   const [busy, setBusy]   = useState(false)
   const [error, setError] = useState('')
-
-  // Room-price editor
-  const [editingPrice, setEditingPrice] = useState(false)
-  const [priceInput, setPriceInput]     = useState(booking.totalPrice != null ? String(booking.totalPrice) : '')
-  useEffect(() => { setPriceInput(booking.totalPrice != null ? String(booking.totalPrice) : '') }, [booking.totalPrice])
 
   // Add-charge form
   const [cLabel, setCLabel] = useState('')
@@ -1719,10 +1808,6 @@ function FolioPanel({ booking, editablePrice = false }) {
     finally { setBusy(false) }
   }
 
-  const savePrice = () => run(async () => {
-    await updateBookingRoomPrice(booking.id, priceInput)
-    setEditingPrice(false)
-  })
   const submitCharge = () => {
     if (!(parseFloat(cAmount) > 0)) { setError('أدخل مبلغاً صحيحاً للرسم'); return }
     run(async () => {
@@ -1778,27 +1863,12 @@ function FolioPanel({ booking, editablePrice = false }) {
             <span style={{ fontSize: 12.5, fontWeight: 700, color: '#374151' }}>حساب الغرفة</span>
           </div>
 
-          {/* Price row */}
+          {/* Price row (edit per-room in the Rooms panel above) */}
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 8, flexWrap: 'wrap' }}>
-            <span style={{ fontSize: 12, color: '#9CA3AF' }}>سعر الغرفة</span>
-            {editingPrice ? (
-              <div style={{ display: 'flex', gap: 5, alignItems: 'center' }}>
-                <input type="number" min={0} value={priceInput} onChange={e => setPriceInput(e.target.value)} placeholder="0" autoFocus style={{ ...fieldStyle, width: 90, padding: '5px 8px', fontSize: 12 }} />
-                <button onClick={savePrice} disabled={busy} style={{ ...folioAddBtn, padding: '5px 10px' }}><FiCheck size={12} /></button>
-                <button onClick={() => { setEditingPrice(false); setPriceInput(booking.totalPrice != null ? String(booking.totalPrice) : '') }} style={{ background: 'none', border: 'none', color: '#9CA3AF', cursor: 'pointer', display: 'flex', padding: 3 }}><FiX size={14} /></button>
-              </div>
-            ) : (
-              <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                <span style={{ fontSize: 15, fontWeight: 800, color: booking.totalPrice != null ? '#111827' : '#9CA3AF' }}>
-                  {booking.totalPrice != null ? `${fin.roomTotal}` : 'غير محدد'}
-                </span>
-                {editablePrice && (
-                  <button onClick={() => setEditingPrice(true)} title="تعديل السعر" style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 11, fontWeight: 700, color: '#3d5a3a', background: '#F0F7F0', border: '1px solid #BBF7D0', borderRadius: 6, padding: '3px 8px', cursor: 'pointer', fontFamily: 'Cairo, sans-serif' }}>
-                    <FiEdit2 size={11} /> تعديل
-                  </button>
-                )}
-              </div>
-            )}
+            <span style={{ fontSize: 12, color: '#9CA3AF' }}>قيمة الغرف</span>
+            <span style={{ fontSize: 15, fontWeight: 800, color: booking.totalPrice != null ? '#111827' : '#9CA3AF' }}>
+              {booking.totalPrice != null ? `${fin.roomTotal}` : 'غير محدد'}
+            </span>
           </div>
 
           {/* Room mini-stats */}
@@ -1936,17 +2006,11 @@ function ChargeToRoomTab({ bookings, loading }) {
 
   if (loading) return <PageLoader />
 
-  // In-house guests: an assigned room and an active (not left/cancelled) stay.
+  // In-house guests: at least one assigned room and an active (not left/cancelled) stay.
   const inHouse = bookings
-    .filter(b => b.roomId && ['confirmed', 'checked-in', 'pending'].includes(b.status))
-    .filter(b => {
-      if (!search) return true
-      const q = search.toLowerCase()
-      return b.guestName?.toLowerCase().includes(q)
-        || b.guestPhone?.includes(search)
-        || String(b.roomNumber || '').includes(search)
-    })
-    .sort((a, b) => +(a.roomNumber || 0) - +(b.roomNumber || 0))
+    .filter(b => bookingRoomsInfo(b).hasAnyRoom && ['confirmed', 'checked-in', 'pending'].includes(b.status))
+    .filter(b => bookingMatchesRoomSearch(b, search))
+    .sort((a, b) => +(bookingRoomsInfo(a).numbers[0] || 0) - +(bookingRoomsInfo(b).numbers[0] || 0))
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
@@ -1969,10 +2033,10 @@ function ChargeToRoomTab({ bookings, loading }) {
             return (
               <div key={b.id} style={{ background: '#fff', border: '1px solid #E5E7EB', borderRadius: 12, overflow: 'hidden', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
                 <button onClick={() => setOpenId(open ? null : b.id)} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 14, padding: '14px 16px', background: 'none', border: 'none', cursor: 'pointer', textAlign: 'right', fontFamily: 'Cairo, sans-serif' }}>
-                  <div style={{ width: 46, height: 40, borderRadius: 9, background: '#1C2B1C', color: '#86efac', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, fontWeight: 800, flexShrink: 0 }}>{b.roomNumber}</div>
+                  <div style={{ width: 46, height: 40, borderRadius: 9, background: '#1C2B1C', color: '#86efac', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: bookingRoomsInfo(b).count > 1 ? 12 : 15, fontWeight: 800, flexShrink: 0 }}>{bookingRoomsInfo(b).count > 1 ? `${bookingRoomsInfo(b).count}غرف` : (bookingRoomsInfo(b).numbers[0] || '—')}</div>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <p style={{ fontSize: 14, fontWeight: 700, color: '#111827' }}>{b.guestName}</p>
-                    <p style={{ fontSize: 12, color: '#9CA3AF' }}>غرفة {b.roomNumber} · {b.roomNameAr || ''}</p>
+                    <p style={{ fontSize: 12, color: '#9CA3AF' }}>{roomsLabel(b)}</p>
                   </div>
                   <div style={{ textAlign: 'left', flexShrink: 0 }}>
                     <p style={{ fontSize: 17, fontWeight: 800, color: fin.balance > 0 ? '#b45309' : '#15803d' }}>{fin.balance}</p>
@@ -2021,9 +2085,19 @@ function CalendarTab({ bookings, rooms, loading, onOpen }) {
   const dayStrs = days.map(toStr)
 
   const sortedRooms = rooms.slice().sort((a, b) => (+a.number || 0) - (+b.number || 0))
-  const bookingsFor = (roomId) => bookings.filter(b => b.roomId === roomId && b.status !== 'cancelled')
-  const covering = (list, ds) => list.find(b => {
-    const ci = dayStr(b.checkIn), co = dayStr(b.checkOut)
+  // Each cell is driven by a room-LINE (a booking may occupy several rooms).
+  const roomEntries = (roomId) => {
+    const out = []
+    for (const b of bookings) {
+      if (b.status === 'cancelled') continue
+      for (const line of getBookingRooms(b)) {
+        if (line.roomId === roomId) out.push({ booking: b, line })
+      }
+    }
+    return out
+  }
+  const covering = (entries, ds) => entries.find(({ line }) => {
+    const ci = dayStr(line.checkIn), co = dayStr(line.checkOut)
     return ci && co && ds >= ci && ds < co
   })
 
@@ -2058,15 +2132,17 @@ function CalendarTab({ bookings, rooms, loading, onOpen }) {
     setTimeout(() => w.print(), 350)
   }
 
-  const renderRow = (list) => {
+  const renderRow = (entries) => {
     const cells = []
     let i = 0
     while (i < CAL_DAYS) {
       const ds = dayStrs[i]
-      const b = covering(list, ds)
-      if (b) {
+      const entry = covering(entries, ds)
+      if (entry) {
+        const b = entry.booking
         let span = 1
-        while (i + span < CAL_DAYS && covering(list, dayStrs[i + span])?.id === b.id) span++
+        while (i + span < CAL_DAYS && covering(entries, dayStrs[i + span])?.line.lineId === entry.line.lineId
+               && covering(entries, dayStrs[i + span])?.booking.id === b.id) span++
         const s = STATUS[b.status] || STATUS.confirmed
         cells.push(
           <td key={ds} colSpan={span} onClick={() => onOpen(b.id)}
@@ -2140,7 +2216,7 @@ function CalendarTab({ bookings, rooms, loading, onOpen }) {
                     <div style={{ fontSize: 12.5, fontWeight: 700, color: '#111827' }}>غرفة {room.number}</div>
                     <div style={{ fontSize: 10.5, color: '#9CA3AF' }}>{CATEGORY_LABEL_AR[room.type] || room.type} · {room.capacity}</div>
                   </td>
-                  {renderRow(bookingsFor(room.id))}
+                  {renderRow(roomEntries(room.id))}
                 </tr>
               ))}
             </tbody>
@@ -2169,9 +2245,9 @@ function NewBookingTab({ rooms, variants = [], bookings, onDone }) {
   const [checkIn,  setCheckIn]  = useState(today)
   const [checkOut, setCheckOut] = useState(tomorrow)
   const [guests,   setGuests]   = useState(2)
-  const [roomId,   setRoomId]   = useState('')
+  const [selectedIds, setSelectedIds] = useState([])   // multi-room
   const [roomQ,    setRoomQ]    = useState('')
-  const [form,     setForm]     = useState({ guestName: '', guestPhone: '', guestEmail: '', notes: '', source: 'phone', status: 'confirmed', priceOverride: '', deposit: '' })
+  const [form,     setForm]     = useState({ guestName: '', guestPhone: '', guestEmail: '', notes: '', source: 'phone', status: 'confirmed', deposit: '' })
   const [saving,   setSaving]   = useState(false)
   const [error,    setError]    = useState('')
   const [success,  setSuccess]  = useState('')
@@ -2185,17 +2261,22 @@ function NewBookingTab({ rooms, variants = [], bookings, onDone }) {
     const room = rooms.find(r => r.id === rid)
     if (room && isRoomBlockedInRange(room, f, t)) return false
     return !bookings.some(b => {
-      if (b.roomId !== rid || ['cancelled', 'checked-out'].includes(b.status)) return false
-      const bIn  = b.checkIn?.toDate  ? b.checkIn.toDate()  : new Date(b.checkIn)
-      const bOut = b.checkOut?.toDate ? b.checkOut.toDate() : new Date(b.checkOut)
-      return bIn < t && bOut > f
+      if (['cancelled', 'checked-out'].includes(b.status)) return false
+      return getBookingRooms(b).some(l => {
+        if (l.roomId !== rid) return false
+        return new Date(l.checkIn) < t && new Date(l.checkOut) > f
+      })
     })
   }
 
-  const selectedRoom    = rooms.find(r => r.id === roomId)
-  const selectedVariant = selectedRoom ? variantOf(selectedRoom) : null
-  const autoPrice       = selectedVariant?.price ? selectedVariant.price * nights : null
-  const totalPrice      = form.priceOverride !== '' ? (parseFloat(form.priceOverride) || null) : autoPrice
+  const toggleRoom = (rid) => setSelectedIds(ids => ids.includes(rid) ? ids.filter(x => x !== rid) : [...ids, rid])
+
+  const selectedRooms = selectedIds.map(id => rooms.find(r => r.id === id)).filter(Boolean)
+  const roomTotal = selectedRooms.reduce((s, room) => {
+    const v = variantOf(room)
+    return s + (v?.price ? v.price * nights : 0)
+  }, 0)
+  const totalPrice = selectedRooms.length ? roomTotal : null
 
   const displayRooms = rooms.filter(r => {
     if (r.active === false) return false
@@ -2209,36 +2290,43 @@ function NewBookingTab({ rooms, variants = [], bookings, onDone }) {
   })
 
   const handleSubmit = async () => {
-    if (!roomId)                { setError('يرجى اختيار غرفة'); return }
-    if (!form.guestName.trim()) { setError('يرجى إدخال اسم الضيف'); return }
-    if (!form.guestPhone.trim()){ setError('يرجى إدخال رقم الهاتف'); return }
-    if (!isAvailable(roomId))   { setError('الغرفة المختارة محجوزة في هذه الفترة'); return }
+    if (!selectedIds.length)     { setError('يرجى اختيار غرفة واحدة على الأقل'); return }
+    if (!form.guestName.trim())  { setError('يرجى إدخال اسم الضيف'); return }
+    if (!form.guestPhone.trim()) { setError('يرجى إدخال رقم الهاتف'); return }
+    if (selectedIds.some(id => !isAvailable(id))) { setError('إحدى الغرف المختارة محجوزة في هذه الفترة'); return }
 
     setSaving(true); setError('')
     try {
-      const room = selectedRoom
-      const v    = selectedVariant
-      const bookingNumber = await getNextBookingNumber()
       const depositVal = parseFloat(form.deposit)
       const payments = depositVal > 0
         ? [{ id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6), amount: depositVal, method: 'cash', note: 'دفعة مقدمة', ledger: 'room', at: Timestamp.now() }]
         : []
-      await addDoc(collection(db, 'bookings'), {
-        roomId: room.id, roomNumber: room.number,
-        roomType: room.type, roomCapacity: room.capacity,
-        roomNameEn: v?.nameEn || v?.nameAr || `${room.type} ${room.capacity}p`,
-        roomNameAr: v?.nameAr || v?.nameEn || `${room.type} ${room.capacity}p`,
-        checkIn, checkOut, nights, guests: parseInt(guests), totalPrice,
+      const roomLines = selectedRooms.map(room => {
+        const v = variantOf(room)
+        return {
+          roomId: room.id, roomNumber: room.number,
+          roomType: room.type, roomCapacity: room.capacity,
+          roomNameEn: v?.nameEn || v?.nameAr || `${room.type} ${room.capacity}p`,
+          roomNameAr: v?.nameAr || v?.nameEn || `${room.type} ${room.capacity}p`,
+          checkIn, checkOut,
+          price: v?.price ? v.price * nights : null,
+        }
+      })
+      const { bookingNumber } = await createBooking({
+        rooms: roomLines,
+        checkIn, checkOut, guests: parseInt(guests),
         guestName: form.guestName.trim(), guestPhone: form.guestPhone.trim(),
         guestEmail: form.guestEmail.trim(), notes: form.notes.trim(),
         source: form.source, status: form.status,
-        bookingNumber, payments, charges: [],
-        createdAt: Timestamp.now(), createdBy: 'admin',
+        payments, charges: [],
+        createdBy: 'admin',
       })
       setSuccess(`تم إنشاء الحجز — رقم: #${formatBookingNumber(bookingNumber)}`)
-      setRoomId(''); setForm({ guestName: '', guestPhone: '', guestEmail: '', notes: '', source: 'phone', status: 'confirmed', priceOverride: '', deposit: '' })
+      setSelectedIds([]); setForm({ guestName: '', guestPhone: '', guestEmail: '', notes: '', source: 'phone', status: 'confirmed', deposit: '' })
       setCheckIn(today); setCheckOut(tomorrow); setGuests(2)
-    } catch (e) { setError('فشل إنشاء الحجز: ' + e.message) }
+    } catch (e) {
+      setError(e?.code === 'ROOM_UNAVAILABLE' ? 'إحدى الغرف لم تعد متاحة في هذه الفترة' : 'فشل إنشاء الحجز: ' + e.message)
+    }
     finally { setSaving(false) }
   }
 
@@ -2290,18 +2378,19 @@ function NewBookingTab({ rooms, variants = [], bookings, onDone }) {
           </FormCard>
 
           {/* Step 2 */}
-          <FormCard step={2} title="اختيار الغرفة">
+          <FormCard step={2} title={`اختيار الغرف${selectedIds.length ? ` (${selectedIds.length} مختارة)` : ''}`}>
             <div style={{ position: 'relative', marginBottom: 12 }}>
               <FiSearch size={14} style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', color: '#9CA3AF', pointerEvents: 'none' }} />
               <input value={roomQ} onChange={e => setRoomQ(e.target.value)} placeholder="بحث بالاسم، الرقم، أو النوع..."
                 style={{ ...fieldStyle, paddingRight: 36 }} />
             </div>
+            <p style={{ fontSize: 11.5, color: '#9CA3AF', marginBottom: 10 }}>اضغط لإضافة/إزالة غرفة — يمكنك اختيار أكثر من غرفة في نفس الحجز.</p>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 8, maxHeight: 280, overflowY: 'auto', paddingLeft: 2 }}>
               {displayRooms.map(room => {
                 const avail    = isAvailable(room.id)
-                const selected = roomId === room.id
+                const selected = selectedIds.includes(room.id)
                 return (
-                  <button key={room.id} onClick={() => avail && setRoomId(room.id)} disabled={!avail} style={{
+                  <button key={room.id} onClick={() => (avail || selected) && toggleRoom(room.id)} disabled={!avail && !selected} style={{
                     display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', borderRadius: 10,
                     border: `1.5px solid ${selected ? '#3d5a3a' : avail ? '#E5E7EB' : '#F3F4F6'}`,
                     background: selected ? '#F0F7F0' : avail ? '#fff' : '#FAFAFA',
@@ -2376,22 +2465,29 @@ function NewBookingTab({ rooms, variants = [], bookings, onDone }) {
               <p style={{ fontSize: 11, fontWeight: 700, color: 'rgba(255,255,255,0.4)', letterSpacing: '0.06em', textTransform: 'uppercase' }}>ملخص الحجز</p>
             </div>
 
-            {/* Room preview */}
+            {/* Rooms preview */}
             <div style={{ padding: '14px 16px', borderBottom: '1px solid #F3F4F6' }}>
-              {selectedRoom ? (
-                <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-                  <div style={{ width: 52, height: 40, borderRadius: 8, overflow: 'hidden', background: '#F3F4F6', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, fontWeight: 700, color: '#6B7280' }}>
-                    {selectedRoom.number}
-                  </div>
-                  <div>
-                    <p style={{ fontSize: 13, fontWeight: 700, color: '#111827' }}>{labelFor(selectedRoom)}</p>
-                    <p style={{ fontSize: 11, color: '#9CA3AF' }}>غرفة {selectedRoom.number} · الطابق {selectedRoom.floor}</p>
-                  </div>
+              {selectedRooms.length ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {selectedRooms.map(room => {
+                    const v = variantOf(room)
+                    const p = v?.price ? v.price * nights : null
+                    return (
+                      <div key={room.id} style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                        <div style={{ width: 40, height: 34, borderRadius: 7, background: '#F3F4F6', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 700, color: '#6B7280' }}>{room.number}</div>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <p style={{ fontSize: 12.5, fontWeight: 700, color: '#111827', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{labelFor(room)}</p>
+                          <p style={{ fontSize: 11, color: '#9CA3AF' }}>غرفة {room.number}{p != null ? ` · ${p}` : ''}</p>
+                        </div>
+                        <button onClick={() => toggleRoom(room.id)} title="إزالة" style={{ background: 'none', border: 'none', color: '#DC2626', cursor: 'pointer', display: 'flex', padding: 3 }}><FiX size={14} /></button>
+                      </div>
+                    )
+                  })}
                 </div>
               ) : (
                 <div style={{ textAlign: 'center', padding: '12px 0', color: '#D1D5DB', fontSize: 12 }}>
                   <FiLayers size={20} style={{ margin: '0 auto 6px' }} />
-                  <p>لم تُختر غرفة بعد</p>
+                  <p>لم تُختر غرف بعد</p>
                 </div>
               )}
             </div>
@@ -2414,21 +2510,11 @@ function NewBookingTab({ rooms, variants = [], bookings, onDone }) {
 
             {/* Price */}
             <div style={{ padding: '12px 16px', borderBottom: '1px solid #F3F4F6' }}>
-              <label style={smallLbl}>السعر الإجمالي ($)</label>
-              <input type="number" value={form.priceOverride} onChange={e => set('priceOverride', e.target.value)} min={0}
-                placeholder={autoPrice != null ? String(autoPrice) : 'عند الطلب'}
-                style={fieldStyle} />
-              {autoPrice != null && form.priceOverride === '' && (
-                <p style={{ fontSize: 11, color: '#9CA3AF', marginTop: 5 }}>
-                  {selectedVariant.price} × {nights} ليالٍ = <strong style={{ color: '#374151' }}>{autoPrice}</strong>
-                </p>
-              )}
-              {totalPrice != null && (
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 10, paddingTop: 10, borderTop: '1px solid #F3F4F6' }}>
-                  <span style={{ fontSize: 13, fontWeight: 700, color: '#111827' }}>الإجمالي</span>
-                  <span style={{ fontSize: 18, fontWeight: 700, color: '#3d5a3a' }}>{totalPrice}</span>
-                </div>
-              )}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: 13, fontWeight: 700, color: '#111827' }}>الإجمالي ({selectedRooms.length} غرفة · {nights} ليلة)</span>
+                <span style={{ fontSize: 18, fontWeight: 700, color: '#3d5a3a' }}>{totalPrice != null ? totalPrice : '—'}</span>
+              </div>
+              <p style={{ fontSize: 11, color: '#9CA3AF', marginTop: 5 }}>يمكن تعديل سعر كل غرفة من صفحة الحجز بعد الإنشاء.</p>
             </div>
 
             {/* Deposit paid now */}
@@ -2461,15 +2547,17 @@ function NewBookingTab({ rooms, variants = [], bookings, onDone }) {
 
             {/* Submit */}
             <div style={{ padding: '14px 16px' }}>
-              <button onClick={handleSubmit} disabled={saving || !roomId || !form.guestName || !form.guestPhone} style={{
-                width: '100%', background: (!roomId || !form.guestName || !form.guestPhone || saving) ? '#E5E7EB' : '#1C2B1C',
-                color: (!roomId || !form.guestName || !form.guestPhone || saving) ? '#9CA3AF' : '#fff',
+              {(() => { const disabled = saving || !selectedIds.length || !form.guestName || !form.guestPhone; return (
+              <button onClick={handleSubmit} disabled={disabled} style={{
+                width: '100%', background: disabled ? '#E5E7EB' : '#1C2B1C',
+                color: disabled ? '#9CA3AF' : '#fff',
                 border: 'none', borderRadius: 10, padding: '12px 0', fontWeight: 700, fontSize: 14,
-                fontFamily: 'Cairo, sans-serif', cursor: (!roomId || !form.guestName || !form.guestPhone || saving) ? 'not-allowed' : 'pointer',
+                fontFamily: 'Cairo, sans-serif', cursor: disabled ? 'not-allowed' : 'pointer',
                 transition: 'all 0.2s', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
               }}>
                 {saving ? <><FiRefreshCw size={14} style={{ animation: 'spin 1s linear infinite' }} /> جارٍ الحفظ...</> : <><FiCheckSquare size={15} /> تأكيد الحجز</>}
               </button>
+              ) })()}
             </div>
           </div>
         </div>

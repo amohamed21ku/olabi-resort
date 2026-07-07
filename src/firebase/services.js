@@ -66,67 +66,186 @@ export async function getNextBookingNumber() {
   return max + 1
 }
 
-export async function createBooking(bookingData) {
-  const { roomId, roomType, roomCapacity, checkIn, checkOut } = bookingData
-  if (!checkIn || !checkOut) throw new Error('INVALID_BOOKING_DATA')
-  if (!roomId && !(roomType && roomCapacity)) throw new Error('INVALID_BOOKING_DATA')
+// ─── Multi-room model ─────────────────────────────────────
+// A booking holds a `rooms[]` array of room-lines. Booking-level checkIn/
+// checkOut/totalPrice are DERIVED envelopes kept for existing lists & queries.
+// `getBookingRooms` returns the array — synthesizing a single line from the old
+// flat fields for legacy single-room bookings, so nothing needs migrating.
 
-  const reqIn  = new Date(checkIn)
-  const reqOut = new Date(checkOut)
-  if (!(reqIn < reqOut)) throw new Error('INVALID_DATES')
+function roomLineId() {
+  return Date.now().toString(36) + Math.random().toString(36).slice(2, 6)
+}
 
-  const bookingRef = doc(collection(db, 'bookings'))
-  const bookingNumber = await getNextBookingNumber()
+function toDateStr(v) {
+  const d = v?.toDate ? v.toDate() : (v ? new Date(v) : null)
+  if (!d || isNaN(d.getTime())) return ''
+  return d.toISOString().split('T')[0]
+}
 
-  // ── Specific-room booking (admin flow / legacy) ──
-  if (roomId) {
-    const roomRef = doc(db, 'rooms', roomId)
-    await runTransaction(db, async (tx) => {
-      const roomSnap = await tx.get(roomRef)
-      if (!roomSnap.exists()) throw new Error('ROOM_NOT_FOUND')
-      if (isRoomBlockedInRange(roomSnap.data(), reqIn, reqOut)) throw new RoomUnavailableError()
+function nightsBetween(ci, co) {
+  const a = new Date(ci), b = new Date(co)
+  if (isNaN(a.getTime()) || isNaN(b.getTime())) return 1
+  return Math.max(1, Math.ceil((b - a) / 86400000))
+}
 
-      const snap = await getDocs(query(
-        collection(db, 'bookings'),
-        where('roomId', '==', roomId),
-      ))
-      const conflict = snap.docs.some(d => {
-        const b = d.data()
-        if (['cancelled', 'checked-out'].includes(b.status)) return false
-        const bIn  = b.checkIn.toDate  ? b.checkIn.toDate()  : new Date(b.checkIn)
-        const bOut = b.checkOut.toDate ? b.checkOut.toDate() : new Date(b.checkOut)
-        return bIn < reqOut && bOut > reqIn
-      })
-      if (conflict) throw new RoomUnavailableError()
+function normalizeLine(r, booking, i) {
+  const ci = toDateStr(r.checkIn ?? booking?.checkIn)
+  const co = toDateStr(r.checkOut ?? booking?.checkOut)
+  return {
+    lineId:       r.lineId || `L${i}`,
+    roomId:       r.roomId ?? null,
+    roomNumber:   r.roomNumber ?? null,
+    roomType:     r.roomType ?? null,
+    roomCapacity: r.roomCapacity != null ? Number(r.roomCapacity) : null,
+    roomNameAr:   r.roomNameAr ?? null,
+    roomNameEn:   r.roomNameEn ?? null,
+    checkIn:      ci,
+    checkOut:     co,
+    nights:       r.nights || nightsBetween(ci, co),
+    price:        typeof r.price === 'number' ? r.price : null,
+  }
+}
 
-      tx.set(bookingRef, {
-        ...bookingData,
-        bookingNumber,
-        status: 'pending',
-        createdAt: Timestamp.now(),
-      })
+export function getBookingRooms(booking) {
+  if (!booking) return []
+  if (Array.isArray(booking.rooms) && booking.rooms.length) {
+    return booking.rooms.map((r, i) => normalizeLine(r, booking, i))
+  }
+  // Legacy single-room booking → one synthesized line.
+  return [normalizeLine({
+    lineId: 'legacy',
+    roomId: booking.roomId ?? null,
+    roomNumber: booking.roomNumber ?? null,
+    roomType: booking.roomType ?? null,
+    roomCapacity: booking.roomCapacity ?? null,
+    roomNameAr: booking.roomNameAr ?? null,
+    roomNameEn: booking.roomNameEn ?? null,
+    checkIn: booking.checkIn,
+    checkOut: booking.checkOut,
+    nights: booking.nights,
+    price: booking.totalPrice ?? null,
+  }, booking, 0)]
+}
+
+// Envelope fields recomputed from the room-lines on every write.
+export function recomputeBookingAggregates(rooms) {
+  const lines = (rooms || []).filter(Boolean)
+  if (!lines.length) return { checkIn: null, checkOut: null, nights: 0, totalPrice: null }
+  let minIn = null, maxOut = null, total = 0, hasPrice = false
+  for (const r of lines) {
+    const ci = toDateStr(r.checkIn), co = toDateStr(r.checkOut)
+    if (ci && (!minIn  || ci < minIn))  minIn  = ci
+    if (co && (!maxOut || co > maxOut)) maxOut = co
+    if (typeof r.price === 'number') { total += r.price; hasPrice = true }
+  }
+  return {
+    checkIn:   minIn,
+    checkOut:  maxOut,
+    nights:    minIn && maxOut ? nightsBetween(minIn, maxOut) : 0,
+    totalPrice: hasPrice ? total : null,
+  }
+}
+
+// True if `roomId` is occupied across [ci,co) by any active booking's room-line,
+// excluding a specific (bookingId,lineId) line when reassigning/editing it.
+export function roomLineConflict(allBookings, roomId, ci, co, excludeBookingId = null, excludeLineId = null) {
+  const reqIn = new Date(ci), reqOut = new Date(co)
+  return (allBookings || []).some(b => {
+    if (['cancelled', 'checked-out'].includes(b.status)) return false
+    return getBookingRooms(b).some(line => {
+      if (line.roomId !== roomId) return false
+      if (b.id === excludeBookingId && line.lineId === excludeLineId) return false
+      const lIn = new Date(line.checkIn), lOut = new Date(line.checkOut)
+      return lIn < reqOut && lOut > reqIn
     })
-    return { id: bookingRef.id, bookingNumber }
+  })
+}
+
+async function fetchAllBookings() {
+  const snap = await getDocs(collection(db, 'bookings'))
+  return snap.docs.map(d => ({ id: d.id, ...d.data() }))
+}
+
+// Read a booking, transform its room-lines, write back array + recomputed
+// envelope. `transform(rooms, booking, tx)` may do additional tx.get reads
+// (all before the single write) and returns the new rooms array.
+async function mutateBookingRooms(bookingId, transform) {
+  if (!bookingId) throw new Error('INVALID_BOOKING_DATA')
+  const bookingRef = doc(db, 'bookings', bookingId)
+  return await runTransaction(db, async (tx) => {
+    const snap = await tx.get(bookingRef)
+    if (!snap.exists()) throw new Error('BOOKING_NOT_FOUND')
+    const booking = { id: snap.id, ...snap.data() }
+    const rooms = getBookingRooms(booking)
+    const newRooms = await transform(rooms, booking, tx)
+    const agg = recomputeBookingAggregates(newRooms)
+    tx.update(bookingRef, {
+      rooms:      newRooms,
+      checkIn:    agg.checkIn,
+      checkOut:   agg.checkOut,
+      nights:     agg.nights,
+      totalPrice: agg.totalPrice,
+      // Clear the legacy flat room pointer — the array is now the source of truth.
+      roomId:     null,
+      roomNumber: null,
+      updatedAt:  Timestamp.now(),
+    })
+    return newRooms
+  })
+}
+
+// Create a booking carrying a `rooms[]` array. Each line may be assigned
+// (roomId set) or variant-only (roomId null, to be assigned later). Validates
+// availability per line for its own window.
+export async function createBooking(bookingData) {
+  const { checkIn, checkOut } = bookingData
+  let rooms = Array.isArray(bookingData.rooms) && bookingData.rooms.length
+    ? bookingData.rooms
+    : getBookingRooms(bookingData)   // accept legacy single-room payloads too
+
+  rooms = rooms.map((r, i) => normalizeLine(r, bookingData, i)).map(r => ({ ...r, lineId: r.lineId && r.lineId !== 'legacy' ? r.lineId : roomLineId() }))
+  if (!rooms.length) throw new Error('INVALID_BOOKING_DATA')
+  for (const r of rooms) {
+    if (!(new Date(r.checkIn) < new Date(r.checkOut))) throw new Error('INVALID_DATES')
+    if (!r.roomId && !(r.roomType && r.roomCapacity)) throw new Error('INVALID_BOOKING_DATA')
   }
 
-  // ── Variant-only booking (customer flow) ──
-  // The customer picked a specific (type, capacity) variant. Validate the
-  // variant still has free inventory for the window so the admin has
-  // something to assign.
-  const remaining = await countAvailableUnitsForVariant(roomType, roomCapacity, checkIn, checkOut)
-  if (remaining <= 0) throw new RoomUnavailableError()
+  const all = await fetchAllBookings()
+  // Assigned lines: check the concrete room is free. Unassigned lines: check the
+  // variant still has inventory for that window — accounting for earlier lines in
+  // THIS payload that ask for the same variant+window (so N identical rooms need
+  // N units free).
+  for (let idx = 0; idx < rooms.length; idx++) {
+    const r = rooms[idx]
+    if (r.roomId) {
+      if (roomLineConflict(all, r.roomId, r.checkIn, r.checkOut)) throw new RoomUnavailableError()
+    } else {
+      const remaining = await countAvailableUnitsForVariant(r.roomType, r.roomCapacity, r.checkIn, r.checkOut)
+      const priorSame = rooms.slice(0, idx).filter(x =>
+        !x.roomId && x.roomType === r.roomType && Number(x.roomCapacity) === Number(r.roomCapacity)
+        && x.checkIn === r.checkIn && x.checkOut === r.checkOut).length
+      if (remaining - priorSame <= 0) throw new RoomUnavailableError()
+    }
+  }
+
+  const agg = recomputeBookingAggregates(rooms)
+  const bookingRef = doc(collection(db, 'bookings'))
+  const bookingNumber = await getNextBookingNumber()
+  const { rooms: _drop, roomId: _r, roomNumber: _n, roomType: _t, roomCapacity: _c, ...rest } = bookingData
 
   await runTransaction(db, async (tx) => {
     tx.set(bookingRef, {
-      ...bookingData,
-      roomId:     null,
-      roomNumber: null,
+      ...rest,
+      rooms,
+      checkIn:    agg.checkIn ?? checkIn,
+      checkOut:   agg.checkOut ?? checkOut,
+      nights:     agg.nights,
+      totalPrice: agg.totalPrice,
       bookingNumber,
-      status:     'pending',
-      createdAt:  Timestamp.now(),
+      status: bookingData.status || 'pending',
+      createdAt: Timestamp.now(),
     })
   })
-
   return { id: bookingRef.id, bookingNumber }
 }
 
@@ -140,9 +259,9 @@ export async function countAvailableUnitsForVariant(roomType, roomCapacity, chec
   const reqOut = new Date(checkOut)
   if (!(reqIn < reqOut)) return 0
 
-  const [roomsSnap, bookingsSnap] = await Promise.all([
+  const [roomsSnap, bookings] = await Promise.all([
     getDocs(query(collection(db, 'rooms'), where('type', '==', roomType))),
-    getDocs(collection(db, 'bookings')),
+    fetchAllBookings(),
   ])
 
   const rooms = roomsSnap.docs
@@ -151,25 +270,26 @@ export async function countAvailableUnitsForVariant(roomType, roomCapacity, chec
 
   if (rooms.length === 0) return 0
 
-  const overlapping = bookingsSnap.docs
-    .map(d => d.data())
-    .filter(b => !['cancelled', 'checked-out'].includes(b.status))
-    .filter(b => {
-      const bIn  = b.checkIn?.toDate  ? b.checkIn.toDate()  : new Date(b.checkIn)
-      const bOut = b.checkOut?.toDate ? b.checkOut.toDate() : new Date(b.checkOut)
-      return bIn < reqOut && bOut > reqIn
-    })
+  // Every active room-line overlapping the window (across all bookings).
+  const lines = []
+  for (const b of bookings) {
+    if (['cancelled', 'checked-out'].includes(b.status)) continue
+    for (const line of getBookingRooms(b)) {
+      const lIn = new Date(line.checkIn), lOut = new Date(line.checkOut)
+      if (lIn < reqOut && lOut > reqIn) lines.push(line)
+    }
+  }
 
-  const bookedIds = new Set(overlapping.filter(b => b.roomId).map(b => b.roomId))
+  const bookedIds = new Set(lines.filter(l => l.roomId).map(l => l.roomId))
   const blocked   = rooms.filter(r =>
     bookedIds.has(r.id) || isRoomBlockedInRange(r, reqIn, reqOut)
   ).length
 
-  // Unassigned bookings for the same variant each consume one unit.
-  const unassigned = overlapping.filter(b =>
-    !b.roomId
-    && b.roomType === roomType
-    && Number(b.roomCapacity) === Number(roomCapacity)
+  // Unassigned lines for the same variant each consume one unit.
+  const unassigned = lines.filter(l =>
+    !l.roomId
+    && l.roomType === roomType
+    && Number(l.roomCapacity) === Number(roomCapacity)
   ).length
 
   return Math.max(0, rooms.length - blocked - unassigned)
@@ -290,14 +410,11 @@ export async function getBookingById(bookingId) {
 }
 
 export async function getBookingsForRoom(roomId) {
-  const q = query(
-    collection(db, 'bookings'),
-    where('roomId', '==', roomId),
+  const bookings = await fetchAllBookings()
+  return bookings.filter(b =>
+    !['cancelled', 'checked-out'].includes(b.status)
+    && getBookingRooms(b).some(r => r.roomId === roomId)
   )
-  const snap = await getDocs(q)
-  return snap.docs
-    .map(d => ({ id: d.id, ...d.data() }))
-    .filter(b => !['cancelled', 'checked-out'].includes(b.status))
 }
 
 export async function getAllBookings() {
@@ -319,8 +436,8 @@ export async function checkInBooking(bookingId) {
   return await runTransaction(db, async (tx) => {
     const snap = await tx.get(bookingRef)
     if (!snap.exists()) throw new Error('BOOKING_NOT_FOUND')
-    const b = snap.data()
-    if (!b.roomId) throw new Error('NO_ROOM_ASSIGNED')
+    const b = { id: snap.id, ...snap.data() }
+    if (!getBookingRooms(b).some(r => r.roomId)) throw new Error('NO_ROOM_ASSIGNED')
     tx.update(bookingRef, {
       status: 'checked-in',
       checkedInAt: b.checkedInAt || Timestamp.now(),
@@ -347,73 +464,137 @@ export async function checkOutBooking(bookingId, checkedOutAt = null) {
   })
 }
 
-// Extend (or shorten) an existing booking's checkOut date.
-// Validates the new range against other active bookings for the same room
-// inside a transaction so concurrent admin actions can't double-book.
-// Returns the new { nights, totalPrice } so callers can show feedback.
-export async function extendBookingStay(bookingId, newCheckOut) {
-  if (!bookingId || !newCheckOut) throw new Error('INVALID_EXTEND_DATA')
-  const bookingRef = doc(db, 'bookings', bookingId)
+// ─── Room-line mutators (multi-room) ──────────────────────
 
-  return await runTransaction(db, async (tx) => {
-    const snap = await tx.get(bookingRef)
-    if (!snap.exists()) throw new Error('BOOKING_NOT_FOUND')
-    const b = snap.data()
-
-    const checkInDate = b.checkIn?.toDate ? b.checkIn.toDate() : new Date(b.checkIn)
-    const newOut      = new Date(newCheckOut)
-    if (!(checkInDate < newOut)) throw new Error('INVALID_DATES')
-
-    const others = await getDocs(query(
-      collection(db, 'bookings'),
-      where('roomId', '==', b.roomId),
-    ))
-    const conflict = others.docs.some(d => {
-      if (d.id === bookingId) return false
-      const o = d.data()
-      if (['cancelled', 'checked-out'].includes(o.status)) return false
-      const oIn  = o.checkIn?.toDate  ? o.checkIn.toDate()  : new Date(o.checkIn)
-      const oOut = o.checkOut?.toDate ? o.checkOut.toDate() : new Date(o.checkOut)
-      return oIn < newOut && oOut > checkInDate
-    })
-    if (conflict) throw new RoomUnavailableError()
-
-    const nights = Math.max(1, Math.ceil((newOut - checkInDate) / 86400000))
-    // Price now lives on the variant. Look it up by the booking's stored
-    // (type, capacity); fall back to the existing totalPrice if no variant
-    // doc is found (e.g. legacy admin-created bookings without those fields).
-    let newTotal = b.totalPrice ?? null
-    if (b.roomType && b.roomCapacity) {
-      const variantId = `${b.roomType}-${b.roomCapacity}`
-      const variantSnap = await tx.get(doc(db, 'variants', variantId))
-      const variantPrice = variantSnap.exists() ? variantSnap.data().price : null
-      if (typeof variantPrice === 'number') newTotal = variantPrice * nights
-    }
-
-    const checkOutStr = newOut.toISOString().split('T')[0]
-    tx.update(bookingRef, {
-      checkOut:   checkOutStr,
-      nights,
-      totalPrice: newTotal,
-      updatedAt:  Timestamp.now(),
-    })
-
-    return { nights, totalPrice: newTotal, checkOut: checkOutStr }
+// Add a room-line to a booking (assigned or variant-only). Defaults dates to
+// the booking's envelope when not given.
+export async function addBookingRoomLine(bookingId, data = {}) {
+  return mutateBookingRooms(bookingId, (rooms, booking) => {
+    const ci = toDateStr(data.checkIn ?? booking.checkIn)
+    const co = toDateStr(data.checkOut ?? booking.checkOut)
+    if (!(new Date(ci) < new Date(co))) throw new Error('INVALID_DATES')
+    return [...rooms, {
+      lineId:       roomLineId(),
+      roomId:       data.roomId ?? null,
+      roomNumber:   data.roomNumber ?? null,
+      roomType:     data.roomType ?? null,
+      roomCapacity: data.roomCapacity != null ? Number(data.roomCapacity) : null,
+      roomNameAr:   data.roomNameAr ?? null,
+      roomNameEn:   data.roomNameEn ?? null,
+      checkIn:      ci,
+      checkOut:     co,
+      nights:       nightsBetween(ci, co),
+      price:        data.price == null || data.price === '' ? null : Number(data.price),
+    }]
   })
 }
 
-// Returns true if the room is available for the given date range
-export async function checkAvailability(roomId, checkIn, checkOut) {
-  const bookings = await getBookingsForRoom(roomId)
-  const reqIn  = new Date(checkIn)
-  const reqOut = new Date(checkOut)
+// Remove a room-line. A booking must keep at least one room (delete the whole
+// booking instead of emptying it).
+export async function removeBookingRoomLine(bookingId, lineId) {
+  return mutateBookingRooms(bookingId, (rooms) => {
+    if (rooms.length <= 1) throw new Error('LAST_ROOM')
+    if (!rooms.some(r => r.lineId === lineId)) throw new Error('LINE_NOT_FOUND')
+    return rooms.filter(r => r.lineId !== lineId)
+  })
+}
 
-  for (const b of bookings) {
-    const bIn  = b.checkIn.toDate  ? b.checkIn.toDate()  : new Date(b.checkIn)
-    const bOut = b.checkOut.toDate ? b.checkOut.toDate() : new Date(b.checkOut)
-    if (bIn < reqOut && bOut > reqIn) return false
-  }
-  return true
+// Assign a concrete room to a room-line. Validates type/capacity match and that
+// the room is free across that line's own window (excluding this line).
+export async function assignRoomLine(bookingId, lineId, roomId) {
+  if (!bookingId || !lineId || !roomId) throw new Error('INVALID_ASSIGN_DATA')
+  const all = await fetchAllBookings()
+  return mutateBookingRooms(bookingId, async (rooms, booking, tx) => {
+    const idx = rooms.findIndex(r => r.lineId === lineId)
+    if (idx < 0) throw new Error('LINE_NOT_FOUND')
+    const line = rooms[idx]
+    const roomSnap = await tx.get(doc(db, 'rooms', roomId))
+    if (!roomSnap.exists()) throw new Error('ROOM_NOT_FOUND')
+    const room = roomSnap.data()
+    if (line.roomType && room.type && line.roomType !== room.type) throw new Error('TYPE_MISMATCH')
+    if (line.roomCapacity && room.capacity && Number(line.roomCapacity) !== Number(room.capacity)) throw new Error('CAPACITY_MISMATCH')
+    if (isRoomBlockedInRange(room, new Date(line.checkIn), new Date(line.checkOut))) throw new RoomUnavailableError()
+    if (roomLineConflict(all, roomId, line.checkIn, line.checkOut, bookingId, lineId)) throw new RoomUnavailableError()
+    const variantSnap = await tx.get(doc(db, 'variants', `${room.type}-${room.capacity}`))
+    const variant = variantSnap.exists() ? variantSnap.data() : null
+    const copy = rooms.slice()
+    copy[idx] = {
+      ...line,
+      roomId,
+      roomNumber: room.number ?? null,
+      roomType:   room.type ?? line.roomType,
+      roomCapacity: room.capacity != null ? Number(room.capacity) : line.roomCapacity,
+      roomNameAr: variant?.nameAr ?? line.roomNameAr ?? null,
+      roomNameEn: variant?.nameEn ?? line.roomNameEn ?? null,
+    }
+    return copy
+  })
+}
+
+// Free the concrete room from a line, keeping its variant so it can be re-assigned.
+export async function unassignRoomLine(bookingId, lineId) {
+  return mutateBookingRooms(bookingId, (rooms) => {
+    const idx = rooms.findIndex(r => r.lineId === lineId)
+    if (idx < 0) throw new Error('LINE_NOT_FOUND')
+    const copy = rooms.slice()
+    copy[idx] = { ...copy[idx], roomId: null, roomNumber: null }
+    return copy
+  })
+}
+
+// Edit a room-line's dates and/or price. When dates change on an assigned line,
+// re-checks the room is free; recomputes nights, and (unless an explicit price is
+// given) re-prices from the variant × new nights.
+export async function updateBookingRoomLine(bookingId, lineId, patch = {}) {
+  const all = await fetchAllBookings()
+  return mutateBookingRooms(bookingId, async (rooms, booking, tx) => {
+    const idx = rooms.findIndex(r => r.lineId === lineId)
+    if (idx < 0) throw new Error('LINE_NOT_FOUND')
+    const line = rooms[idx]
+    const ci = patch.checkIn  != null ? toDateStr(patch.checkIn)  : line.checkIn
+    const co = patch.checkOut != null ? toDateStr(patch.checkOut) : line.checkOut
+    if (!(new Date(ci) < new Date(co))) throw new Error('INVALID_DATES')
+    const datesChanged = ci !== line.checkIn || co !== line.checkOut
+    if (line.roomId && datesChanged && roomLineConflict(all, line.roomId, ci, co, bookingId, lineId)) {
+      throw new RoomUnavailableError()
+    }
+    const nights = nightsBetween(ci, co)
+    let price = line.price
+    if (patch.price !== undefined) {
+      price = patch.price === '' || patch.price == null ? null : Number(patch.price)
+    } else if (datesChanged && line.roomType && line.roomCapacity) {
+      const vSnap = await tx.get(doc(db, 'variants', `${line.roomType}-${line.roomCapacity}`))
+      const vp = vSnap.exists() ? vSnap.data().price : null
+      if (typeof vp === 'number') price = vp * nights
+    }
+    const copy = rooms.slice()
+    copy[idx] = { ...line, checkIn: ci, checkOut: co, nights, price }
+    return copy
+  })
+}
+
+// Convenience: set the same check-in/check-out on every room-line.
+export async function setBookingDatesAllRooms(bookingId, checkIn, checkOut) {
+  const ci = toDateStr(checkIn), co = toDateStr(checkOut)
+  if (!(new Date(ci) < new Date(co))) throw new Error('INVALID_DATES')
+  const all = await fetchAllBookings()
+  return mutateBookingRooms(bookingId, async (rooms, booking, tx) => {
+    const out = []
+    for (const line of rooms) {
+      if (line.roomId && roomLineConflict(all, line.roomId, ci, co, bookingId, line.lineId)) {
+        throw new RoomUnavailableError()
+      }
+      const nights = nightsBetween(ci, co)
+      let price = line.price
+      if (line.roomType && line.roomCapacity) {
+        const vSnap = await tx.get(doc(db, 'variants', `${line.roomType}-${line.roomCapacity}`))
+        const vp = vSnap.exists() ? vSnap.data().price : null
+        if (typeof vp === 'number') price = vp * nights
+      }
+      out.push({ ...line, checkIn: ci, checkOut: co, nights, price })
+    }
+    return out
+  })
 }
 
 // ─── Rooms (admin) ────────────────────────────────────────
@@ -458,74 +639,21 @@ export async function firestoreUpdateVariant(id, data) {
   await updateDoc(doc(db, 'variants', id), { ...data, updatedAt: Timestamp.now() })
 }
 
-// Admin assigns a concrete room (e.g. 102) to an unassigned type-based
-// booking. Validates that the chosen room has no overlapping booking for the
-// stay window inside a transaction so two admins can't race-assign the same
-// room to different guests.
-export async function assignRoomToBooking(bookingId, roomId) {
-  if (!bookingId || !roomId) throw new Error('INVALID_ASSIGN_DATA')
-  const bookingRef = doc(db, 'bookings', bookingId)
-  const roomRef    = doc(db, 'rooms', roomId)
-
-  return await runTransaction(db, async (tx) => {
-    const [bookingSnap, roomSnap] = await Promise.all([tx.get(bookingRef), tx.get(roomRef)])
-    if (!bookingSnap.exists()) throw new Error('BOOKING_NOT_FOUND')
-    if (!roomSnap.exists())    throw new Error('ROOM_NOT_FOUND')
-
-    const b    = bookingSnap.data()
-    const room = roomSnap.data()
-    if (b.roomType && room.type && b.roomType !== room.type) throw new Error('TYPE_MISMATCH')
-    if (b.roomCapacity && room.capacity && Number(b.roomCapacity) !== Number(room.capacity)) {
-      throw new Error('CAPACITY_MISMATCH')
-    }
-
-    const bIn  = b.checkIn?.toDate  ? b.checkIn.toDate()  : new Date(b.checkIn)
-    const bOut = b.checkOut?.toDate ? b.checkOut.toDate() : new Date(b.checkOut)
-    if (isRoomBlockedInRange(room, bIn, bOut)) throw new RoomUnavailableError()
-
-    // Rooms no longer carry display names — pull from the matching variant
-    // so the bookings table and WhatsApp message render a friendly label.
-    const variantId = `${room.type}-${room.capacity}`
-    const variantSnap = await tx.get(doc(db, 'variants', variantId))
-    const variant = variantSnap.exists() ? variantSnap.data() : null
-
-    const others = await getDocs(query(
-      collection(db, 'bookings'),
-      where('roomId', '==', roomId),
-    ))
-    const conflict = others.docs.some(d => {
-      if (d.id === bookingId) return false
-      const o = d.data()
-      if (['cancelled', 'checked-out'].includes(o.status)) return false
-      const oIn  = o.checkIn?.toDate  ? o.checkIn.toDate()  : new Date(o.checkIn)
-      const oOut = o.checkOut?.toDate ? o.checkOut.toDate() : new Date(o.checkOut)
-      return oIn < bOut && oOut > bIn
-    })
-    if (conflict) throw new RoomUnavailableError()
-
-    tx.update(bookingRef, {
-      roomId,
-      roomNumber: room.number ?? null,
-      roomNameAr: variant?.nameAr ?? b.roomNameAr ?? null,
-      roomNameEn: variant?.nameEn ?? b.roomNameEn ?? null,
-      updatedAt:  Timestamp.now(),
-    })
-  })
-}
-
-// Remove a concrete room from a booking, returning it to the "needs a room"
-// (variant-only) state. The category (roomType/roomCapacity) and its display
-// name are kept so it can be re-assigned later; the physical room is freed.
-export async function unassignRoomFromBooking(bookingId) {
-  if (!bookingId) throw new Error('INVALID_ASSIGN_DATA')
-  await updateDoc(doc(db, 'bookings', bookingId), {
-    roomId: null,
-    roomNumber: null,
-    updatedAt: Timestamp.now(),
-  })
-}
-
 // ─── WhatsApp notification ─────────────────────────────────
+
+// Human-readable one-line-per-room summary for messages.
+function roomLinesText(booking, language = 'ar') {
+  const TYPE_AR = { superub: 'سوبر', premium: 'بريميوم', deluxe: 'ديلوكس' }
+  const TYPE_EN = { superub: 'Superub', premium: 'Premium', deluxe: 'Deluxe' }
+  const lines = getBookingRooms(booking)
+  return lines.map(r => {
+    const name = language === 'ar'
+      ? (r.roomNameAr || TYPE_AR[r.roomType] || r.roomType || 'غرفة')
+      : (r.roomNameEn || r.roomNameAr || TYPE_EN[r.roomType] || r.roomType || 'Room')
+    const num = r.roomNumber ? ` (${r.roomNumber})` : (language === 'ar' ? ' — غير معيّنة' : ' — unassigned')
+    return `• ${name}${num}`
+  }).join('\n')
+}
 
 export function buildWhatsAppUrl(booking, language = 'ar') {
   const checkInStr  = new Date(booking.checkIn).toLocaleDateString(
@@ -547,29 +675,16 @@ export function buildWhatsAppUrl(booking, language = 'ar') {
     ? `#${formatBookingNumber(booking.bookingNumber)}`
     : booking.bookingId
 
-  // Customer flow stores roomType + roomCapacity + null roomId; show the
-  // variant instead of a specific room number.
-  const TYPE_AR = { superub: 'سوبر', premium: 'بريميوم', deluxe: 'ديلوكس' }
-  const TYPE_EN = { superub: 'Superub', premium: 'Premium', deluxe: 'Deluxe' }
-  const variantAr = booking.roomType
-    ? `${TYPE_AR[booking.roomType] || booking.roomType}${booking.roomCapacity ? ` — لـ ${booking.roomCapacity} أشخاص` : ''}`
-    : ''
-  const variantEn = booking.roomType
-    ? `${TYPE_EN[booking.roomType] || booking.roomType}${booking.roomCapacity ? ` — for ${booking.roomCapacity} persons` : ''}`
-    : ''
-  const roomLineAr = booking.roomNumber
-    ? `${booking.roomNameAr || ''} (${booking.roomNumber})`
-    : `${booking.roomNameAr || variantAr}${variantAr && booking.roomNameAr && !booking.roomNameAr.includes(variantAr) ? ` — ${variantAr}` : ''}`
-  const roomLineEn = booking.roomNumber
-    ? `${booking.roomNameEn || ''} (${booking.roomNumber})`
-    : `${booking.roomNameEn || variantEn}${variantEn && booking.roomNameEn && !booking.roomNameEn.includes(variantEn) ? ` — ${variantEn}` : ''}`
+  const roomsAr = roomLinesText(booking, 'ar')
+  const roomsEn = roomLinesText(booking, 'en')
+  const roomCount = getBookingRooms(booking).length
 
   let message
   if (language === 'ar') {
     message =
       `*طلب حجز جديد - منتجع العلبي* 🏨\n\n` +
       `رقم الحجز: ${bookingRef}\n` +
-      `الغرفة: ${roomLineAr}\n` +
+      `${roomCount > 1 ? `الغرف (${roomCount}):` : 'الغرفة:'}\n${roomsAr}\n` +
       `الوصول: ${checkInStr}\n` +
       `المغادرة: ${checkOutStr}\n` +
       `عدد الليالي: ${nights}\n` +
@@ -585,7 +700,7 @@ export function buildWhatsAppUrl(booking, language = 'ar') {
     message =
       `*New Booking Request - Olabi Resort* 🏨\n\n` +
       `Booking ID: ${bookingRef}\n` +
-      `Room: ${roomLineEn}\n` +
+      `${roomCount > 1 ? `Rooms (${roomCount}):` : 'Room:'}\n${roomsEn}\n` +
       `Check-in: ${checkInStr}\n` +
       `Check-out: ${checkOutStr}\n` +
       `Nights: ${nights}\n` +
@@ -765,6 +880,9 @@ export function buildCustomerWhatsAppUrl(booking, language = 'ar') {
   const ref = booking.bookingNumber != null
     ? `#${formatBookingNumber(booking.bookingNumber)}`
     : (booking.id || booking.bookingId || '')
+  const roomsAr = roomLinesText(booking, 'ar')
+  const roomsEn = roomLinesText(booking, 'en')
+  const roomCount = getBookingRooms(booking).length
 
   let message
   if (language === 'ar') {
@@ -773,7 +891,7 @@ export function buildCustomerWhatsAppUrl(booking, language = 'ar') {
       `مرحباً ${booking.guestName || ''}،\n` +
       `تم تأكيد حجزك. تفاصيل إقامتك:\n\n` +
       `رقم الحجز: ${ref}\n` +
-      `الغرفة: ${booking.roomNameAr} (${booking.roomNumber})\n` +
+      `${roomCount > 1 ? `الغرف (${roomCount}):` : 'الغرفة:'}\n${roomsAr}\n` +
       `الوصول: ${checkInStr}\n` +
       `المغادرة: ${checkOutStr}\n` +
       `عدد الليالي: ${nights}\n` +
@@ -785,7 +903,7 @@ export function buildCustomerWhatsAppUrl(booking, language = 'ar') {
       `Hello ${booking.guestName || ''},\n` +
       `Your booking is confirmed. Stay details:\n\n` +
       `Booking ID: ${ref}\n` +
-      `Room: ${booking.roomNameEn || booking.roomNameAr} (${booking.roomNumber})\n` +
+      `${roomCount > 1 ? `Rooms (${roomCount}):` : 'Room:'}\n${roomsEn}\n` +
       `Check-in: ${checkInStr}\n` +
       `Check-out: ${checkOutStr}\n` +
       `Nights: ${nights}\n` +
