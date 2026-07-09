@@ -85,8 +85,8 @@ export default function Footer() {
             {/* Social */}
             <div style={{ display: 'flex', gap: '12px', marginTop: '20px' }}>
               {[
-                { Icon: FaInstagram, href: '#' },
-                { Icon: FaFacebook, href: '#' },
+                { Icon: FaInstagram, href: 'https://www.instagram.com/olabiresort/' },
+                { Icon: FaFacebook, href: 'https://www.facebook.com/p/Olabi-Resort-%D9%85%D9%86%D8%AA%D8%AC%D8%B9-%D8%A8%D9%86-%D8%A7%D9%84%D8%B9%D9%84%D8%A8%D9%8A-%D8%A7%D9%84%D8%B3%D9%8A%D8%A7%D8%AD%D9%8A-61578203393023/' },
                 { Icon: FaWhatsapp, href: 'https://wa.me/963956883006' },
               ].map(({ Icon, href }, i) => (
                 <a key={i} href={href} target="_blank" rel="noopener noreferrer" style={{
