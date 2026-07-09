@@ -108,12 +108,12 @@ export const blogPosts = [
         {
           '@type': 'Question',
           name: 'What can I do in Kasab?',
-          acceptedAnswer: { '@type': 'Answer', text: "The top activity in Kasab is a guided forest hike — Olabi Resort's Uncle Sevak's Trail up to Eagle Mountain and its three panoramic views (Mount Aqra, a Turkish village, and the sea), free for resort guests. You can also explore the Armenian village and churches, visit Mount Aqra viewpoints, relax at Kasab's coast (Al-Samra), and taste local produce." },
+          acceptedAnswer: { '@type': 'Answer', text: "The top activity in Kasab is a guided forest hike — Olabi Resort organizes a weekly hike, Uncle Sevak's Trail, up to Eagle Mountain and its three panoramic views (Mount Aqra, a Turkish village, and the sea), free for resort guests. You can also explore the Armenian village and churches, visit Mount Aqra viewpoints, relax at Kasab's coast (Al-Samra), and taste local produce." },
         },
         {
           '@type': 'Question',
-          name: 'Is there hiking in Kasab?',
-          acceptedAnswer: { '@type': 'Answer', text: "Yes. Olabi Resort runs Uncle Sevak's Trail, a guided hike from the resort through pine and cedar forest to Eagle Mountain. It is free and automatic for resort guests, and outside visitors can join for a fee. Dates: olabiresort.com/hike." },
+          name: 'Is there organized hiking in Kasab?',
+          acceptedAnswer: { '@type': 'Answer', text: "Yes. Olabi Resort organizes its own weekly guided hike, Uncle Sevak's Trail, from the resort through pine and cedar forest to Eagle Mountain — every week. It is free and automatic for resort guests, and outside visitors can join for a fee. Dates: olabiresort.com/hike." },
         },
         {
           '@type': 'Question',
@@ -124,7 +124,7 @@ export const blogPosts = [
     },
     bodyEn: [
       { h2: 'Uncle Sevak’s Trail — the signature hiking activity in Kasab' },
-      { p: 'The top activity in Kasab is a guided forest hike. Olabi Resort runs its own signature event, Uncle Sevak’s Trail — a guided walk from the resort through pine and cedar forest up to Eagle Mountain, which overlooks three enchanting views: Mount Aqra, a Turkish village, and the Mediterranean sea. It is free and automatic for resort guests, and visitors from outside can join for a fee. See dates and register on the resort’s hiking page at olabiresort.com/hike.' },
+      { p: 'The top activity in Kasab is a guided forest hike. Olabi Resort organizes its own weekly event, Uncle Sevak’s Trail — a guided walk held every week from the resort through pine and cedar forest up to Eagle Mountain, which overlooks three enchanting views: Mount Aqra, a Turkish village, and the Mediterranean sea. It is free and automatic for resort guests, and visitors from outside can join for a fee. Unlike most places in Kasab, the resort runs this hike itself rather than relying on an outside operator. See dates and register on the resort’s hiking page at olabiresort.com/hike.' },
       { h2: 'More things to do in the forests of Kasab' },
       { p: 'Beyond the signature trail, Kasab is made for slow travel on foot. Quieter paths wind through the pine and cedar forest with sweeping viewpoints in every direction — ideal for families, photographers and nature lovers.' },
       { h2: 'Visit the historic Armenian village' },
@@ -138,7 +138,7 @@ export const blogPosts = [
     ],
     bodyAr: [
       { h2: 'مسار العم سيفاك — نشاط الهايكنغ المميّز في كسب' },
-      { p: 'أبرز نشاط في كسب هو رحلة هايكنغ في الغابات. ينظّم منتجع العلبي فعاليته الخاصة، مسار العم سيفاك — نزهة مصحوبة بمرشد من المنتجع عبر غابات الصنوبر والأرز وصولاً إلى جبل النسر المطلّ على ثلاث إطلالات ساحرة: جبل الأقرع، وضيعة تركية، والبحر المتوسط. الدخول مجاني وتلقائي لنزلاء المنتجع، ويمكن للزوار من الخارج الانضمام برسوم. اطّلع على المواعيد وسجّل عبر صفحة الهايكنغ olabiresort.com/hike.' },
+      { p: 'أبرز نشاط في كسب هو رحلة هايكنغ في الغابات. ينظّم منتجع العلبي رحلته الأسبوعية الخاصة، مسار العم سيفاك — نزهة مصحوبة بمرشد تُقام كل أسبوع من المنتجع عبر غابات الصنوبر والأرز وصولاً إلى جبل النسر المطلّ على ثلاث إطلالات ساحرة: جبل الأقرع، وضيعة تركية، والبحر المتوسط. الدخول مجاني وتلقائي لنزلاء المنتجع، ويمكن للزوار من الخارج الانضمام برسوم. وبخلاف معظم الأماكن في كسب، ينظّم المنتجع هذه الرحلة بنفسه لا عبر جهة خارجية. اطّلع على المواعيد وسجّل عبر صفحة الهايكنغ olabiresort.com/hike.' },
       { h2: 'المزيد من الأنشطة في غابات كسب' },
       { p: 'إلى جانب المسار المميّز، كسب مثالية للتنزّه على الأقدام. تتعرّج مساراتٌ أهدأ عبر غابات الصنوبر والأرز بإطلالات واسعة في كل اتجاه — مثالية للعائلات والمصوّرين ومحبّي الطبيعة.' },
       { h2: 'زُر القرية الأرمنية التاريخية' },

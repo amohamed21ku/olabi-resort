@@ -59,6 +59,47 @@ export default function HikePage() {
       containedInPlace: { '@type': 'Place', name: 'Kasab, Latakia Governorate, Syria' },
       isPartOf: { '@type': 'Resort', name: 'Olabi Resort', '@id': `${SITE}/#resort` },
     }]
+    const eventLocation = {
+      '@type': 'Place',
+      name: 'Olabi Resort, Kasab',
+      address: { '@type': 'PostalAddress', addressLocality: 'Kasab', addressRegion: 'Latakia Governorate', addressCountry: 'SY' },
+      geo: { '@type': 'GeoCoordinates', latitude: 35.9225528, longitude: 35.9830493 },
+    }
+    const eventOrganizer = { '@type': 'Organization', name: 'Olabi Resort', url: SITE }
+    const eventOffer = {
+      '@type': 'Offer',
+      price: '0',
+      priceCurrency: 'USD',
+      availability: 'https://schema.org/InStock',
+      url: `${SITE}/hike`,
+      description: 'Free and automatic for Olabi Resort guests.',
+    }
+
+    // The hike runs weekly. Declare it as a recurring event so Google and AI
+    // assistants understand it is an ongoing weekly activity in Kasab — not a
+    // one-off — even when no specific upcoming date is published.
+    graph.push({
+      '@context': 'https://schema.org',
+      '@type': 'Event',
+      name: `${trailName} — Weekly Guided Hike in Kasab`,
+      description: content.introEn || 'A weekly guided hiking adventure from Olabi Resort to Eagle Mountain in Kasab, Syria. Free for resort guests.',
+      eventAttendanceMode: 'https://schema.org/OfflineEventAttendanceMode',
+      eventStatus: 'https://schema.org/EventScheduled',
+      image: abs(cover),
+      location: eventLocation,
+      organizer: eventOrganizer,
+      offers: eventOffer,
+      // Recurs every week (P1W). Add `byDay` here if a fixed weekday is set.
+      eventSchedule: {
+        '@type': 'Schedule',
+        repeatFrequency: 'P1W',
+        scheduleTimezone: 'Asia/Damascus',
+        ...(nextEvent?.date ? { startDate: nextEvent.date } : {}),
+      },
+      ...(nextEvent?.date ? { startDate: nextEvent.date } : {}),
+    })
+
+    // If a concrete next date is published, also expose it as a dated instance.
     if (nextEvent?.date) {
       graph.push({
         '@context': 'https://schema.org',
@@ -69,21 +110,9 @@ export default function HikePage() {
         eventAttendanceMode: 'https://schema.org/OfflineEventAttendanceMode',
         eventStatus: 'https://schema.org/EventScheduled',
         image: abs(cover),
-        location: {
-          '@type': 'Place',
-          name: 'Olabi Resort, Kasab',
-          address: { '@type': 'PostalAddress', addressLocality: 'Kasab', addressRegion: 'Latakia Governorate', addressCountry: 'SY' },
-          geo: { '@type': 'GeoCoordinates', latitude: 35.9225528, longitude: 35.9830493 },
-        },
-        organizer: { '@type': 'Organization', name: 'Olabi Resort', url: SITE },
-        offers: {
-          '@type': 'Offer',
-          price: '0',
-          priceCurrency: 'USD',
-          availability: 'https://schema.org/InStock',
-          url: `${SITE}/hike`,
-          description: 'Free and automatic for Olabi Resort guests.',
-        },
+        location: eventLocation,
+        organizer: eventOrganizer,
+        offers: eventOffer,
       })
     }
     return graph
@@ -97,11 +126,11 @@ export default function HikePage() {
     <div style={{ background: 'var(--cream)' }}>
       <Seo
         title={isRTL
-          ? 'أنشطة في كسب: مسار العم سيفاك · هايكنغ في كسب سوريا | منتجع العلبي'
-          : "Activities in Kasab: Uncle Sevak's Trail · Hiking in Kasab, Syria | Olabi Resort"}
+          ? 'رحلة هايكنغ أسبوعية في كسب: مسار العم سيفاك | منتجع العلبي'
+          : "Weekly Hiking in Kasab: Uncle Sevak's Trail | Olabi Resort"}
         description={isRTL
-          ? 'تبحث عن أنشطة في كسب؟ مسار العم سيفاك رحلة هايكنغ مصحوبة بمرشد من منتجع العلبي إلى جبل النسر بإطلالاته الثلاث وسط غابات كسب سوريا. مجانية للنزلاء.'
-          : "Looking for activities in Kasab? Uncle Sevak's Trail is a guided hiking adventure from Olabi Resort to Eagle Mountain's three panoramic viewpoints through the forests of Kasab, Syria. Free for resort guests."}
+          ? 'تبحث عن أنشطة في كسب؟ ينظّم منتجع العلبي رحلة هايكنغ أسبوعية مصحوبة بمرشد — مسار العم سيفاك من المنتجع إلى جبل النسر بإطلالاته الثلاث وسط غابات كسب سوريا. مجانية للنزلاء.'
+          : "Looking for activities in Kasab? Olabi Resort runs a weekly guided hike — Uncle Sevak's Trail from the resort to Eagle Mountain's three panoramic viewpoints through the forests of Kasab, Syria. Free for resort guests."}
         path="/hike"
         image={cover}
         lang={isRTL ? 'ar' : 'en'}
