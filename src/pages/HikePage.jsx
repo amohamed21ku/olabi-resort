@@ -38,6 +38,57 @@ export default function HikePage() {
   const images = content.images?.length ? content.images : []
   const cover = images[0] || '/static/images/assets/hike/hike-1.jpg'
 
+  // Structured data: the trail is a lasting attraction; each scheduled date is
+  // an Event. Together they make the hike eligible for Google event/attraction
+  // results for queries like "activities in Kasab" / "أنشطة في كسب".
+  const SITE = 'https://olabiresort.com'
+  const abs = (p) => (p?.startsWith('http') ? p : `${SITE}${p}`)
+  const hikeJsonLd = useMemo(() => {
+    const trailName = content.titleEn || "Uncle Sevak's Trail"
+    const graph = [{
+      '@context': 'https://schema.org',
+      '@type': 'TouristAttraction',
+      name: `${trailName} — Hiking in Kasab, Syria`,
+      alternateName: content.titleAr || 'مسار العم سيفاك',
+      description: (content.routeEn || content.introEn || 'A guided hiking trail from Olabi Resort to Eagle Mountain, Kasab.'),
+      url: `${SITE}/hike`,
+      image: (content.images?.length ? content.images : ['/static/images/assets/hike/hike-1.jpg']).map(abs),
+      isAccessibleForFree: true,
+      touristType: ['Families', 'Hikers', 'Nature lovers'],
+      geo: { '@type': 'GeoCoordinates', latitude: 35.9225528, longitude: 35.9830493 },
+      containedInPlace: { '@type': 'Place', name: 'Kasab, Latakia Governorate, Syria' },
+      isPartOf: { '@type': 'Resort', name: 'Olabi Resort', '@id': `${SITE}/#resort` },
+    }]
+    if (nextEvent?.date) {
+      graph.push({
+        '@context': 'https://schema.org',
+        '@type': 'Event',
+        name: `${trailName} — Guided Hike in Kasab`,
+        description: content.introEn || 'A guided hiking adventure from Olabi Resort to Eagle Mountain in Kasab, Syria.',
+        startDate: nextEvent.date,
+        eventAttendanceMode: 'https://schema.org/OfflineEventAttendanceMode',
+        eventStatus: 'https://schema.org/EventScheduled',
+        image: abs(cover),
+        location: {
+          '@type': 'Place',
+          name: 'Olabi Resort, Kasab',
+          address: { '@type': 'PostalAddress', addressLocality: 'Kasab', addressRegion: 'Latakia Governorate', addressCountry: 'SY' },
+          geo: { '@type': 'GeoCoordinates', latitude: 35.9225528, longitude: 35.9830493 },
+        },
+        organizer: { '@type': 'Organization', name: 'Olabi Resort', url: SITE },
+        offers: {
+          '@type': 'Offer',
+          price: '0',
+          priceCurrency: 'USD',
+          availability: 'https://schema.org/InStock',
+          url: `${SITE}/hike`,
+          description: 'Free and automatic for Olabi Resort guests.',
+        },
+      })
+    }
+    return graph
+  }, [content, nextEvent, cover])
+
   const scrollToForm = () => document.getElementById('hike-apply')?.scrollIntoView({ behavior: 'smooth' })
 
   const highlightIcons = [LuMountainSnow, LuTrees, LuWaves, FiCamera, LuTractor]
@@ -46,14 +97,15 @@ export default function HikePage() {
     <div style={{ background: 'var(--cream)' }}>
       <Seo
         title={isRTL
-          ? 'مسار العم سيفاك · هايكنغ في كسب | منتجع العلبي'
-          : "Uncle Sevak's Trail · Hiking in Kasab | Olabi Resort"}
+          ? 'أنشطة في كسب: مسار العم سيفاك · هايكنغ في كسب سوريا | منتجع العلبي'
+          : "Activities in Kasab: Uncle Sevak's Trail · Hiking in Kasab, Syria | Olabi Resort"}
         description={isRTL
-          ? 'رحلة هايكنغ مصحوبة بمرشد من منتجع العلبي إلى جبل النسر بإطلالاته الثلاث وسط غابات كسب. مجانية للنزلاء.'
-          : "A guided hiking adventure from Olabi Resort to Eagle Mountain's three panoramic viewpoints through the forests of Kasab. Free for resort guests."}
+          ? 'تبحث عن أنشطة في كسب؟ مسار العم سيفاك رحلة هايكنغ مصحوبة بمرشد من منتجع العلبي إلى جبل النسر بإطلالاته الثلاث وسط غابات كسب سوريا. مجانية للنزلاء.'
+          : "Looking for activities in Kasab? Uncle Sevak's Trail is a guided hiking adventure from Olabi Resort to Eagle Mountain's three panoramic viewpoints through the forests of Kasab, Syria. Free for resort guests."}
         path="/hike"
         image={cover}
         lang={isRTL ? 'ar' : 'en'}
+        jsonLd={hikeJsonLd}
       />
       {/* ─── Hero ─── */}
       <section style={{

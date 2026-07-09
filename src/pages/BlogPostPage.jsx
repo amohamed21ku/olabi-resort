@@ -20,7 +20,7 @@ export default function BlogPostPage() {
 
   const others = blogPosts.filter(p => p.slug !== post.slug).slice(0, 3)
 
-  const jsonLd = {
+  const posting = {
     '@context': 'https://schema.org',
     '@type': 'BlogPosting',
     headline: title,
@@ -38,6 +38,8 @@ export default function BlogPostPage() {
       logo: { '@type': 'ImageObject', url: 'https://olabiresort.com/static/images/assets/olabi-logo.jpg' },
     },
   }
+  // Some posts carry extra schema (e.g. a TouristDestination guide).
+  const jsonLd = post.extraSchema ? [posting, post.extraSchema] : posting
 
   return (
     <div style={{ background: 'var(--cream)' }}>
