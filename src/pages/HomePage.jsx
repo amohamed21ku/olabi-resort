@@ -5,6 +5,7 @@ import { t } from '../translations'
 import { useRoomVariants } from '../hooks/useRooms'
 import { countAvailableUnitsForVariant } from '../firebase/services'
 import SearchBar from '../components/SearchBar'
+import Seo from '../components/Seo'
 import TypeCard from '../components/TypeCard'
 import DirectionsMap from '../components/DirectionsMap'
 import HikeSpotlight from '../components/HikeSpotlight'
@@ -214,6 +215,17 @@ export default function HomePage() {
 
   return (
     <>
+      <Seo
+        title={isRTL
+          ? 'منتجع العلبي كسب | Olabi Resort — فندق ومنتجع جبلي في كسب، اللاذقية، سوريا'
+          : 'Olabi Resort Kasab | Mountain Hotel & Resort in Kasab, Latakia, Syria'}
+        description={isRTL
+          ? 'منتجع وفندق العلبي في كسب، اللاذقية — أفضل منتجع جبلي في سوريا. غرف وأجنحة فاخرة، إنترنت ستارلينك مجاني، مطعم، ومسارات هايكنغ وسط غابات الصنوبر. صيف بارد بلا مكيف. احجز مباشرة.'
+          : 'Olabi Resort & Hotel in Kasab, Latakia — the finest mountain resort in Syria. Luxury rooms & suites, free Starlink WiFi, restaurant, and forest hiking trails. Cool summers, no AC. Book direct.'}
+        path="/"
+        lang={isRTL ? 'ar' : 'en'}
+      />
+
       <HikeSpotlight />
 
       {/* ─── Hero ─── */}

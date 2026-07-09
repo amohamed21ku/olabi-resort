@@ -2,6 +2,7 @@ import { useState, useMemo, useEffect } from 'react'
 import { useLanguage } from '../App'
 import { useHike } from '../hooks/useHike'
 import { createHikeApplication } from '../firebase/services'
+import Seo from '../components/Seo'
 import {
   FiMapPin, FiSun, FiMoon, FiCamera, FiArrowRight, FiArrowLeft,
   FiCheckCircle, FiCalendar, FiUsers, FiChevronLeft, FiChevronRight, FiX,
@@ -43,6 +44,17 @@ export default function HikePage() {
 
   return (
     <div style={{ background: 'var(--cream)' }}>
+      <Seo
+        title={isRTL
+          ? 'مسار العم سيفاك · هايكنغ في كسب | منتجع العلبي'
+          : "Uncle Sevak's Trail · Hiking in Kasab | Olabi Resort"}
+        description={isRTL
+          ? 'رحلة هايكنغ مصحوبة بمرشد من منتجع العلبي إلى جبل النسر بإطلالاته الثلاث وسط غابات كسب. مجانية للنزلاء.'
+          : "A guided hiking adventure from Olabi Resort to Eagle Mountain's three panoramic viewpoints through the forests of Kasab. Free for resort guests."}
+        path="/hike"
+        image={cover}
+        lang={isRTL ? 'ar' : 'en'}
+      />
       {/* ─── Hero ─── */}
       <section style={{
         position: 'relative', minHeight: '82vh',

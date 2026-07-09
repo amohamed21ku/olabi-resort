@@ -4,6 +4,7 @@ export const ar = {
   nav_rooms:      'الغرف',
   nav_hike:       'الهايكنغ',
   nav_about:      'من نحن',
+  nav_blog:       'دليل كسب',
   nav_directions: 'الاتجاهات',
   nav_bookNow:    'احجز الآن',
 

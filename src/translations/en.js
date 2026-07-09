@@ -4,6 +4,7 @@ export const en = {
   nav_rooms:      'Rooms',
   nav_hike:       'Hiking',
   nav_about:      'About',
+  nav_blog:       'Kasab Guide',
   nav_directions: 'Directions',
   nav_bookNow:    'Book Now',
 

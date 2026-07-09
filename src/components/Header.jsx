@@ -26,6 +26,7 @@ export default function Header() {
     { key: 'nav_home',       href: '/' },
     { key: 'nav_rooms',      href: '/#rooms' },
     { key: 'nav_hike',       href: '/hike' },
+    { key: 'nav_blog',       href: '/blog' },
     { key: 'nav_about',      href: '/#about' },
     { key: 'nav_directions', href: '/#directions' },
   ]

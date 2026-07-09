@@ -13,6 +13,8 @@ export default function Footer() {
   const navLinks = [
     { label: tr('nav_home'),       href: '/' },
     { label: tr('nav_rooms'),      href: '/#rooms' },
+    { label: tr('nav_hike'),       href: '/hike' },
+    { label: tr('nav_blog'),       href: '/blog' },
     { label: tr('nav_about'),      href: '/#about' },
     { label: tr('nav_directions'), href: '/#directions' },
   ]
