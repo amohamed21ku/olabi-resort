@@ -5,6 +5,7 @@ import { roomCandidatesForLine, fmtDateShort } from '../../utils/bookingHelpers'
 import { getUnassignedLines } from '../../utils/roomStatus'
 import { CATEGORY_LABEL_AR } from '../../constants'
 import Button from '../../components/Button'
+import DeleteBookingButton from '../../components/DeleteBookingButton'
 import Modal from '../../components/Modal'
 import Picker from '../../components/Picker'
 import { useGuardWhile } from '../../hooks/useNavGuard'
@@ -57,7 +58,12 @@ export default function NeedsRoomSection({ bookings, rooms, bookingActions }) {
             key={`${booking.id}-${line.lineId}`}
             title={booking.guestName}
             subtitle={`${CATEGORY_LABEL_AR[line.roomType] || line.roomType} · ${fmtDateShort(line.checkIn)} ← ${fmtDateShort(line.checkOut)}`}
-            action={<Button variant="secondary" size="sm" onClick={() => setPickingFor({ booking, line })}>اختيار غرفة</Button>}
+            action={
+              <div style={{ display: 'flex', gap: 6 }}>
+                <Button variant="secondary" size="sm" onClick={() => setPickingFor({ booking, line })}>اختيار غرفة</Button>
+                <DeleteBookingButton booking={booking} bookingActions={bookingActions} />
+              </div>
+            }
           />
         ))}
       </QueueCard>

@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { FiClock, FiCheck } from 'react-icons/fi'
 import { roomsLabel, fmtDateShort } from '../../utils/bookingHelpers'
 import Button from '../../components/Button'
+import DeleteBookingButton from '../../components/DeleteBookingButton'
 import QueueCard, { QueueRow } from './QueueCard'
 
 function tsMillis(v) {
@@ -46,13 +47,16 @@ export default function PendingApprovalSection({ bookings, bookingActions }) {
           title={b.guestName}
           subtitle={`${roomsLabel(b)} · ${fmtDateShort(b.checkIn)} ← ${fmtDateShort(b.checkOut)}`}
           action={
-            <Button
-              variant="secondary" size="sm" icon={<FiCheck size={13} />}
-              disabled={bookingActions.updating}
-              onClick={() => bookingActions.changeStatus(b.id, 'confirmed')}
-            >
-              تأكيد
-            </Button>
+            <div style={{ display: 'flex', gap: 6 }}>
+              <Button
+                variant="secondary" size="sm" icon={<FiCheck size={13} />}
+                disabled={bookingActions.updating}
+                onClick={() => bookingActions.changeStatus(b.id, 'confirmed')}
+              >
+                تأكيد
+              </Button>
+              <DeleteBookingButton booking={b} bookingActions={bookingActions} />
+            </div>
           }
         />
       ))}

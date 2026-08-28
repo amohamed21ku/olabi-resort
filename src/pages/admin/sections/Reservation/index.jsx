@@ -1,6 +1,7 @@
 import { occupiedRoomIdSet } from '../../utils/bookingHelpers'
 import PendingApprovalSection from './PendingApprovalSection'
 import NeedsRoomSection from './NeedsRoomSection'
+import UpcomingArrivalsSection from './UpcomingArrivalsSection'
 
 // The same four front-desk numbers the old dashboard led with, kept — just
 // as one compact line instead of four big cards, since they're a quick
@@ -59,6 +60,8 @@ export default function ReservationSection({ rooms, bookings, bookingActions }) 
         <PendingApprovalSection bookings={bookings} bookingActions={bookingActions} />
         <NeedsRoomSection bookings={bookings} rooms={rooms} bookingActions={bookingActions} />
       </div>
+
+      <UpcomingArrivalsSection bookings={bookings} bookingActions={bookingActions} />
     </div>
   )
 }
