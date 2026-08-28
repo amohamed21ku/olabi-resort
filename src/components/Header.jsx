@@ -4,12 +4,12 @@ import { useLanguage } from '../App'
 import { t } from '../translations'
 
 export default function Header() {
-  const { language, setLanguage, isRTL } = useLanguage()
+  const { language, isRTL, withLang, toggleLanguage } = useLanguage()
   const [scrolled, setScrolled] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
   const location = useLocation()
   const navigate = useNavigate()
-  const isHome = location.pathname === '/'
+  const isHome = location.pathname === '/' || location.pathname === '/en'
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 60)
@@ -34,8 +34,8 @@ export default function Header() {
   const scrollTo = (href) => {
     if (href.startsWith('/#')) {
       const id = href.slice(2)
-      if (location.pathname !== '/') {
-        navigate('/')
+      if (!isHome) {
+        navigate(withLang('/'))
         setTimeout(() => document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' }), 300)
       } else {
         document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' })
@@ -65,7 +65,7 @@ export default function Header() {
         }}>
           {/* Logo */}
           <Link
-            to="/"
+            to={withLang('/')}
             style={{
               flexShrink: 0,
               lineHeight: 0,
@@ -125,14 +125,14 @@ export default function Header() {
                   </button>
                 : <Link
                     key={link.key}
-                    to={link.href}
+                    to={withLang(link.href)}
                     style={{
                       padding: '8px 14px',
                       fontSize: '14px',
                       fontWeight: 500,
                       color: transparent
                         ? 'rgba(255,255,255,0.88)'
-                        : location.pathname === link.href ? 'var(--terracotta)' : 'var(--charcoal)',
+                        : location.pathname === withLang(link.href) ? 'var(--terracotta)' : 'var(--charcoal)',
                       borderRadius: 'var(--radius-sm)',
                       transition: 'color 0.2s',
                     }}
@@ -146,7 +146,7 @@ export default function Header() {
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             {/* Language toggle */}
             <button
-              onClick={() => setLanguage(language === 'ar' ? 'en' : 'ar')}
+              onClick={toggleLanguage}
               style={{
                 padding: '6px 14px',
                 borderRadius: '100px',
@@ -243,12 +243,12 @@ export default function Header() {
                 </button>
               : <Link
                   key={link.key}
-                  to={link.href}
+                  to={withLang(link.href)}
                   style={{
                     padding: '13px 0',
                     fontSize: '16px',
                     fontWeight: 500,
-                    color: location.pathname === link.href ? 'var(--terracotta)' : 'var(--charcoal)',
+                    color: location.pathname === withLang(link.href) ? 'var(--terracotta)' : 'var(--charcoal)',
                     borderBottom: '1px solid var(--linen)',
                     display: 'block',
                   }}

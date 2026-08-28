@@ -1,22 +1,24 @@
 import { useParams, Link, Navigate } from 'react-router-dom'
 import { useLanguage } from '../App'
+import { withLangPrefix } from '../utils/i18nPath'
 import { getPost, blogPosts } from '../data/blog'
 import Seo from '../components/Seo'
 import { FiArrowRight, FiArrowLeft, FiChevronLeft, FiChevronRight } from 'react-icons/fi'
 
 export default function BlogPostPage() {
   const { slug } = useParams()
-  const { isRTL } = useLanguage()
+  const { isRTL, withLang } = useLanguage()
   const post = getPost(slug)
+  const lang = isRTL ? 'ar' : 'en'
 
-  if (!post) return <Navigate to="/blog" replace />
+  if (!post) return <Navigate to={withLang('/blog')} replace />
 
   const Back = isRTL ? FiChevronRight : FiChevronLeft
   const Arrow = isRTL ? FiArrowLeft : FiArrowRight
   const title = isRTL ? post.titleAr : post.titleEn
   const body = isRTL ? post.bodyAr : post.bodyEn
   const description = isRTL ? post.excerptAr : post.excerptEn
-  const url = `https://olabiresort.com/blog/${post.slug}`
+  const url = `https://olabiresort.com${withLangPrefix(`/blog/${post.slug}`, lang)}`
 
   const others = blogPosts.filter(p => p.slug !== post.slug).slice(0, 3)
 
@@ -28,7 +30,7 @@ export default function BlogPostPage() {
     image: `https://olabiresort.com${post.cover}`,
     datePublished: post.date,
     dateModified: post.date,
-    inLanguage: isRTL ? 'ar' : 'en',
+    inLanguage: lang,
     keywords: post.keywords,
     mainEntityOfPage: { '@type': 'WebPage', '@id': url },
     author: { '@type': 'Organization', name: 'Olabi Resort' },
@@ -38,14 +40,15 @@ export default function BlogPostPage() {
       logo: { '@type': 'ImageObject', url: 'https://olabiresort.com/static/images/assets/olabi-logo.jpg' },
     },
   }
-  // Some posts carry extra schema (e.g. a TouristDestination guide).
-  const jsonLd = post.extraSchema ? [posting, post.extraSchema] : posting
+  // Some posts carry extra schema (e.g. a TouristDestination guide), split per language.
+  const extraSchema = isRTL ? post.extraSchemaAr : post.extraSchemaEn
+  const jsonLd = extraSchema ? [posting, extraSchema] : posting
 
   return (
     <div style={{ background: 'var(--cream)' }}>
       <Seo title={`${title} | ${isRTL ? 'منتجع العلبي' : 'Olabi Resort'}`}
         description={description} path={`/blog/${post.slug}`} image={post.cover}
-        lang={isRTL ? 'ar' : 'en'} jsonLd={jsonLd} />
+        lang={lang} jsonLd={jsonLd} />
 
       {/* Cover */}
       <section style={{ position: 'relative', height: '48vh', minHeight: 320, overflow: 'hidden', background: '#07130a' }}>
@@ -69,7 +72,7 @@ export default function BlogPostPage() {
       {/* Article */}
       <section className="section">
         <div className="container" style={{ maxWidth: 760 }}>
-          <Link to="/blog" style={{
+          <Link to={withLang('/blog')} style={{
             display: 'inline-flex', alignItems: 'center', gap: 6, color: 'var(--terracotta)',
             fontSize: 14, fontWeight: 700, marginBottom: 28,
           }}>
@@ -110,7 +113,7 @@ export default function BlogPostPage() {
                 ? 'غرف وأجنحة فاخرة في قلب جبال كسب، بإطلالات خلابة وإنترنت ستارلينك مجاني. احجز مباشرة لأفضل سعر.'
                 : 'Luxury rooms and suites in the heart of the Kasab mountains, with stunning views and free Starlink internet. Book directly for the best rate.'}
             </p>
-            <Link to="/#rooms" className="btn btn-primary" style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+            <Link to={`${withLang('/')}#rooms`} className="btn btn-primary" style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
               {isRTL ? 'استعرض الغرف' : 'Explore rooms'}
               <Arrow size={15} />
             </Link>
@@ -126,7 +129,7 @@ export default function BlogPostPage() {
               </h3>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 16 }}>
                 {others.map(p => (
-                  <Link key={p.slug} to={`/blog/${p.slug}`} style={{
+                  <Link key={p.slug} to={withLang(`/blog/${p.slug}`)} style={{
                     padding: '16px 18px', borderRadius: 'var(--radius-md)', background: 'var(--white)',
                     border: '1px solid rgba(221, 208, 184, 0.72)', color: 'var(--ink)',
                     fontSize: 15, fontWeight: 600, lineHeight: 1.4, textAlign: isRTL ? 'right' : 'left',

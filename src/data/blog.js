@@ -46,21 +46,38 @@ export const blogPosts = [
     excerptEn: 'Everything about Kasab, Syria — where it is, its climate and forests, what to do, and how to plan your visit.',
     excerptAr: 'كل ما يخص كسب سوريا — موقعها ومناخها وغاباتها، وماذا تفعل فيها، وكيف تخطط لزيارتك.',
     keywords: 'Kasab Syria, Kasab, كسب سوريا, كسب, Kasab Latakia, Kasab village, visit Kasab, Kasab travel guide, دليل كسب, زيارة كسب, السياحة في كسب',
-    extraSchema: {
+    extraSchemaEn: {
       '@context': 'https://schema.org',
       '@type': 'TouristDestination',
       name: 'Kasab, Syria',
       alternateName: 'كسب',
       description: 'Kasab is a mountain village in the Latakia Governorate of northwestern Syria, near the Turkish border. Known for its cool climate, pine and cedar forests, Armenian heritage, and nearby Mediterranean coast, it is one of Syria’s most popular mountain summer destinations.',
-      url: 'https://olabiresort.com/blog/kasab-syria-travel-guide',
+      url: 'https://olabiresort.com/en/blog/kasab-syria-travel-guide',
       image: 'https://olabiresort.com/static/images/assets/about-image.png',
       geo: { '@type': 'GeoCoordinates', latitude: 35.9225528, longitude: 35.9830493 },
       containedInPlace: { '@type': 'AdministrativeArea', name: 'Latakia Governorate, Syria' },
       touristType: ['Families', 'Nature lovers', 'Hikers', 'Summer travellers'],
       includesAttraction: [
-        { '@type': 'TouristAttraction', name: "Uncle Sevak's Trail", url: 'https://olabiresort.com/hike' },
+        { '@type': 'TouristAttraction', name: "Uncle Sevak's Trail", url: 'https://olabiresort.com/en/hike' },
         { '@type': 'TouristAttraction', name: 'Mount Aqra viewpoints' },
         { '@type': 'TouristAttraction', name: 'Kasab coast (Al-Samra beach)' },
+      ],
+    },
+    extraSchemaAr: {
+      '@context': 'https://schema.org',
+      '@type': 'TouristDestination',
+      name: 'كسب، سوريا',
+      alternateName: 'Kasab',
+      description: 'كسب قرية جبلية في محافظة اللاذقية شمال غرب سوريا، قرب الحدود التركية. تشتهر بمناخها البارد وغاباتها من الصنوبر والأرز وإرثها الأرمني وقربها من ساحل المتوسط، وهي من أكثر الوجهات الجبلية الصيفية شعبية في سوريا.',
+      url: 'https://olabiresort.com/blog/kasab-syria-travel-guide',
+      image: 'https://olabiresort.com/static/images/assets/about-image.png',
+      geo: { '@type': 'GeoCoordinates', latitude: 35.9225528, longitude: 35.9830493 },
+      containedInPlace: { '@type': 'AdministrativeArea', name: 'محافظة اللاذقية، سوريا' },
+      touristType: ['عائلات', 'محبو الطبيعة', 'هواة المشي', 'مسافرو الصيف'],
+      includesAttraction: [
+        { '@type': 'TouristAttraction', name: 'مسار العم سيفاك', url: 'https://olabiresort.com/hike' },
+        { '@type': 'TouristAttraction', name: 'إطلالات جبل الأقرع' },
+        { '@type': 'TouristAttraction', name: 'ساحل كسب (شاطئ السمرا)' },
       ],
     },
     bodyEn: [
@@ -101,7 +118,7 @@ export const blogPosts = [
     excerptEn: 'Looking for activities in Kasab? From a guided forest hike to the Mediterranean coast, here are the best things to do in Kasab, Syria.',
     excerptAr: 'تبحث عن أنشطة في كسب؟ من رحلة هايكنغ مصحوبة بمرشد إلى ساحل المتوسط، إليك أفضل الأنشطة والأماكن السياحية في كسب سوريا.',
     keywords: 'activities in Kasab, things to do in Kasab, things to do in Kasab Syria, what can I do in Kasab, what to do in Kasab, Kasab tourism, Kasab attractions, hiking in Kasab, أنشطة في كسب, ماذا أفعل في كسب, أنشطة كسب, فعاليات كسب, سياحة كسب, أماكن سياحية كسب, هايكنغ في كسب',
-    extraSchema: {
+    extraSchemaEn: {
       '@context': 'https://schema.org',
       '@type': 'FAQPage',
       mainEntity: [
@@ -115,10 +132,21 @@ export const blogPosts = [
           name: 'Is there organized hiking in Kasab?',
           acceptedAnswer: { '@type': 'Answer', text: "Yes. Olabi Resort organizes its own weekly guided hike, Uncle Sevak's Trail, from the resort through pine and cedar forest to Eagle Mountain — every week. It is free and automatic for resort guests, and outside visitors can join for a fee. Dates: olabiresort.com/hike." },
         },
+      ],
+    },
+    extraSchemaAr: {
+      '@context': 'https://schema.org',
+      '@type': 'FAQPage',
+      mainEntity: [
         {
           '@type': 'Question',
           name: 'ماذا أفعل في كسب؟',
           acceptedAnswer: { '@type': 'Answer', text: 'أبرز نشاط في كسب هو رحلة هايكنغ في الغابات — مسار العم سيفاك من منتجع العلبي إلى جبل النسر بإطلالاته الثلاث، مجاناً لنزلاء المنتجع. كما يمكنك استكشاف القرية الأرمنية وكنائسها، وزيارة إطلالات جبل الأقرع، والاسترخاء على شاطئ كسب (السمرا)، وتذوّق منتجات المنطقة.' },
+        },
+        {
+          '@type': 'Question',
+          name: 'هل يوجد هايكنغ منظّم في كسب؟',
+          acceptedAnswer: { '@type': 'Answer', text: 'نعم. ينظّم منتجع العلبي رحلته الأسبوعية الخاصة، مسار العم سيفاك، من المنتجع عبر غابات الصنوبر والأرز وصولاً إلى جبل النسر — كل أسبوع. الرحلة مجانية وتلقائية لنزلاء المنتجع، ويمكن لزوار من خارج المنتجع الانضمام برسوم. المواعيد على olabiresort.com/hike.' },
         },
       ],
     },

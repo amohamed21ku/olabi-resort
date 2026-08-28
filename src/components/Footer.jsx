@@ -5,7 +5,7 @@ import { FiPhone, FiMail, FiMapPin } from 'react-icons/fi'
 import { FaFacebook, FaInstagram, FaWhatsapp } from 'react-icons/fa'
 
 export default function Footer() {
-  const { language, isRTL } = useLanguage()
+  const { language, isRTL, withLang } = useLanguage()
   const tr = (key) => t(language, key)
   const location = useLocation()
   const navigate = useNavigate()
@@ -23,8 +23,8 @@ export default function Footer() {
     if (!href.startsWith('/#')) return
     e.preventDefault()
     const id = href.slice(2)
-    if (location.pathname !== '/') {
-      navigate('/')
+    if (location.pathname !== '/' && location.pathname !== '/en') {
+      navigate(withLang('/'))
       setTimeout(() => document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' }), 300)
     } else {
       document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' })
@@ -47,7 +47,7 @@ export default function Footer() {
         }}>
           {/* Brand */}
           <div style={{ minWidth: 0 }}>
-            <Link to="/" style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '18px', flexWrap: 'wrap' }}>
+            <Link to={withLang('/')} style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '18px', flexWrap: 'wrap' }}>
               <span style={{
                 display: 'inline-flex',
                 alignItems: 'center',
@@ -115,7 +115,7 @@ export default function Footer() {
               {navLinks.map(link => (
                 <li key={link.href}>
                   <Link
-                    to={link.href}
+                    to={withLang(link.href)}
                     onClick={(e) => handleLink(link.href, e)}
                     style={{
                       fontSize: '14px',
@@ -164,19 +164,12 @@ export default function Footer() {
           paddingTop: '24px',
           display: 'flex',
           alignItems: 'center',
-          justifyContent: 'space-between',
           flexWrap: 'wrap',
           gap: '12px',
         }}>
           <p style={{ fontSize: '13px', color: 'rgba(255,255,255,0.4)' }}>
             {tr('footer_rights')}
           </p>
-          <a href="#" style={{ fontSize: '13px', color: 'rgba(255,255,255,0.4)', transition: 'color 0.2s' }}
-            onMouseEnter={e => e.target.style.color = 'rgba(255,255,255,0.7)'}
-            onMouseLeave={e => e.target.style.color = 'rgba(255,255,255,0.4)'}
-          >
-            {tr('footer_privacy')}
-          </a>
         </div>
       </div>
     </footer>

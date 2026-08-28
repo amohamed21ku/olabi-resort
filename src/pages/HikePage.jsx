@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect } from 'react'
 import { useLanguage } from '../App'
+import { withLangPrefix } from '../utils/i18nPath'
 import { useHike } from '../hooks/useHike'
 import { createHikeApplication } from '../firebase/services'
 import Seo from '../components/Seo'
@@ -24,7 +25,7 @@ export default function HikePage() {
   const { content } = useHike()
   const ArrowEnd = isRTL ? FiArrowLeft : FiArrowRight
 
-  const pick = (ar, en) => (isRTL ? content[ar] : content[en]) || ''
+  const pick = (ar, en) => (isRTL ? content[ar] : content[en]) || content[isRTL ? en : ar] || ''
 
   // Only show dates that are today or later, sorted ascending.
   const upcoming = useMemo(() => {
@@ -51,7 +52,7 @@ export default function HikePage() {
       name: `${trailName} — Hiking in Kasab, Syria`,
       alternateName: content.titleAr || 'مسار العم سيفاك',
       description: (content.routeEn || content.introEn || 'A guided hiking trail from Olabi Resort to Eagle Mountain, Kasab.'),
-      url: `${SITE}/hike`,
+      url: `${SITE}${withLangPrefix('/hike', isRTL ? 'ar' : 'en')}`,
       image: (content.images?.length ? content.images : ['/static/images/assets/hike/hike-1.jpg']).map(abs),
       isAccessibleForFree: true,
       touristType: ['Families', 'Hikers', 'Nature lovers'],
@@ -71,7 +72,7 @@ export default function HikePage() {
       price: '0',
       priceCurrency: 'USD',
       availability: 'https://schema.org/InStock',
-      url: `${SITE}/hike`,
+      url: `${SITE}${withLangPrefix('/hike', isRTL ? 'ar' : 'en')}`,
       description: 'Free and automatic for Olabi Resort guests.',
     }
 
@@ -116,7 +117,7 @@ export default function HikePage() {
       })
     }
     return graph
-  }, [content, nextEvent, cover])
+  }, [content, nextEvent, cover, isRTL])
 
   const scrollToForm = () => document.getElementById('hike-apply')?.scrollIntoView({ behavior: 'smooth' })
 
@@ -237,7 +238,7 @@ export default function HikePage() {
               aspectRatio: '4/3', boxShadow: 'var(--shadow-md)', order: isRTL ? 1 : 0,
               background: '#e8e0d0',
             }}>
-              <img src={images[1] || cover} alt="" loading="lazy" style={{
+              <img src={images[1] || cover} alt={isRTL ? 'خط سير مسار العم سيفاك من المنتجع إلى جبل النسر' : "The route of Uncle Sevak's Trail from the resort to Eagle Mountain"} loading="lazy" style={{
                 width: '100%', height: '100%', objectFit: 'cover',
               }} />
             </div>
@@ -352,7 +353,7 @@ export default function HikePage() {
                 {isRTL ? 'معرض الصور' : 'Gallery'}
               </h2>
             </div>
-            <HikeGallery images={images} />
+            <HikeGallery images={images} title={pick('titleAr', 'titleEn')} />
           </div>
         </section>
       )}
@@ -609,7 +610,7 @@ function ApplicationForm({ upcoming, isRTL, language }) {
 /* ─────────────────────────────────────────────────────────────
    Gallery with lightbox
 ───────────────────────────────────────────────────────────── */
-function HikeGallery({ images }) {
+function HikeGallery({ images, title }) {
   const [open, setOpen] = useState(null)
   const go = (n) => setOpen((n + images.length) % images.length)
 
@@ -626,7 +627,7 @@ function HikeGallery({ images }) {
             borderRadius: 'var(--radius-md)', background: '#e8e0d0',
             gridRow: i % 5 === 0 ? 'span 2' : 'span 1',
           }}>
-            <img src={src} alt="" loading="lazy" style={{
+            <img src={src} alt={`${title} ${i + 1}`} loading="lazy" style={{
               width: '100%', height: '100%', objectFit: 'cover', display: 'block',
               transition: 'transform 0.4s',
             }}
@@ -644,7 +645,7 @@ function HikeGallery({ images }) {
         }}>
           <button onClick={() => setOpen(null)} style={lbBtn('top')} aria-label="Close"><FiX size={22} /></button>
           <button onClick={e => { e.stopPropagation(); go(open - 1) }} style={lbBtn('left')} aria-label="Previous"><FiChevronLeft size={26} /></button>
-          <img src={images[open]} alt="" onClick={e => e.stopPropagation()} style={{
+          <img src={images[open]} alt={`${title} ${open + 1}`} onClick={e => e.stopPropagation()} style={{
             maxWidth: '90vw', maxHeight: '85vh', objectFit: 'contain', borderRadius: 8,
           }} />
           <button onClick={e => { e.stopPropagation(); go(open + 1) }} style={lbBtn('right')} aria-label="Next"><FiChevronRight size={26} /></button>

@@ -136,7 +136,7 @@ function AboutCarousel({ isRTL }) {
 }
 
 export default function HomePage() {
-  const { language, isRTL } = useLanguage()
+  const { language, isRTL, withLang } = useLanguage()
   const tr = (key) => t(language, key)
   const { variants } = useRoomVariants()
   const [searchParams] = useSearchParams()
@@ -350,7 +350,7 @@ export default function HomePage() {
 
             {/* Hiking event — subtle entry point, visible on landing without competing with booking */}
             <Link
-              to="/hike"
+              to={withLang('/hike')}
               style={{
                 display: 'inline-flex', alignItems: 'center', gap: '7px',
                 padding: '9px 18px', borderRadius: '100px',
@@ -559,7 +559,7 @@ export default function HomePage() {
           }}>
             {tr('hike_teaser_body')}
           </p>
-          <Link to="/hike" className="btn btn-primary btn-lg"
+          <Link to={withLang('/hike')} className="btn btn-primary btn-lg"
             style={{ borderRadius: 100, display: 'inline-flex', alignItems: 'center', gap: 8 }}>
             {tr('hike_teaser_cta')}
             {isRTL ? <FiChevronLeft size={17} /> : <FiChevronRight size={17} />}

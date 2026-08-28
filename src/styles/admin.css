@@ -1,0 +1,413 @@
+/* ─────────────────────────────────────────────────────────────
+   Admin design system — built strictly on the resort's brand tokens
+   already defined in src/index.css (--terracotta, --olive, --cream,
+   --linen, --sand, --radius-*, --shadow-*, --font-heading/--font-ar).
+   Every class here is prefixed `adm-` to stay isolated from the public
+   site's styles.
+───────────────────────────────────────────────────────────── */
+
+:root {
+  --adm-tone-good-bg:     var(--olive-light);
+  --adm-tone-good-text:   var(--terracotta-dark);
+  --adm-tone-good-border: #C9D9BC;
+
+  --adm-tone-warn-bg:     #FBF1CE;
+  --adm-tone-warn-text:   #7A5B12;
+  --adm-tone-warn-border: #EFDA96;
+
+  --adm-tone-bad-bg:      #FAEAE5;
+  --adm-tone-bad-text:    #9C4430;
+  --adm-tone-bad-border:  #ECC7B9;
+
+  --adm-tone-muted-bg:    var(--linen);
+  --adm-tone-muted-text:  var(--muted);
+  --adm-tone-muted-border:var(--sand);
+
+  --adm-tone-info-bg:     #E4EEF1;
+  --adm-tone-info-text:   var(--aegean);
+  --adm-tone-info-border: #B9D2D9;
+
+  --adm-danger:      #B5482F;
+  --adm-danger-dark: #963A25;
+  --adm-danger-bg:   #FAEAE5;
+}
+
+.adm-root {
+  min-height: 100vh;
+  background: var(--cream);
+  font-family: var(--font-ar);
+  color: var(--ink);
+}
+
+/* ── Shell / layout ─────────────────────────────────────────── */
+.adm-shell { display: flex; min-height: 100vh; }
+
+.adm-sidebar {
+  position: fixed; top: 0; right: 0; height: 100%; width: 248px;
+  background: var(--linen);
+  border-left: 1px solid var(--border);
+  display: flex; flex-direction: column;
+  /* Above .adm-modal-overlay (100) on purpose: a modal dims/blocks the page
+     content behind it, but the sidebar must stay reachable so a guarded nav
+     click can still surface the leave-confirmation dialog instead of being
+     silently swallowed by the modal's full-viewport overlay. */
+  z-index: 110;
+  transition: transform .25s;
+}
+.adm-sidebar-backdrop { position: fixed; inset: 0; background: rgba(28,28,20,0.4); z-index: 39; }
+
+.adm-sidebar-brand {
+  padding: 20px 18px 16px; border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; gap: 10px;
+}
+.adm-sidebar-brand-name { font-family: var(--font-heading); font-size: 15px; font-weight: 700; color: var(--ink); line-height: 1.2; }
+.adm-sidebar-brand-sub  { font-size: 10.5px; color: var(--muted); letter-spacing: .04em; }
+
+.adm-nav { flex: 1; padding: 14px 10px; overflow-y: auto; display: flex; flex-direction: column; gap: 4px; }
+.adm-nav-item {
+  width: 100%; display: flex; align-items: center; gap: 11px;
+  padding: 11px 12px; border-radius: var(--radius-md); border: none; cursor: pointer;
+  background: transparent; color: var(--charcoal); font-family: var(--font-ar);
+  font-size: 13.5px; font-weight: 500; text-align: right; transition: background .15s, color .15s;
+  border-right: 3px solid transparent;
+}
+.adm-nav-item:hover { background: rgba(107,124,74,0.08); }
+.adm-nav-item.is-active {
+  background: var(--olive-light); color: var(--terracotta-dark); font-weight: 700;
+  border-right-color: var(--terracotta);
+}
+.adm-nav-item__label { flex: 1; }
+.adm-nav-sub { display: flex; flex-direction: column; gap: 2px; padding-inline-start: 20px; margin-top: 2px; }
+.adm-nav-item--sub { padding: 8px 12px; font-size: 12.5px; }
+.adm-nav-badge {
+  background: var(--terracotta); color: #fff; font-size: 10.5px; font-weight: 700;
+  padding: 1px 8px; border-radius: 100px; line-height: 18px; flex-shrink: 0;
+}
+
+.adm-sidebar-footer { padding: 12px 10px; border-top: 1px solid var(--border); display: flex; flex-direction: column; gap: 2px; }
+.adm-sidebar-footer-link {
+  width: 100%; display: flex; align-items: center; gap: 10px; padding: 9px 10px; border-radius: var(--radius-md);
+  color: var(--muted); font-size: 12.5px; font-family: var(--font-ar); text-decoration: none; border: none;
+  background: none; cursor: pointer; transition: background .15s, color .15s;
+}
+.adm-sidebar-footer-link:hover { background: rgba(28,28,20,0.05); color: var(--ink); }
+.adm-sidebar-footer-user { display: flex; align-items: center; gap: 8px; padding: 8px 10px; margin-top: 4px; border-top: 1px solid var(--border); }
+.adm-sidebar-footer-email { font-size: 11px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.adm-main { flex: 1; margin-right: 248px; display: flex; flex-direction: column; min-height: 100vh; }
+
+.adm-topbar {
+  background: #fff; border-bottom: 1px solid var(--border); padding: 0 28px; height: 60px;
+  display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 20;
+}
+.adm-topbar-title { font-family: var(--font-heading); font-size: 17px; font-weight: 700; color: var(--ink); }
+.adm-topbar-mobile-btn { display: none; background: none; border: none; cursor: pointer; color: var(--charcoal); padding: 4px; }
+
+.adm-content { flex: 1; padding: 28px; max-width: 1320px; width: 100%; }
+
+@media (max-width: 900px) {
+  .adm-sidebar { transform: translateX(100%); }
+  .adm-sidebar.is-open { transform: translateX(0); box-shadow: var(--shadow-lg); }
+  .adm-main { margin-right: 0; }
+  .adm-topbar-mobile-btn { display: inline-flex; }
+  .adm-content { padding: 18px; }
+}
+
+/* ── Section header ─────────────────────────────────────────── */
+.adm-section-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 20px; }
+.adm-section-header h2 { font-family: var(--font-heading); font-size: 19px; font-weight: 700; color: var(--ink); }
+.adm-section-header p { font-size: 13px; color: var(--muted); margin-top: 2px; }
+
+/* ── Cards ───────────────────────────────────────────────────── */
+.adm-card {
+  background: #fff; border-radius: var(--radius-lg); box-shadow: var(--shadow-card);
+  border: 1px solid var(--border); overflow: hidden;
+}
+.adm-card-header { padding: 14px 18px; border-bottom: 1px solid var(--sand); background: var(--cream); display: flex; align-items: center; gap: 8px; }
+.adm-card-header span { font-size: 13.5px; font-weight: 700; color: var(--charcoal); }
+.adm-card-body { padding: 16px 18px; }
+
+/* ── Stat cards ──────────────────────────────────────────────── */
+.adm-stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 14px; }
+.adm-stat-card {
+  background: #fff; border-radius: var(--radius-lg); border: 1px solid var(--border);
+  box-shadow: var(--shadow-card); padding: 18px; display: flex; align-items: center; gap: 14px;
+  transition: transform .15s, box-shadow .15s;
+}
+.adm-stat-card:hover { transform: translateY(-2px); box-shadow: var(--shadow-lg); }
+.adm-stat-card__icon {
+  width: 42px; height: 42px; border-radius: 12px; background: var(--olive-light); color: var(--terracotta-dark);
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+}
+.adm-stat-card__value { font-family: var(--font-heading); font-size: 24px; font-weight: 700; color: var(--ink); line-height: 1; }
+.adm-stat-card__label { font-size: 12.5px; color: var(--muted); margin-top: 4px; }
+.adm-stat-card__sub { font-size: 11px; color: var(--muted); opacity: .8; margin-top: 1px; }
+
+/* ── Charts (Statistics page) ───────────────────────────────── */
+.adm-chart-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+@media (max-width: 640px) { .adm-chart-grid { grid-template-columns: 1fr; } }
+
+.adm-chart-card {
+  background: #fff; border-radius: var(--radius-lg); border: 1px solid var(--border);
+  box-shadow: var(--shadow-card); padding: 20px;
+}
+.adm-chart-title { font-family: var(--font-heading); font-size: 15px; font-weight: 700; color: var(--ink); margin-bottom: 14px; }
+.adm-chart-empty { font-size: 13px; color: var(--muted); text-align: center; padding: 40px 0; }
+
+.adm-bar-chart { width: 100%; aspect-ratio: 600 / 220; display: block; overflow: visible; }
+.adm-bar-chart__axis { stroke: var(--sand); stroke-width: 1; }
+.adm-bar-chart__bar { transition: opacity .15s; }
+.adm-bar-chart__bar:hover { opacity: 0.82; }
+.adm-bar-chart__value { font-size: 12px; font-weight: 700; fill: var(--ink); font-family: var(--font-ar); }
+.adm-bar-chart__label { font-size: 11px; fill: var(--muted); font-family: var(--font-ar); }
+
+.adm-donut-chart { display: flex; align-items: center; gap: 20px; flex-wrap: wrap; justify-content: center; }
+.adm-donut-chart__svg { width: 150px; height: 150px; flex-shrink: 0; }
+.adm-donut-chart__total-value { font-family: var(--font-heading); font-size: 26px; font-weight: 700; fill: var(--ink); }
+.adm-donut-chart__total-label { font-size: 11px; fill: var(--muted); font-family: var(--font-ar); }
+.adm-donut-chart__legend { list-style: none; display: flex; flex-direction: column; gap: 9px; min-width: 150px; }
+.adm-donut-chart__legend li { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+.adm-donut-chart__dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+.adm-donut-chart__legend-label { flex: 1; color: var(--charcoal); }
+.adm-donut-chart__legend-value { color: var(--muted); font-size: 12px; }
+
+/* ── Badges ──────────────────────────────────────────────────── */
+.adm-badge {
+  display: inline-flex; align-items: center; gap: 4px; font-size: 12px; font-weight: 700;
+  padding: 3px 11px; border-radius: 100px; border: 1px solid transparent; white-space: nowrap;
+}
+.adm-badge--good  { background: var(--adm-tone-good-bg);  color: var(--adm-tone-good-text);  border-color: var(--adm-tone-good-border); }
+.adm-badge--warn  { background: var(--adm-tone-warn-bg);  color: var(--adm-tone-warn-text);  border-color: var(--adm-tone-warn-border); }
+.adm-badge--bad   { background: var(--adm-tone-bad-bg);   color: var(--adm-tone-bad-text);   border-color: var(--adm-tone-bad-border); }
+.adm-badge--muted { background: var(--adm-tone-muted-bg); color: var(--adm-tone-muted-text); border-color: var(--adm-tone-muted-border); }
+.adm-badge--info  { background: var(--adm-tone-info-bg);  color: var(--adm-tone-info-text);  border-color: var(--adm-tone-info-border); }
+.adm-badge--count { background: var(--terracotta); color: #fff; border-color: transparent; }
+
+/* ── Buttons ─────────────────────────────────────────────────── */
+.adm-btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  border-radius: 100px; border: 1px solid transparent; cursor: pointer;
+  font-family: var(--font-ar); font-weight: 700; white-space: nowrap;
+  transition: background .15s, border-color .15s, opacity .15s, transform .1s;
+  min-height: 44px; padding: 0 20px; font-size: 14px;
+}
+.adm-btn:active { transform: scale(0.98); }
+.adm-btn:disabled { opacity: .5; cursor: not-allowed; transform: none; }
+.adm-btn--sm { min-height: 36px; padding: 0 14px; font-size: 13px; }
+.adm-btn--icon-only { padding: 0; width: 40px; min-height: 40px; }
+
+.adm-btn--primary   { background: var(--terracotta); color: #fff; }
+.adm-btn--primary:hover:not(:disabled)   { background: var(--terracotta-dark); }
+.adm-btn--secondary { background: var(--olive); color: #fff; }
+.adm-btn--secondary:hover:not(:disabled) { background: var(--olive-dark); }
+.adm-btn--outline   { background: #fff; color: var(--terracotta); border-color: var(--terracotta); }
+.adm-btn--outline:hover:not(:disabled)   { background: var(--olive-light); }
+.adm-btn--ghost      { background: transparent; color: var(--charcoal); }
+.adm-btn--ghost:hover:not(:disabled)     { background: rgba(28,28,20,0.06); }
+.adm-btn--destructive{ background: var(--adm-danger); color: #fff; }
+.adm-btn--destructive:hover:not(:disabled){ background: var(--adm-danger-dark); }
+.adm-btn--destructive-outline { background: var(--adm-danger-bg); color: var(--adm-danger); border-color: #ECC7B9; }
+
+/* Persistent "+ New Booking" button in the topbar */
+.adm-btn--cta { box-shadow: var(--shadow-sm); }
+
+/* ── Forms ───────────────────────────────────────────────────── */
+.adm-field { display: flex; flex-direction: column; gap: 5px; }
+.adm-field-hint { font-size: 11.5px; color: var(--muted); }
+.adm-field-error { font-size: 12px; color: var(--adm-danger); display: flex; align-items: center; gap: 5px; }
+
+.form-lbl { font-size: 12.5px; font-weight: 700; color: var(--charcoal); }
+
+.adm-input {
+  width: 100%; font-family: var(--font-ar); font-size: 13.5px; color: var(--ink);
+  background: #fff; border: 1.5px solid var(--border); border-radius: var(--radius-md);
+  padding: 0 14px; min-height: 42px; transition: border-color .15s;
+}
+select.adm-input { cursor: pointer; }
+textarea.adm-input { padding: 10px 14px; min-height: unset; line-height: 1.6; }
+.adm-input:focus { outline: none; border-color: var(--olive); }
+.adm-input::placeholder { color: var(--muted); }
+.adm-input:disabled { background: var(--cream); color: var(--muted); cursor: not-allowed; }
+
+/* Search box: an .adm-input with a leading icon */
+.adm-search { position: relative; }
+.adm-search svg { position: absolute; right: 12px; top: 50%; transform: translateY(-50%); color: var(--muted); pointer-events: none; }
+.adm-search .adm-input { padding-right: 36px; }
+
+.adm-btn--block { width: 100%; }
+
+/* ── Tables ──────────────────────────────────────────────────── */
+.adm-table-wrap { overflow-x: auto; }
+.adm-table { width: 100%; border-collapse: collapse; min-width: 640px; }
+.adm-table thead tr { background: var(--cream); border-bottom: 1px solid var(--sand); }
+.adm-table th { padding: 11px 14px; text-align: right; font-size: 11px; font-weight: 700; color: var(--muted); letter-spacing: .04em; text-transform: uppercase; white-space: nowrap; }
+.adm-table td { padding: 12px 14px; font-size: 13px; color: var(--charcoal); }
+.adm-table tbody tr { border-bottom: 1px solid var(--cream); min-height: 56px; transition: background .1s; }
+.adm-table tbody tr.is-clickable { cursor: pointer; }
+.adm-table tbody tr:hover { background: var(--cream); }
+.adm-table-actions { display: flex; gap: 6px; align-items: center; }
+
+/* ── Empty state / loaders ──────────────────────────────────── */
+.adm-empty { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; padding: 56px 20px; color: var(--muted); text-align: center; }
+.adm-empty svg { color: var(--sand); }
+.adm-loader { display: flex; align-items: center; justify-content: center; padding: 64px 0; color: var(--muted); font-size: 13px; gap: 10px; }
+.adm-spinner { width: 20px; height: 20px; border-radius: 50%; border: 2.5px solid var(--sand); border-top-color: var(--terracotta); animation: adm-spin 0.7s linear infinite; }
+@keyframes adm-spin { to { transform: rotate(360deg); } }
+
+/* ── Modal / ConfirmDialog ───────────────────────────────────── */
+.adm-modal-overlay { position: fixed; inset: 0; background: rgba(28,28,20,0.45); display: flex; align-items: center; justify-content: center; z-index: 100; padding: 16px; }
+.adm-modal { background: #fff; border-radius: var(--radius-lg); box-shadow: var(--shadow-lg); width: 100%; max-width: 440px; max-height: 90vh; overflow-y: auto; }
+.adm-modal--wide { max-width: 640px; }
+.adm-modal-header { padding: 18px 22px; border-bottom: 1px solid var(--sand); display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.adm-modal-header h3 { font-family: var(--font-heading); font-size: 17px; font-weight: 700; color: var(--ink); }
+.adm-modal-close { background: none; border: none; color: var(--muted); cursor: pointer; padding: 4px; display: flex; }
+.adm-modal-body { padding: 20px 22px; }
+.adm-modal-footer { padding: 16px 22px; border-top: 1px solid var(--sand); display: flex; justify-content: flex-end; gap: 10px; }
+
+/* ── Picker (choose room/type/date step) ────────────────────── */
+.adm-picker { display: flex; flex-direction: column; gap: 8px; max-height: 320px; overflow-y: auto; }
+.adm-picker-option {
+  display: flex; align-items: center; gap: 12px; width: 100%; text-align: right;
+  padding: 12px 14px; border-radius: var(--radius-md); border: 1.5px solid var(--border);
+  background: #fff; cursor: pointer; font-family: var(--font-ar); transition: border-color .15s, background .15s;
+  min-height: 48px;
+}
+.adm-picker-option:hover:not(:disabled) { border-color: var(--olive); background: var(--olive-light); }
+.adm-picker-option.is-selected { border-color: var(--terracotta); background: var(--olive-light); }
+.adm-picker-option:disabled { opacity: .45; cursor: not-allowed; }
+.adm-picker-option__title { font-size: 13.5px; font-weight: 700; color: var(--ink); }
+.adm-picker-option__hint { font-size: 11.5px; color: var(--muted); }
+
+/* ── Settings hub ────────────────────────────────────────────── */
+.adm-advanced-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; }
+.adm-advanced-tile {
+  display: flex; flex-direction: column; gap: 10px; align-items: flex-start; text-align: right;
+  background: #fff; border: 1px solid var(--border); border-radius: var(--radius-lg); box-shadow: var(--shadow-card);
+  padding: 22px; cursor: pointer; transition: transform .15s, box-shadow .15s; font-family: var(--font-ar);
+  text-decoration: none; color: inherit;
+}
+.adm-advanced-tile:hover { transform: translateY(-3px); box-shadow: var(--shadow-lg); }
+.adm-advanced-tile__icon { width: 46px; height: 46px; border-radius: 13px; background: var(--olive-light); color: var(--terracotta-dark); display: flex; align-items: center; justify-content: center; }
+.adm-advanced-tile__title { font-size: 15px; font-weight: 700; color: var(--ink); }
+.adm-advanced-tile__desc { font-size: 12.5px; color: var(--muted); line-height: 1.5; }
+
+/* ── Login screen ────────────────────────────────────────────── */
+.adm-login { min-height: 100vh; background: var(--cream); display: flex; align-items: center; justify-content: center; font-family: var(--font-ar); padding: 16px; }
+.adm-login-card { width: 100%; max-width: 400px; background: #fff; border-radius: var(--radius-xl); box-shadow: var(--shadow-lg); padding: 36px 30px; border: 1px solid var(--border); }
+.adm-login-logo { display: flex; justify-content: center; margin-bottom: 14px; }
+.adm-login-title { font-family: var(--font-heading); font-size: 21px; font-weight: 700; color: var(--ink); text-align: center; }
+.adm-login-sub { font-size: 13px; color: var(--muted); text-align: center; margin-top: 3px; margin-bottom: 26px; }
+
+/* Front-desk / list cards used across Home, Reservations drill-ins */
+.adm-list-card {
+  background: #fff; border: 1px solid var(--border); border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card); padding: 16px; display: flex; flex-direction: column; gap: 10px;
+}
+
+/* ── Guest Bill (folio) panel — used by Billing and Booking Detail ──── */
+.adm-folio-summary { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 14px; }
+.adm-folio-summary__cell { background: var(--cream); border: 1px solid var(--sand); border-radius: 8px; padding: 8px 10px; text-align: center; }
+.adm-folio-summary__value { font-size: 16px; font-weight: 700; line-height: 1.2; }
+.adm-folio-summary__label { font-size: 10.5px; color: var(--muted); margin-top: 2px; }
+
+.adm-ledger-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 14px; }
+.adm-ledger-box { border: 1px solid var(--border); border-radius: var(--radius-md); padding: 12px; }
+.adm-ledger-box__head { display: flex; align-items: center; gap: 6px; margin-bottom: 10px; font-size: 12.5px; font-weight: 700; color: var(--charcoal); }
+.adm-ledger-stats { display: flex; gap: 12px; font-size: 11.5px; margin-bottom: 10px; }
+.adm-ledger-line { display: flex; align-items: center; gap: 8px; font-size: 12.5px; padding: 6px 8px; border-radius: 7px; }
+
+/* ── Vertical stack of section blocks (Home, New Booking, …) ───── */
+.adm-stack { display: flex; flex-direction: column; gap: 22px; }
+.adm-stack--tight { gap: 16px; }
+
+/* A header row inside .adm-card-header that pushes a trailing action to the
+   far side (e.g. a "view all" link) without needing an inline style. */
+.adm-card-header--split { justify-content: space-between; }
+.adm-card-header__title { display: flex; align-items: center; gap: 8px; }
+
+/* Grid of .adm-list-card items (front-desk groups, reservation drill-ins) */
+.adm-list-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 10px; }
+
+.adm-list-card__head { display: flex; align-items: center; gap: 12px; }
+.adm-list-card__room {
+  width: 44px; height: 40px; border-radius: 10px; flex-shrink: 0;
+  background: var(--olive-light); color: var(--terracotta-dark);
+  display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 800;
+}
+.adm-list-card__room--warn { background: var(--adm-tone-warn-bg); color: var(--adm-tone-warn-text); }
+.adm-list-card__body { flex: 1; min-width: 0; }
+.adm-list-card__name { font-size: 14px; font-weight: 700; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.adm-list-card__meta { font-size: 12px; color: var(--muted); margin-top: 1px; }
+.adm-list-card__dates { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); }
+.adm-list-card__dates .adm-badge { margin-inline-start: auto; }
+.adm-list-card__actions { display: flex; gap: 8px; }
+.adm-list-card__actions .adm-btn { flex: 1; }
+
+/* Group header used above each front-desk list (departures/arrivals/in-house) */
+.adm-group-header { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+.adm-group-header__dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+.adm-group-header__dot--good { background: var(--adm-tone-good-text); }
+.adm-group-header__dot--warn { background: var(--adm-tone-warn-text); }
+.adm-group-header__dot--bad  { background: var(--adm-tone-bad-text); }
+.adm-group-header__title { font-size: 14px; font-weight: 700; color: var(--ink); }
+
+/* Room-line rows in the "new booking" room picker */
+.adm-room-line { border: 1px solid var(--border); border-radius: var(--radius-md); padding: 12px; display: flex; flex-direction: column; gap: 10px; }
+.adm-room-line__head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.adm-room-line__index { font-size: 12.5px; font-weight: 700; color: var(--muted); }
+
+/* ── Two-column form layout: fields + sticky summary (New Booking, forms) ── */
+.adm-form-layout { display: grid; grid-template-columns: 1fr 320px; gap: 20px; align-items: start; }
+.adm-form-layout__aside { position: sticky; top: 76px; display: flex; flex-direction: column; gap: 14px; }
+@media (max-width: 900px) {
+  .adm-form-layout { grid-template-columns: 1fr; }
+  .adm-form-layout__aside { position: static; }
+}
+
+.adm-summary-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 16px; border-bottom: 1px solid var(--cream); }
+.adm-summary-row:last-child { border-bottom: none; }
+.adm-summary-row__label { font-size: 12px; color: var(--muted); }
+.adm-summary-row__value { font-size: 12.5px; font-weight: 700; color: var(--charcoal); }
+.adm-summary-total { display: flex; align-items: center; justify-content: space-between; padding: 14px 16px; }
+.adm-summary-total__label { font-size: 13px; font-weight: 700; color: var(--ink); }
+.adm-summary-total__value { font-family: var(--font-heading); font-size: 19px; font-weight: 700; color: var(--terracotta-dark); }
+
+/* ── Rooms page (permanent room directory, its own route/page) ── */
+.adm-rooms-page__grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 18px 24px; align-items: start; }
+.adm-rooms-page__floor { background: #fff; border: 1px solid var(--border); border-radius: var(--radius-lg); box-shadow: var(--shadow-card); padding: 14px; }
+.adm-rooms-page__floor-label { font-size: 12px; font-weight: 700; color: var(--muted); letter-spacing: .02em; margin-bottom: 8px; }
+.adm-rooms-page__row {
+  width: 100%; display: flex; align-items: center; gap: 8px; background: none; border: none; border-radius: 8px;
+  padding: 8px; cursor: pointer; font-family: var(--font-ar); text-align: right; transition: background .12s;
+}
+.adm-rooms-page__row:hover { background: var(--cream); }
+.adm-rooms-page__row-number { font-size: 14px; font-weight: 700; color: var(--ink); min-width: 28px; }
+.adm-rooms-page__row-status { flex-shrink: 0; }
+.adm-rooms-page__row-guest { font-size: 11.5px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* ── Mini stats (compact front-desk numbers atop the room grid) ─ */
+.adm-mini-stats {
+  display: flex; align-items: center; background: #fff; border: 1px solid var(--border);
+  border-radius: var(--radius-md); box-shadow: var(--shadow-sm); margin-bottom: 16px; overflow: hidden;
+}
+.adm-mini-stats__item {
+  flex: 1; display: flex; flex-direction: column; align-items: center; gap: 1px;
+  padding: 10px 8px; border-inline-start: 1px solid var(--cream);
+}
+.adm-mini-stats__item:first-child { border-inline-start: none; }
+.adm-mini-stats__value { font-family: var(--font-heading); font-size: 17px; font-weight: 700; color: var(--terracotta-dark); }
+.adm-mini-stats__label { font-size: 11px; color: var(--muted); }
+
+/* ── Approval queues (pending-approval / needs-room), side by side ── */
+.adm-approval-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 20px; align-items: stretch; }
+@media (max-width: 860px) { .adm-approval-grid { grid-template-columns: 1fr; } }
+
+.adm-queue-card { border-radius: var(--radius-lg); border: 1.5px solid; padding: 12px 14px; height: 100%; }
+.adm-queue-card__head { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+.adm-queue-card__title { display: flex; align-items: center; gap: 6px; padding: 3px; }
+.adm-queue-card__title strong { font-size: 12.5px; }
+.adm-queue-card__sort { width: 136px; min-height: 28px; padding: 3px 8px; font-size: 11px; }
+.adm-queue-card__list { display: flex; flex-direction: column; gap: 6px; padding-inline-end: 4px; margin-top: 10px; }
+.adm-queue-card__row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; background: #fff; border-radius: 8px; padding: 7px 10px; }
+.adm-queue-card__row-title { font-size: 12.5px; font-weight: 700; color: var(--ink); }
+.adm-queue-card__row-sub { font-size: 10.5px; color: var(--muted); }

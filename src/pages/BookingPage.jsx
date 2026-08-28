@@ -4,6 +4,7 @@ import { useLanguage } from '../App'
 import { t } from '../translations'
 import { useRoomVariant } from '../hooks/useRooms'
 import { createBooking, countAvailableUnitsForVariant } from '../firebase/services'
+import Seo from '../components/Seo'
 import { FiArrowLeft, FiArrowRight, FiCheck, FiAlertCircle } from 'react-icons/fi'
 
 const qtyBtn = (disabled) => ({
@@ -17,7 +18,7 @@ export default function BookingPage() {
   // :roomId param now carries the variant slug like 'superub-5'.
   const { roomId: variantSlug }    = useParams()
   const [searchParams, setSearchParams] = useSearchParams()
-  const { language, isRTL }        = useLanguage()
+  const { language, isRTL, withLang } = useLanguage()
   const navigate                   = useNavigate()
   const tr = (key) => t(language, key)
 
@@ -94,7 +95,7 @@ export default function BookingPage() {
     return (
       <div className="page-loader">
         <p style={{ color: 'var(--muted)' }}>{isRTL ? 'الفئة غير موجودة' : 'Category not found'}</p>
-        <Link to="/#rooms" className="btn btn-outline">{isRTL ? 'عودة للغرف' : 'Back to Rooms'}</Link>
+        <Link to={`${withLang('/')}#rooms`} className="btn btn-outline">{isRTL ? 'عودة للغرف' : 'Back to Rooms'}</Link>
       </div>
     )
   }
@@ -142,7 +143,7 @@ export default function BookingPage() {
         guestEmail: form.guestEmail.trim(),
         notes:      form.notes.trim(),
       })
-      navigate(`/confirmation/${id}?wa=1`)
+      navigate(withLang(`/confirmation/${id}?wa=1`))
     } catch (err) {
       console.error('createBooking failed:', err?.code, err?.message, err)
       if (err?.code === 'ROOM_UNAVAILABLE' || err?.message === 'ROOM_UNAVAILABLE') {
@@ -158,6 +159,13 @@ export default function BookingPage() {
 
   return (
     <div style={{ background: 'var(--cream)', minHeight: '100vh', paddingBottom: 80 }}>
+      <Seo
+        title={tr('booking_title')}
+        description={tr('booking_title')}
+        path={`/booking/${variantSlug}`}
+        lang={isRTL ? 'ar' : 'en'}
+        noindex
+      />
       <div style={{ background: 'var(--white)', borderBottom: '1px solid var(--sand)', padding: '16px 0' }}>
         <div className="container" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
           <button onClick={() => navigate(-1)} style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--muted)', fontSize: 14, fontFamily: 'inherit', background: 'none', border: 'none', cursor: 'pointer' }}>
@@ -243,7 +251,7 @@ export default function BookingPage() {
                 <FiAlertCircle size={18} style={{ flexShrink: 0, marginTop: 2 }} />
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                   <span style={{ fontSize: 14, lineHeight: 1.6 }}>{unavailableMsg}</span>
-                  <Link to="/#rooms" className="btn btn-outline btn-sm" style={{ alignSelf: 'flex-start' }}>
+                  <Link to={`${withLang('/')}#rooms`} className="btn btn-outline btn-sm" style={{ alignSelf: 'flex-start' }}>
                     {isRTL ? 'تصفح فئات أخرى' : 'Browse other categories'}
                   </Link>
                 </div>

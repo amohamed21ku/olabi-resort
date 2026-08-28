@@ -1,11 +1,13 @@
 import { Link } from 'react-router-dom'
 import { useLanguage } from '../App'
+import { withLangPrefix } from '../utils/i18nPath'
 import { blogPosts } from '../data/blog'
 import Seo from '../components/Seo'
 import { FiArrowRight, FiArrowLeft } from 'react-icons/fi'
 
 export default function BlogPage() {
-  const { isRTL } = useLanguage()
+  const { isRTL, withLang } = useLanguage()
+  const lang = isRTL ? 'ar' : 'en'
   const Arrow = isRTL ? FiArrowLeft : FiArrowRight
 
   const title = isRTL
@@ -19,13 +21,13 @@ export default function BlogPage() {
     '@context': 'https://schema.org',
     '@type': 'Blog',
     name: title,
-    url: 'https://olabiresort.com/blog',
-    inLanguage: isRTL ? 'ar' : 'en',
+    url: `https://olabiresort.com${withLangPrefix('/blog', lang)}`,
+    inLanguage: lang,
     publisher: { '@type': 'Organization', name: 'Olabi Resort' },
     blogPost: blogPosts.map(p => ({
       '@type': 'BlogPosting',
       headline: isRTL ? p.titleAr : p.titleEn,
-      url: `https://olabiresort.com/blog/${p.slug}`,
+      url: `https://olabiresort.com${withLangPrefix(`/blog/${p.slug}`, lang)}`,
       datePublished: p.date,
     })),
   }
@@ -56,7 +58,7 @@ export default function BlogPage() {
             {blogPosts.map(post => (
               <Link
                 key={post.slug}
-                to={`/blog/${post.slug}`}
+                to={withLang(`/blog/${post.slug}`)}
                 style={{
                   display: 'flex', flexDirection: 'column',
                   background: 'var(--white)',

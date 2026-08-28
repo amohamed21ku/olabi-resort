@@ -1,4 +1,5 @@
 import { useEffect } from 'react'
+import { withLangPrefix } from '../utils/i18nPath'
 
 const SITE_URL = 'https://olabiresort.com'
 const DEFAULT_IMAGE = `${SITE_URL}/static/images/assets/hero-bg2.png`
@@ -26,6 +27,19 @@ function setLink(rel, href) {
   el.setAttribute('href', href)
 }
 
+// hreflang alternates need several <link rel="alternate"> tags distinguished
+// by their hreflang attribute, so they can't share setLink's one-per-rel logic.
+function setAlternateLink(hreflang, href) {
+  let el = document.head.querySelector(`link[rel="alternate"][hreflang="${hreflang}"]`)
+  if (!el) {
+    el = document.createElement('link')
+    el.setAttribute('rel', 'alternate')
+    el.setAttribute('hreflang', hreflang)
+    document.head.appendChild(el)
+  }
+  el.setAttribute('href', href)
+}
+
 // Inject or replace a named JSON-LD block. Keyed by id so route changes
 // swap the previous block instead of stacking duplicates.
 function setJsonLd(id, data) {
@@ -48,17 +62,29 @@ function setJsonLd(id, data) {
  */
 export default function Seo({ title, description, path = '/', image, lang = 'ar', jsonLd, noindex = false }) {
   useEffect(() => {
-    const url = `${SITE_URL}${path === '/' ? '/' : path}`
+    // `path` is always the language-neutral path (e.g. "/hike") — Seo owns
+    // prefixing it for the current language so every page's own <Seo> call
+    // never needs to know about the /en/ URL scheme.
+    const localizedPath = withLangPrefix(path, lang)
+    const url = `${SITE_URL}${localizedPath}`
     const img = image ? (image.startsWith('http') ? image : `${SITE_URL}${image}`) : DEFAULT_IMAGE
 
     if (title) document.title = title
     document.documentElement.lang = lang
+    document.documentElement.dir = lang === 'ar' ? 'rtl' : 'ltr'
 
     setMeta('name', 'description', description)
     setLink('canonical', url)
     setMeta('name', 'robots', noindex
       ? 'noindex, nofollow'
       : 'index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1')
+
+    // Per-page hreflang — every route gets its own ar/en pair now, not just
+    // the homepage (which previously had the only hreflang block, in the
+    // static index.html).
+    setAlternateLink('ar', `${SITE_URL}${withLangPrefix(path, 'ar')}`)
+    setAlternateLink('en', `${SITE_URL}${withLangPrefix(path, 'en')}`)
+    setAlternateLink('x-default', `${SITE_URL}${withLangPrefix(path, 'ar')}`)
 
     setMeta('property', 'og:title', title)
     setMeta('property', 'og:description', description)

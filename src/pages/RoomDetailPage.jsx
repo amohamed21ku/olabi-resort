@@ -4,6 +4,7 @@ import { useLanguage } from '../App'
 import { t } from '../translations'
 import { useRoomVariant } from '../hooks/useRooms'
 import { countAvailableUnitsForVariant } from '../firebase/services'
+import Seo from '../components/Seo'
 import { FiUsers, FiArrowLeft, FiArrowRight, FiCheck, FiCalendar, FiChevronLeft, FiChevronRight, FiX } from 'react-icons/fi'
 
 function ImageGallery({ images, name }) {
@@ -188,7 +189,7 @@ function ImageGallery({ images, name }) {
           onLoad={() => { markLoaded(bgSrc); if (!bgReady) setBgReady(true) }}
           style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', zIndex: 2, cursor: 'zoom-in' }} />
         {fgSrc && (
-          <img key={fgSrc} src={fgSrc} alt="" decoding="async"
+          <img key={fgSrc} src={fgSrc} alt={name} decoding="async"
             onClick={() => setViewerOpen(true)}
             style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', zIndex: 3, opacity: fgLoaded ? 1 : 0, transition: fgLoaded ? 'opacity 0.28s ease' : 'none', cursor: 'zoom-in' }} />
         )}
@@ -223,7 +224,7 @@ function ImageGallery({ images, name }) {
               onFocus={() => loadImage(img).catch(() => {})}
               onMouseLeave={e => { if (activeIdx !== i) e.currentTarget.style.opacity = '0.7' }}
             >
-              <img src={img} alt="" loading="lazy" decoding="async"
+              <img src={img} alt={`${name} ${i + 1}`} loading="lazy" decoding="async"
                 onLoad={() => markLoaded(img)}
                 style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
               {!loadedUrls.has(img) && (
@@ -285,7 +286,7 @@ export default function RoomDetailPage() {
   // The :roomId param now carries the variant slug like 'superub-5'.
   const { roomId: variantSlug } = useParams()
   const [searchParams, setSearchParams] = useSearchParams()
-  const { language, isRTL } = useLanguage()
+  const { language, isRTL, withLang } = useLanguage()
   const navigate = useNavigate()
   const location = useLocation()
   const tr = (key) => t(language, key)
@@ -356,7 +357,7 @@ export default function RoomDetailPage() {
     return (
       <div className="page-loader">
         <p style={{ color: 'var(--muted)' }}>{isRTL ? 'الفئة غير موجودة' : 'Category not found'}</p>
-        <Link to="/#rooms" className="btn btn-outline">{isRTL ? 'عودة للغرف' : 'Back to Rooms'}</Link>
+        <Link to={`${withLang('/')}#rooms`} className="btn btn-outline">{isRTL ? 'عودة للغرف' : 'Back to Rooms'}</Link>
       </div>
     )
   }
@@ -372,12 +373,44 @@ export default function RoomDetailPage() {
 
   const isFull = available === false
 
+  const seoTitle = isRTL
+    ? `${name} | منتجع العلبي`
+    : `${name} | Olabi Resort`
+  const seoDescription = desc || (isRTL
+    ? `${name} في منتجع العلبي، كسب — استوعب ${variant.capacity} أشخاص.`
+    : `${name} at Olabi Resort, Kasab — sleeps ${variant.capacity} guests.`)
+
+  const productJsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'Product',
+    name,
+    description: seoDescription,
+    image: images,
+    brand: { '@type': 'Organization', name: 'Olabi Resort' },
+    offers: {
+      '@type': 'Offer',
+      priceCurrency: 'USD',
+      availability: isFull
+        ? 'https://schema.org/SoldOut'
+        : 'https://schema.org/InStock',
+      url: `https://olabiresort.com${withLang(`/rooms/${variantSlug}`)}`,
+    },
+  }
+
   return (
     <div style={{ background: 'var(--cream)', paddingTop: 'var(--header-h)', paddingBottom: 80, minHeight: '100vh' }}>
+      <Seo
+        title={seoTitle}
+        description={seoDescription}
+        path={`/rooms/${variantSlug}`}
+        image={images[0]}
+        lang={isRTL ? 'ar' : 'en'}
+        jsonLd={productJsonLd}
+      />
       <div style={{ background: 'var(--white)', borderBottom: '1px solid var(--sand)', padding: '16px 0' }}>
         <div className="container">
           <button
-            onClick={() => navigate(cameFromHome ? '/' : `/${bookingParams ? `?${bookingParams}` : ''}#rooms`)}
+            onClick={() => navigate(cameFromHome ? withLang('/') : `${withLang('/')}${bookingParams ? `?${bookingParams}` : ''}#rooms`)}
             style={{ display: 'inline-flex', alignItems: 'center', gap: 8, color: 'var(--muted)', fontSize: 14, fontFamily: 'inherit', background: 'none', border: 'none', cursor: 'pointer', transition: 'color 0.2s' }}
             onMouseEnter={e => e.currentTarget.style.color = 'var(--terracotta)'}
             onMouseLeave={e => e.currentTarget.style.color = 'var(--muted)'}
@@ -428,7 +461,7 @@ export default function RoomDetailPage() {
 
               {desc && (
                 <>
-                  <h3 style={{ fontSize: 16, fontWeight: 700, color: 'var(--ink)', marginBottom: 10, fontFamily: isRTL ? 'var(--font-ar)' : 'var(--font-heading)' }}>{tr('detail_description')}</h3>
+                  <h2 style={{ fontSize: 16, fontWeight: 700, color: 'var(--ink)', marginBottom: 10, fontFamily: isRTL ? 'var(--font-ar)' : 'var(--font-heading)' }}>{tr('detail_description')}</h2>
                   <p style={{ fontSize: 16, color: 'var(--charcoal)', lineHeight: 1.8, marginBottom: 32 }}>{desc}</p>
                 </>
               )}
@@ -495,7 +528,7 @@ export default function RoomDetailPage() {
 
               <div className="booking-card-body" style={{ padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 12 }}>
                 {!isFull && (
-                  <Link to={`/booking/${variant.id}${bookingParams ? `?${bookingParams}` : ''}`} className="btn btn-primary btn-lg" style={{ justifyContent: 'center' }}>
+                  <Link to={withLang(`/booking/${variant.id}${bookingParams ? `?${bookingParams}` : ''}`)} className="btn btn-primary btn-lg" style={{ justifyContent: 'center' }}>
                     {tr('detail_bookRoom')}
                   </Link>
                 )}
@@ -524,7 +557,7 @@ export default function RoomDetailPage() {
         </div>
         {!isFull && (
           <Link
-            to={`/booking/${variant.id}${bookingParams ? `?${bookingParams}` : ''}`}
+            to={withLang(`/booking/${variant.id}${bookingParams ? `?${bookingParams}` : ''}`)}
             className="btn btn-primary"
             style={{ flexShrink: 0, padding: '12px 24px', fontSize: 15 }}
           >

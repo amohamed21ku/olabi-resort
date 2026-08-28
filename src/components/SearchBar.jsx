@@ -5,7 +5,7 @@ import { t } from '../translations'
 import { FiSearch, FiCalendar, FiUsers } from 'react-icons/fi'
 
 export default function SearchBar({ onDark = false, initialValues = {} }) {
-  const { language } = useLanguage()
+  const { language, withLang } = useLanguage()
   const navigate = useNavigate()
   const tr = (key) => t(language, key)
   const fieldStyle = {
@@ -24,7 +24,7 @@ export default function SearchBar({ onDark = false, initialValues = {} }) {
   const handleSearch = (e) => {
     e.preventDefault()
     const params = new URLSearchParams({ checkIn, checkOut, guests })
-    navigate(`/?${params}#rooms`)
+    navigate(`${withLang('/')}?${params}#rooms`)
   }
 
   const inputStyle = {

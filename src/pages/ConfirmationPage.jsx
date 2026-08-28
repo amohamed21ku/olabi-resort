@@ -3,6 +3,7 @@ import { useParams, useSearchParams, Link } from 'react-router-dom'
 import { useLanguage } from '../App'
 import { t } from '../translations'
 import { getBookingById, buildWhatsAppUrl, formatBookingNumber, getBookingRooms } from '../firebase/services'
+import Seo from '../components/Seo'
 import { FiCheck, FiHome, FiMessageCircle } from 'react-icons/fi'
 
 const AUTO_OPEN_DELAY_MS = 3000
@@ -18,7 +19,7 @@ const STATUS_LABEL = {
 export default function ConfirmationPage() {
   const { bookingId }   = useParams()
   const [searchParams, setSearchParams] = useSearchParams()
-  const { language, isRTL } = useLanguage()
+  const { language, isRTL, withLang } = useLanguage()
   const tr = (key) => t(language, key)
 
   const [booking, setBooking] = useState(null)
@@ -87,6 +88,13 @@ export default function ConfirmationPage() {
       alignItems: 'center',
       justifyContent: 'center',
     }}>
+      <Seo
+        title={tr('confirm_title')}
+        description={tr('confirm_subtitle')}
+        path={`/confirmation/${bookingId}`}
+        lang={isRTL ? 'ar' : 'en'}
+        noindex
+      />
       <div className="container" style={{ maxWidth: '560px' }}>
         <div style={{
           background: 'var(--white)',
@@ -228,11 +236,11 @@ export default function ConfirmationPage() {
                   }
                 </a>
               )}
-              <Link to="/" className="btn btn-outline btn-lg" style={{ justifyContent: 'center', gap: '8px' }}>
+              <Link to={withLang('/')} className="btn btn-outline btn-lg" style={{ justifyContent: 'center', gap: '8px' }}>
                 <FiHome size={16} />
                 {tr('confirm_backHome')}
               </Link>
-              <Link to="/#rooms" style={{
+              <Link to={`${withLang('/')}#rooms`} style={{
                 fontSize: '14px',
                 color: 'var(--muted)',
                 textAlign: 'center',

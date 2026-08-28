@@ -10,7 +10,7 @@ const TYPE_ACCENT = {
 }
 
 export default function TypeCard({ variant, checkIn, checkOut, guests, available = null }) {
-  const { language, isRTL } = useLanguage()
+  const { language, isRTL, withLang } = useLanguage()
   const location = useLocation()
   const tr = (key) => t(language, key)
 
@@ -32,8 +32,8 @@ export default function TypeCard({ variant, checkIn, checkOut, guests, available
     ...(guests   ? { guests }   : {}),
   }).toString()
 
-  const detailHref = `/rooms/${variant.id}${bookingParams ? `?${bookingParams}` : ''}`
-  const bookHref   = `/booking/${variant.id}${bookingParams ? `?${bookingParams}` : ''}`
+  const detailHref = withLang(`/rooms/${variant.id}${bookingParams ? `?${bookingParams}` : ''}`)
+  const bookHref   = withLang(`/booking/${variant.id}${bookingParams ? `?${bookingParams}` : ''}`)
   const linkState  = { from: location.pathname }
 
   const isFull = available === false
