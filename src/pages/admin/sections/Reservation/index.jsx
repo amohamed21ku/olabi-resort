@@ -1,7 +1,6 @@
 import { occupiedRoomIdSet } from '../../utils/bookingHelpers'
 import PendingApprovalSection from './PendingApprovalSection'
 import NeedsRoomSection from './NeedsRoomSection'
-import UpcomingArrivalsSection from './UpcomingArrivalsSection'
 
 // The same four front-desk numbers the old dashboard led with, kept — just
 // as one compact line instead of four big cards, since they're a quick
@@ -40,8 +39,12 @@ function MiniStats({ rooms, bookings, todayStr }) {
 }
 
 // The Reservation landing page: the two approval queues — what needs doing
-// right now. The room directory lives on its own page/route now ("الغرف",
-// nested under this section in the main sidebar) instead of an aside here.
+// right now. Both the room directory ("الغرف") and the upcoming-arrivals
+// list ("الوصول القادم") live on their own pages/routes, nested under this
+// section in the main sidebar, instead of being squeezed onto this landing
+// page — the arrivals list in particular has no natural upper bound (it
+// accumulates every confirmed+roomed booking that hasn't been checked in
+// yet), so it needs its own page with a search box, not a card here.
 export default function ReservationSection({ rooms, bookings, bookingActions }) {
   const todayStr = new Date().toISOString().split('T')[0]
 
@@ -60,8 +63,6 @@ export default function ReservationSection({ rooms, bookings, bookingActions }) 
         <PendingApprovalSection bookings={bookings} bookingActions={bookingActions} />
         <NeedsRoomSection bookings={bookings} rooms={rooms} bookingActions={bookingActions} />
       </div>
-
-      <UpcomingArrivalsSection bookings={bookings} bookingActions={bookingActions} />
     </div>
   )
 }

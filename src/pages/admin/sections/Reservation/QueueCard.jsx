@@ -22,13 +22,30 @@ export default function QueueCard({ tone, icon, title, sort, onSortChange, child
   )
 }
 
-export function QueueRow({ title, subtitle, action }) {
+// `onTitleClick` is optional — when passed, the whole title+subtitle block
+// becomes a button that opens whatever detail view the caller wants (e.g. a
+// booking-details modal) instead of just the title text being clickable, so
+// the click target is the full row width, not one narrow word.
+export function QueueRow({ title, subtitle, action, onTitleClick }) {
+  const info = (
+    <>
+      <p className="adm-queue-card__row-title">{title}</p>
+      <p className="adm-queue-card__row-sub">{subtitle}</p>
+    </>
+  )
   return (
     <div className="adm-queue-card__row">
-      <div style={{ flex: 1, minWidth: 120 }}>
-        <p className="adm-queue-card__row-title">{title}</p>
-        <p className="adm-queue-card__row-sub">{subtitle}</p>
-      </div>
+      {onTitleClick ? (
+        <button
+          type="button"
+          onClick={onTitleClick}
+          style={{ flex: 1, minWidth: 120, background: 'none', border: 'none', padding: 0, cursor: 'pointer', textAlign: 'inherit', fontFamily: 'inherit' }}
+        >
+          {info}
+        </button>
+      ) : (
+        <div style={{ flex: 1, minWidth: 120 }}>{info}</div>
+      )}
       {action}
     </div>
   )

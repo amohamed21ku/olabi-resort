@@ -116,7 +116,7 @@ export const en = {
 
   // Confirmation page
   confirm_title:    'Booking Request Received',
-  confirm_subtitle: 'We received your booking request. To confirm it, tap "Send on WhatsApp" and the message will be sent on WhatsApp.',
+  confirm_subtitle: 'We received your booking request, and WhatsApp will open automatically to send the details to the resort.',
   confirm_id:       'Booking ID',
   confirm_backHome: 'Back to Home',
   confirm_viewRooms: 'Browse Other Rooms',

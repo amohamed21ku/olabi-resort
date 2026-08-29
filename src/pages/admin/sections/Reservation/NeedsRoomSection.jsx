@@ -9,6 +9,7 @@ import DeleteBookingButton from '../../components/DeleteBookingButton'
 import Modal from '../../components/Modal'
 import Picker from '../../components/Picker'
 import { useGuardWhile } from '../../hooks/useNavGuard'
+import BookingDetailsModal from './BookingDetailsModal'
 import QueueCard, { QueueRow } from './QueueCard'
 
 function tsMillis(v) {
@@ -34,6 +35,7 @@ const SORTS = {
 export default function NeedsRoomSection({ bookings, rooms, bookingActions }) {
   const [sort, setSort] = useState('newest')
   const [pickingFor, setPickingFor] = useState(null) // { booking, line }
+  const [viewing, setViewing] = useState(null)
   useGuardWhile(!!pickingFor)
 
   const lines = useMemo(() => {
@@ -57,7 +59,8 @@ export default function NeedsRoomSection({ bookings, rooms, bookingActions }) {
           <QueueRow
             key={`${booking.id}-${line.lineId}`}
             title={booking.guestName}
-            subtitle={`${CATEGORY_LABEL_AR[line.roomType] || line.roomType} · ${fmtDateShort(line.checkIn)} ← ${fmtDateShort(line.checkOut)}`}
+            onTitleClick={() => setViewing(booking)}
+            subtitle={`${CATEGORY_LABEL_AR[line.roomType] || line.roomType} · ${booking.guestPhone} · ${fmtDateShort(line.checkIn)} ← ${fmtDateShort(line.checkOut)}`}
             action={
               <div style={{ display: 'flex', gap: 6 }}>
                 <Button variant="secondary" size="sm" onClick={() => setPickingFor({ booking, line })}>اختيار غرفة</Button>
@@ -73,6 +76,14 @@ export default function NeedsRoomSection({ bookings, rooms, bookingActions }) {
           booking={pickingFor.booking} line={pickingFor.line} rooms={rooms} bookings={bookings}
           bookingActions={bookingActions}
           onClose={() => setPickingFor(null)}
+        />
+      )}
+
+      {viewing && (
+        <BookingDetailsModal
+          booking={viewing}
+          bookingActions={bookingActions}
+          onClose={() => setViewing(null)}
         />
       )}
     </>

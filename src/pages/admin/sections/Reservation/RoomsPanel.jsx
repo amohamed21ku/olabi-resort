@@ -108,14 +108,25 @@ export default function RoomsPanel({ booking, rooms, bookings, bookingActions })
   )
 }
 
+function addDays(dateStr, days) {
+  const d = new Date(dateStr)
+  d.setDate(d.getDate() + days)
+  return d.toISOString().split('T')[0]
+}
+
 function RoomLineCard({ line, busy, canRemove, onChooseRoom, onUpdate, onRequestRemove }) {
   const [ci, setCi] = useState(line.checkIn)
   const [co, setCo] = useState(line.checkOut)
+  const [roomType, setRoomType] = useState(line.roomType || '')
   const [price, setPrice] = useState(line.price != null ? String(line.price) : '')
   const assigned = !!line.roomId
   const label = CATEGORY_LABEL_AR[line.roomType] || line.roomType || '—'
+  const nights = Math.max(1, Math.ceil((new Date(co) - new Date(ci)) / 86400000))
   const datesChanged = ci !== line.checkIn || co !== line.checkOut
   const priceChanged = (price === '' ? null : Number(price)) !== line.price
+  const typeChanged = roomType !== (line.roomType || '')
+
+  const setNights = (n) => setCo(addDays(ci, Math.max(1, Number(n) || 1)))
 
   return (
     <div className="adm-list-card" style={{ padding: 14 }}>
@@ -140,18 +151,32 @@ function RoomLineCard({ line, busy, canRemove, onChooseRoom, onUpdate, onRequest
       </div>
 
       <div style={{ display: 'flex', alignItems: 'flex-end', gap: 10, flexWrap: 'wrap', marginTop: 12 }}>
+        <Field label="نوع الغرفة">
+          <select className="adm-input" value={roomType} onChange={e => setRoomType(e.target.value)} style={{ width: 130 }}>
+            {CATEGORY_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.labelAr}</option>)}
+          </select>
+        </Field>
         <Field label="الوصول"><input type="date" className="adm-input" value={ci} onChange={e => setCi(e.target.value)} style={{ width: 150 }} /></Field>
         <Field label="المغادرة"><input type="date" className="adm-input" value={co} min={ci} onChange={e => setCo(e.target.value)} style={{ width: 150 }} /></Field>
+        <Field label="عدد الليالي"><input type="number" min={1} className="adm-input" value={nights} onChange={e => setNights(e.target.value)} style={{ width: 80 }} /></Field>
         <Field label="السعر"><input type="number" min={0} className="adm-input" value={price} onChange={e => setPrice(e.target.value)} placeholder="0" style={{ width: 100 }} /></Field>
-        <span style={{ fontSize: 11.5, color: 'var(--muted)', paddingBottom: 12 }}>{line.nights} ليلة</span>
         <Button
           variant="ghost" size="sm" icon={<FiCheck size={13} />}
-          disabled={busy || (!datesChanged && !priceChanged)}
-          onClick={() => onUpdate({ checkIn: ci, checkOut: co, ...(priceChanged ? { price: price === '' ? null : Number(price) } : {}) })}
+          disabled={busy || (!datesChanged && !priceChanged && !typeChanged)}
+          onClick={() => onUpdate({
+            checkIn: ci, checkOut: co,
+            ...(priceChanged ? { price: price === '' ? null : Number(price) } : {}),
+            ...(typeChanged ? { roomType } : {}),
+          })}
         >
           حفظ
         </Button>
       </div>
+      {typeChanged && assigned && (
+        <div className="adm-field-error" style={{ marginTop: 8, background: 'var(--adm-tone-warn-bg)', color: 'var(--adm-tone-warn-text)' }}>
+          <FiAlertCircle size={12} /> سيتم إلغاء تعيين الغرفة الحالية عند تغيير النوع
+        </div>
+      )}
     </div>
   )
 }

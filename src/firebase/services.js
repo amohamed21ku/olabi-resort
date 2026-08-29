@@ -409,6 +409,20 @@ export async function getBookingById(bookingId) {
   return { id: snap.id, ...snap.data() }
 }
 
+// Guest-contact-level fields — separate from the room-line editing in
+// mutateBookingRooms/updateBookingRoomLine, since these don't touch rooms[]
+// or the derived checkIn/checkOut/nights/totalPrice aggregates at all.
+export async function updateBookingGuestInfo(bookingId, { guestName, guestPhone, guestEmail, guests, notes }) {
+  if (!bookingId) throw new Error('INVALID_BOOKING_DATA')
+  const data = { updatedAt: Timestamp.now() }
+  if (guestName != null)  data.guestName  = guestName.trim()
+  if (guestPhone != null) data.guestPhone = guestPhone.trim()
+  if (guestEmail != null) data.guestEmail = guestEmail.trim()
+  if (guests != null)     data.guests     = Number(guests) || 1
+  if (notes != null)      data.notes      = notes.trim()
+  await updateDoc(doc(db, 'bookings', bookingId), data)
+}
+
 export async function getBookingsForRoom(roomId) {
   const bookings = await fetchAllBookings()
   return bookings.filter(b =>
@@ -542,9 +556,14 @@ export async function unassignRoomLine(bookingId, lineId) {
   })
 }
 
-// Edit a room-line's dates and/or price. When dates change on an assigned line,
-// re-checks the room is free; recomputes nights, and (unless an explicit price is
-// given) re-prices from the variant × new nights.
+// Edit a room-line's dates, price, and/or room type. When dates change on an
+// assigned line, re-checks the room is free; recomputes nights, and (unless
+// an explicit price is given) re-prices from the variant × new nights.
+// Changing the type clears any assigned physical room (roomId/roomNumber/
+// roomNameAr/roomNameEn/roomCapacity) — a room booked under the old category
+// doesn't necessarily fit the new one, so the line goes back to needing a
+// room picked for it, same as if it had never been assigned (no conflict
+// check needed here; that only happens when a *specific* room is chosen).
 export async function updateBookingRoomLine(bookingId, lineId, patch = {}) {
   const all = await fetchAllBookings()
   return mutateBookingRooms(bookingId, async (rooms, booking, tx) => {
@@ -559,16 +578,23 @@ export async function updateBookingRoomLine(bookingId, lineId, patch = {}) {
       throw new RoomUnavailableError()
     }
     const nights = nightsBetween(ci, co)
+    const typeChanged = patch.roomType != null && patch.roomType !== line.roomType
     let price = line.price
     if (patch.price !== undefined) {
       price = patch.price === '' || patch.price == null ? null : Number(patch.price)
-    } else if (datesChanged && line.roomType && line.roomCapacity) {
+    } else if (datesChanged && !typeChanged && line.roomType && line.roomCapacity) {
       const vSnap = await tx.get(doc(db, 'variants', `${line.roomType}-${line.roomCapacity}`))
       const vp = vSnap.exists() ? vSnap.data().price : null
       if (typeof vp === 'number') price = vp * nights
     }
     const copy = rooms.slice()
-    copy[idx] = { ...line, checkIn: ci, checkOut: co, nights, price }
+    copy[idx] = {
+      ...line, checkIn: ci, checkOut: co, nights, price,
+      ...(typeChanged ? {
+        roomType: patch.roomType, roomCapacity: null,
+        roomId: null, roomNumber: null, roomNameAr: null, roomNameEn: null,
+      } : {}),
+    }
     return copy
   })
 }
@@ -859,10 +885,11 @@ export function normalizeCustomerPhone(raw) {
   return digits
 }
 
-// Build a WhatsApp URL targeting the customer with a booking-confirmation
-// message from the resort. Used by admin to confirm bookings with guests.
-export function buildCustomerWhatsAppUrl(booking, language = 'ar') {
-  const phone = normalizeCustomerPhone(booking.guestPhone)
+// The editable text of the booking-confirmation WhatsApp message — split out
+// from buildCustomerWhatsAppUrl so the admin can show it in a textarea for
+// the operator to tweak before it's sent, instead of only ever being able to
+// fire off the canned message as-is.
+export function buildCustomerConfirmMessage(booking, language = 'ar') {
   const checkInStr  = new Date(booking.checkIn?.toDate ? booking.checkIn.toDate() : booking.checkIn).toLocaleDateString(
     language === 'ar' ? 'ar-SY' : 'en-GB',
     { year: 'numeric', month: 'long', day: 'numeric' }
@@ -911,7 +938,24 @@ export function buildCustomerWhatsAppUrl(booking, language = 'ar') {
       `We look forward to welcoming you. Reply to this message for any questions.`
   }
 
+  return message
+}
+
+// Build a WhatsApp URL targeting the customer with a booking-confirmation
+// message from the resort. Used by admin to confirm bookings with guests.
+export function buildCustomerWhatsAppUrl(booking, language = 'ar') {
+  const phone = normalizeCustomerPhone(booking.guestPhone)
+  const message = buildCustomerConfirmMessage(booking, language)
   return phone
     ? `https://wa.me/${phone}?text=${encodeURIComponent(message)}`
     : `https://wa.me/?text=${encodeURIComponent(message)}`
+}
+
+// Build a wa.me URL for arbitrary (already-edited) message text — used when
+// the operator has customized the canned confirmation message before sending.
+export function buildWhatsAppUrlForText(phone, text) {
+  const normalized = normalizeCustomerPhone(phone)
+  return normalized
+    ? `https://wa.me/${normalized}?text=${encodeURIComponent(text)}`
+    : `https://wa.me/?text=${encodeURIComponent(text)}`
 }

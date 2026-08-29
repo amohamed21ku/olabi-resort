@@ -14,6 +14,7 @@ import { useBookingActions } from './hooks/useBookingActions'
 
 import ReservationSection from './sections/Reservation'
 import ReservationRoomsPage from './sections/Reservation/RoomsPage'
+import UpcomingArrivalsPage from './sections/Reservation/UpcomingArrivalsPage'
 import RoomPanel from './sections/Reservation/RoomPanel'
 import CalendarSection from './sections/CalendarSection'
 import StatsSection from './sections/StatsSection'
@@ -131,6 +132,7 @@ function AdminShellInner({ user }) {
                 <Route index element={<Navigate to="reservation" replace />} />
                 <Route path="reservation" element={<ReservationSection rooms={rooms} bookings={bookings} bookingActions={bookingActions} />} />
                 <Route path="reservation/rooms" element={<ReservationRoomsPage rooms={rooms} bookings={bookings} />} />
+                <Route path="reservation/upcoming" element={<UpcomingArrivalsPage bookings={bookings} bookingActions={bookingActions} />} />
                 <Route path="reservation/:roomId" element={<RoomPanel rooms={rooms} bookings={bookings} bookingActions={bookingActions} />} />
                 <Route path="calendar" element={<CalendarSection bookings={bookings} rooms={rooms} />} />
                 <Route path="stats" element={<StatsSection rooms={rooms} bookings={bookings} />} />

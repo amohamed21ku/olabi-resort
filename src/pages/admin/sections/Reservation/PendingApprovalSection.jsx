@@ -1,9 +1,21 @@
 import { useMemo, useState } from 'react'
 import { FiClock, FiCheck } from 'react-icons/fi'
-import { roomsLabel, fmtDateShort } from '../../utils/bookingHelpers'
+import { fmtDateShort } from '../../utils/bookingHelpers'
+import { getBookingRooms } from '../../services'
+import { CATEGORY_LABEL_AR } from '../../constants'
 import Button from '../../components/Button'
 import DeleteBookingButton from '../../components/DeleteBookingButton'
+import ConfirmBookingModal from './ConfirmBookingModal'
+import BookingDetailsModal from './BookingDetailsModal'
 import QueueCard, { QueueRow } from './QueueCard'
+
+// The room type(s) the customer picked at booking time — worth showing here
+// even though no physical room exists yet, since it's most of what a
+// reviewer needs to judge the request (along with who's asking and when).
+function roomTypeLabel(b) {
+  const types = [...new Set(getBookingRooms(b).map(l => CATEGORY_LABEL_AR[l.roomType] || l.roomType).filter(Boolean))]
+  return types.join('، ') || 'غير محدد'
+}
 
 function tsMillis(v) {
   if (!v) return 0
@@ -27,6 +39,8 @@ const SORTS = {
 // is the "not yet okay" side of the pair, green being "already approved".
 export default function PendingApprovalSection({ bookings, bookingActions }) {
   const [sort, setSort] = useState('newest')
+  const [confirming, setConfirming] = useState(null)
+  const [viewing, setViewing] = useState(null)
   const pending = useMemo(
     () => bookings.filter(b => b.status === 'pending').slice().sort(SORTS[sort]),
     [bookings, sort]
@@ -45,13 +59,14 @@ export default function PendingApprovalSection({ bookings, bookingActions }) {
         <QueueRow
           key={b.id}
           title={b.guestName}
-          subtitle={`${roomsLabel(b)} · ${fmtDateShort(b.checkIn)} ← ${fmtDateShort(b.checkOut)}`}
+          onTitleClick={() => setViewing(b)}
+          subtitle={`${roomTypeLabel(b)} · ${b.guestPhone} · ${fmtDateShort(b.checkIn)} ← ${fmtDateShort(b.checkOut)}`}
           action={
             <div style={{ display: 'flex', gap: 6 }}>
               <Button
                 variant="secondary" size="sm" icon={<FiCheck size={13} />}
                 disabled={bookingActions.updating}
-                onClick={() => bookingActions.changeStatus(b.id, 'confirmed')}
+                onClick={() => setConfirming(b)}
               >
                 تأكيد
               </Button>
@@ -60,6 +75,22 @@ export default function PendingApprovalSection({ bookings, bookingActions }) {
           }
         />
       ))}
+
+      {confirming && (
+        <ConfirmBookingModal
+          booking={confirming}
+          bookingActions={bookingActions}
+          onClose={() => setConfirming(null)}
+        />
+      )}
+
+      {viewing && (
+        <BookingDetailsModal
+          booking={viewing}
+          bookingActions={bookingActions}
+          onClose={() => setViewing(null)}
+        />
+      )}
     </QueueCard>
   )
 }
