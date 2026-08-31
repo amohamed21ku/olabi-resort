@@ -5,25 +5,9 @@ import Button from '../components/Button'
 import EmptyState from '../components/EmptyState'
 import { STATUS, CATEGORY_LABEL_AR } from '../constants'
 import { getBookingRooms } from '../services'
+import { readToneColors } from '../utils/printColors'
 
 const CAL_DAYS = 7
-const TONE_KEYS = ['good', 'warn', 'bad', 'muted', 'info']
-
-// Resolves the actual --adm-tone-*-{bg,text,border} colors from the page's
-// stylesheet (rather than hardcoding hex) so the tape chart's bar/legend
-// colors always match the StatusBadge tones used everywhere else in the
-// admin. Resolving to concrete color strings (instead of leaving `var(...)`
-// in the markup) also means the exported PDF popup — a brand-new document
-// with none of our stylesheets — renders the same colors.
-function readToneColors() {
-  if (typeof document === 'undefined') return {}
-  const cs = getComputedStyle(document.documentElement)
-  return Object.fromEntries(TONE_KEYS.map(t => [t, {
-    bg: cs.getPropertyValue(`--adm-tone-${t}-bg`).trim(),
-    text: cs.getPropertyValue(`--adm-tone-${t}-text`).trim(),
-    border: cs.getPropertyValue(`--adm-tone-${t}-border`).trim(),
-  }]))
-}
 
 // Ported from the old CalendarTab — a room x day "tape chart". Rooms are
 // rows, days are columns, and each booking is a bar spanning its nights,
