@@ -1,12 +1,13 @@
 import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { FiLogIn, FiSearch } from 'react-icons/fi'
+import { FiLogIn, FiSearch, FiDollarSign } from 'react-icons/fi'
 import { bookingRoomsInfo, roomsLabel, fmtDateShort, bookingMatchesRoomSearch } from '../../utils/bookingHelpers'
 import { getBookingRooms } from '../../services'
 import Button from '../../components/Button'
 import DeleteBookingButton from '../../components/DeleteBookingButton'
 import EmptyState from '../../components/EmptyState'
 import QueueCard, { QueueRow } from './QueueCard'
+import BackToReservationsButton from './BackToReservationsButton'
 
 function tsMillis(v) {
   if (!v) return 0
@@ -37,23 +38,38 @@ export default function UpcomingArrivalsPage({ bookings, bookingActions }) {
   const [sort, setSort] = useState('checkin')
   const [search, setSearch] = useState('')
 
+  // Kept separate from the search-filtered list below so the price notice
+  // always reflects the whole page, not whatever's currently searched for.
+  const allConfirmed = useMemo(
+    () => bookings.filter(b => b.status === 'confirmed' && !bookingRoomsInfo(b).anyUnassigned),
+    [bookings]
+  )
+  const unpricedCount = useMemo(() => allConfirmed.filter(b => b.totalPrice == null).length, [allConfirmed])
+
   const upcoming = useMemo(
-    () => bookings
-      .filter(b => b.status === 'confirmed' && !bookingRoomsInfo(b).anyUnassigned)
+    () => allConfirmed
       .filter(b => bookingMatchesRoomSearch(b, search))
       .slice()
       .sort(SORTS[sort]),
-    [bookings, sort, search]
+    [allConfirmed, sort, search]
   )
 
   return (
     <div>
+      <BackToReservationsButton />
       <div className="adm-section-header">
         <div>
           <h2>الوصول القادم</h2>
           <p>حجوزات مؤكدة وبها غرفة، بانتظار وصول الضيف وتسجيله.</p>
         </div>
       </div>
+
+      {unpricedCount > 0 && (
+        <div className="adm-notice-banner adm-notice-banner--warn" style={{ cursor: 'default' }}>
+          <FiDollarSign size={16} />
+          <span>{unpricedCount} من هذه الحجوزات بلا سعر محدد</span>
+        </div>
+      )}
 
       <div style={{ position: 'relative', maxWidth: 380, marginBottom: 20 }}>
         <FiSearch size={14} style={{ position: 'absolute', insetInlineStart: 12, top: '50%', transform: 'translateY(-50%)', color: 'var(--muted)', pointerEvents: 'none' }} />
@@ -73,7 +89,7 @@ export default function UpcomingArrivalsPage({ bookings, bookingActions }) {
             <QueueRow
               key={b.id}
               title={b.guestName}
-              onTitleClick={() => navigate(`/admin/reservation/${getBookingRooms(b)[0]?.roomId}`)}
+              onTitleClick={() => navigate(`/admin/reservation/${getBookingRooms(b)[0]?.roomId}?bookingId=${b.id}`)}
               subtitle={`${roomsLabel(b)} · ${b.guestPhone} · ${fmtDateShort(b.checkIn)} ← ${fmtDateShort(b.checkOut)}`}
               action={
                 <div style={{ display: 'flex', gap: 6 }}>

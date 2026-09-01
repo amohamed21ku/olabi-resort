@@ -6,6 +6,7 @@ import { readToneColors } from '../../utils/printColors'
 import { STATUS } from '../../constants'
 import Button from '../../components/Button'
 import EmptyState from '../../components/EmptyState'
+import BackToReservationsButton from './BackToReservationsButton'
 
 const toStr = (d) => d.toISOString().split('T')[0]
 const fmtCell = (d) => new Date(d).toLocaleDateString('ar-SY', { day: 'numeric', month: 'short', year: 'numeric' })
@@ -125,6 +126,7 @@ export default function ReservationsReportPage({ bookings }) {
 
   return (
     <div>
+      <BackToReservationsButton />
       <div className="adm-section-header">
         <div>
           <h2>تقرير الحجوزات</h2>

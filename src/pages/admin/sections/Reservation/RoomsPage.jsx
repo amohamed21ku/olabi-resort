@@ -1,9 +1,10 @@
 import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { FiSearch } from 'react-icons/fi'
-import { bookingMatchesRoomSearch } from '../../utils/bookingHelpers'
+import { bookingMatchesRoomSearch, fmtDateShort } from '../../utils/bookingHelpers'
 import { computeRoomStatus, getRoomFocusBooking } from '../../utils/roomStatus'
 import EmptyState from '../../components/EmptyState'
+import BackToReservationsButton from './BackToReservationsButton'
 
 const STATUS_LABEL = {
   vacant: 'شاغرة',
@@ -44,6 +45,7 @@ export default function RoomsPage({ rooms, bookings }) {
 
   return (
     <div>
+      <BackToReservationsButton />
       <div className="adm-section-header">
         <div>
           <h2>الغرف</h2>
@@ -67,9 +69,23 @@ export default function RoomsPage({ rooms, bookings }) {
                 .filter(r => r.floor === floor)
                 .sort((a, b) => (+a.number || 0) - (+b.number || 0))
                 .map(room => {
-                  const { status, booking } = computeRoomStatus(room, bookings, todayStr)
+                  const { status, booking, line } = computeRoomStatus(room, bookings, todayStr)
                   const tone = STATUS_TONE[status]
                   const firstName = booking?.guestName ? booking.guestName.split(' ')[0] : null
+
+                  // Today's snapshot alone hides the fact that a "vacant"
+                  // room can still have an upcoming booking a couple of days
+                  // out, or that an "occupied" one frees up on a known date —
+                  // both matter for deciding whether a new stay fits before
+                  // clicking in, so surface whichever applies as a small note.
+                  let dateNote = null
+                  if (line && (status === 'occupied' || status === 'arriving-today')) {
+                    dateNote = `حتى ${fmtDateShort(line.checkOut)}`
+                  } else if (status === 'vacant') {
+                    const upcoming = getRoomFocusBooking(room, bookings, todayStr)
+                    if (upcoming.kind === 'upcoming') dateNote = `متاحة حتى ${fmtDateShort(upcoming.line.checkIn)}`
+                  }
+
                   return (
                     <button
                       key={room.id}
@@ -80,6 +96,7 @@ export default function RoomsPage({ rooms, bookings }) {
                       <span className="adm-rooms-page__row-number">{room.number}</span>
                       <span className={`adm-badge adm-badge--${tone} adm-rooms-page__row-status`}>{STATUS_LABEL[status]}</span>
                       {firstName && <span className="adm-rooms-page__row-guest">{firstName}</span>}
+                      {dateNote && <span className="adm-rooms-page__row-date">{dateNote}</span>}
                     </button>
                   )
                 })}

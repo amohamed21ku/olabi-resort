@@ -102,7 +102,7 @@ export default function CalendarSection({ bookings, rooms }) {
         const c = statusColors[b.status] || statusColors.confirmed
         const s = STATUS[b.status] || STATUS.confirmed
         cells.push(
-          <td key={ds} colSpan={span} onClick={() => navigate(`/admin/reservation/${roomId}`)}
+          <td key={ds} colSpan={span} onClick={() => navigate(`/admin/reservation/${roomId}?bookingId=${b.id}`)}
             style={{ border: '1px solid var(--border)', padding: 3, cursor: 'pointer', background: '#fff' }}>
             <div title={`${b.guestName} · ${s.label}`}
               style={{ background: c.bg, border: `1px solid ${c.border}`, borderRight: `3px solid ${c.text}`, borderRadius: 6, padding: '5px 8px', textAlign: 'right', overflow: 'hidden' }}>

@@ -12,7 +12,7 @@ function tomorrowStr() { return new Date(Date.now() + 86400000).toISOString().sp
 // The entire "new booking" flow for a room that's already been picked from
 // the grid — no room-type step needed, since the room IS the context. This
 // replaces the old decoupled new-booking form + persistent topbar CTA.
-export default function NewBookingForm({ room, onCreated }) {
+export default function NewBookingForm({ room, onCreated, maxCheckOut }) {
   const [guestName, setGuestName] = useState('')
   const [guestPhone, setGuestPhone] = useState('')
   const [guestEmail, setGuestEmail] = useState('')
@@ -28,6 +28,7 @@ export default function NewBookingForm({ room, onCreated }) {
     e.preventDefault()
     if (!guestName.trim() || !guestPhone.trim()) { setError('أدخل اسم الضيف ورقم الهاتف'); return }
     if (!(new Date(checkIn) < new Date(checkOut))) { setError('تواريخ غير صحيحة'); return }
+    if (maxCheckOut && checkOut > maxCheckOut) { setError('تاريخ المغادرة يتجاوز موعد الحجز القادم على هذه الغرفة'); return }
     setBusy(true); setError('')
     try {
       await createBooking({
@@ -65,7 +66,7 @@ export default function NewBookingForm({ room, onCreated }) {
         <Field label="البريد الإلكتروني (اختياري)"><input type="email" className="adm-input" value={guestEmail} onChange={e => setGuestEmail(e.target.value)} /></Field>
         <Field label="عدد الأشخاص"><input type="number" min={1} className="adm-input" value={guests} onChange={e => setGuests(e.target.value)} /></Field>
         <Field label="الوصول"><input type="date" className="adm-input" value={checkIn} onChange={e => setCheckIn(e.target.value)} /></Field>
-        <Field label="المغادرة"><input type="date" className="adm-input" value={checkOut} min={checkIn} onChange={e => setCheckOut(e.target.value)} /></Field>
+        <Field label="المغادرة"><input type="date" className="adm-input" value={checkOut} min={checkIn} max={maxCheckOut || undefined} onChange={e => setCheckOut(e.target.value)} /></Field>
         <Field label="السعر (اختياري)"><input type="number" min={0} className="adm-input" value={price} onChange={e => setPrice(e.target.value)} placeholder="0" /></Field>
       </div>
       {error && <div className="adm-field-error"><FiAlertCircle size={13} /> {error}</div>}

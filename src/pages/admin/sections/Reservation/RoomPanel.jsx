@@ -1,9 +1,9 @@
 import { useState } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import { useGuardedNavigate } from '../../hooks/useGuardedNavigate'
 import {
   FiChevronRight, FiMessageCircle, FiTrash2, FiUser, FiPhone, FiMail,
-  FiUsers, FiSliders, FiClock, FiMessageSquare, FiCalendar, FiHome, FiLogIn, FiLogOut, FiLock, FiUnlock,
+  FiUsers, FiSliders, FiClock, FiMessageSquare, FiCalendar, FiHome, FiLogIn, FiLogOut, FiLock, FiUnlock, FiAlertCircle,
 } from 'react-icons/fi'
 import {
   getBookingRooms, formatBookingNumber, buildCustomerWhatsAppUrl, computeBookingFinance,
@@ -28,6 +28,7 @@ import NewBookingForm from './NewBookingForm'
 // might need to do with this room lives on this one page.
 export default function RoomPanel({ rooms, bookings, bookingActions }) {
   const { roomId } = useParams()
+  const [searchParams] = useSearchParams()
   const navigate = useNavigate()
   const { go } = useGuardedNavigate()
   const room = rooms.find(r => r.id === roomId)
@@ -43,7 +44,19 @@ export default function RoomPanel({ rooms, bookings, bookingActions }) {
     )
   }
 
-  const { kind, booking } = getRoomFocusBooking(room, bookings)
+  // A click that already knows which booking it wants (e.g. a name in the
+  // Upcoming Arrivals list, or a specific bar in the calendar) targets it
+  // directly via ?bookingId= instead of leaving room selection to
+  // getRoomFocusBooking's "what's relevant for this room today" guess —
+  // which, for a room with more than one relevant booking (a guest checked
+  // in today AND a different guest arriving in two days), could otherwise
+  // resolve to the wrong one and show mismatched dates for who was clicked.
+  const targetBookingId = searchParams.get('bookingId')
+  const targeted = targetBookingId ? bookings.find(b => b.id === targetBookingId) : null
+  const focus = targeted
+    ? { kind: 'current', booking: targeted, line: getBookingRooms(targeted).find(l => l.roomId === room.id) || null }
+    : getRoomFocusBooking(room, bookings)
+  const { kind, booking, line } = focus
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -51,9 +64,9 @@ export default function RoomPanel({ rooms, bookings, bookingActions }) {
         رجوع إلى لوحة الغرف
       </Button>
 
-      {kind === 'none'
-        ? <VacantRoomPanel room={room} onCreated={() => navigate(`/admin/reservation/${room.id}`)} />
-        : <OccupiedRoomPanel room={room} booking={booking} rooms={rooms} bookings={bookings} bookingActions={bookingActions} onBack={() => go('/admin/reservation')} />}
+      {kind === 'current'
+        ? <OccupiedRoomPanel room={room} booking={booking} rooms={rooms} bookings={bookings} bookingActions={bookingActions} onBack={() => go('/admin/reservation')} />
+        : <VacantRoomPanel room={room} onCreated={() => navigate(`/admin/reservation/${room.id}`)} upcoming={kind === 'upcoming' ? { booking, line } : null} />}
     </div>
   )
 }
@@ -105,7 +118,7 @@ function RoomBlockControl({ room }) {
   )
 }
 
-function VacantRoomPanel({ room, onCreated }) {
+function VacantRoomPanel({ room, onCreated, upcoming }) {
   return (
     <>
       <div className="adm-section-header">
@@ -115,10 +128,16 @@ function VacantRoomPanel({ room, onCreated }) {
         </div>
         <RoomBlockControl room={room} />
       </div>
+      {upcoming && (
+        <div className="adm-field-error" style={{ background: 'var(--adm-tone-warn-bg)', color: 'var(--adm-tone-warn-text)', marginBottom: 4 }}>
+          <FiAlertCircle size={13} />
+          هذه الغرفة شاغرة الآن، لكن لديها حجز قادم لـ{upcoming.booking.guestName} بدءاً من {fmtDateShort(upcoming.line.checkIn)} — تأكد أن تاريخ مغادرة الحجز الجديد لا يتجاوز هذا التاريخ.
+        </div>
+      )}
       <Card>
         <CardHeader icon={<FiHome size={15} color="var(--muted)" />}>بدء حجز جديد لهذه الغرفة</CardHeader>
         <CardBody>
-          <NewBookingForm room={room} onCreated={onCreated} />
+          <NewBookingForm room={room} onCreated={onCreated} maxCheckOut={upcoming?.line?.checkIn} />
         </CardBody>
       </Card>
     </>
