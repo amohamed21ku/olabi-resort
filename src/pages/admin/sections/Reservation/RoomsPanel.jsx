@@ -54,7 +54,7 @@ export default function RoomsPanel({ booking, rooms, bookings, bookingActions })
         {lines.map(line => (
           <RoomLineCard
             key={line.lineId}
-            line={line} busy={busy}
+            line={line} rooms={rooms} busy={busy}
             canRemove={lines.length > 1}
             onChooseRoom={() => setChooseFor(line.lineId)}
             onUpdate={(patch) => runRooms(() => updateBookingRoomLine(booking.id, line.lineId, patch))}
@@ -114,13 +114,21 @@ function addDays(dateStr, days) {
   return d.toISOString().split('T')[0]
 }
 
-function RoomLineCard({ line, busy, canRemove, onChooseRoom, onUpdate, onRequestRemove }) {
+function RoomLineCard({ line, rooms, busy, canRemove, onChooseRoom, onUpdate, onRequestRemove }) {
   const [ci, setCi] = useState(line.checkIn)
   const [co, setCo] = useState(line.checkOut)
   const [roomType, setRoomType] = useState(line.roomType || '')
   const [price, setPrice] = useState(line.price != null ? String(line.price) : '')
   const assigned = !!line.roomId
   const label = CATEGORY_LABEL_AR[line.roomType] || line.roomType || '—'
+  // The line's own roomNumber/roomNameAr are denormalized at assignment time
+  // for display speed, but a couple of write paths have historically skipped
+  // them (fixed now, but past bookings can still carry roomId with no
+  // matching roomNumber) — fall back to looking the room up live instead of
+  // ever rendering a literal "null" where a room number should be.
+  const liveRoom = assigned ? rooms.find(r => r.id === line.roomId) : null
+  const roomNumber = line.roomNumber ?? liveRoom?.number ?? '؟'
+  const roomNameAr = line.roomNameAr || (liveRoom ? CATEGORY_LABEL_AR[liveRoom.type] || liveRoom.type : null)
   const nights = Math.max(1, Math.ceil((new Date(co) - new Date(ci)) / 86400000))
   const datesChanged = ci !== line.checkIn || co !== line.checkOut
   const priceChanged = (price === '' ? null : Number(price)) !== line.price
@@ -136,10 +144,10 @@ function RoomLineCard({ line, busy, canRemove, onChooseRoom, onUpdate, onRequest
           fontSize: 13, fontWeight: 800, background: assigned ? 'var(--olive-light)' : 'var(--adm-tone-warn-bg)',
           color: assigned ? 'var(--terracotta-dark)' : 'var(--adm-tone-warn-text)',
         }}>
-          {assigned ? line.roomNumber : '—'}
+          {assigned ? roomNumber : '—'}
         </div>
         <div style={{ flex: 1, minWidth: 120 }}>
-          <p style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--ink)' }}>{assigned ? (line.roomNameAr || `غرفة ${line.roomNumber}`) : 'غرفة غير مُختارة بعد'}</p>
+          <p style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--ink)' }}>{assigned ? (roomNameAr || `غرفة ${roomNumber}`) : 'غرفة غير مُختارة بعد'}</p>
           <p style={{ fontSize: 11.5, color: 'var(--muted)' }}>{label}{line.roomCapacity ? ` · ${line.roomCapacity} أشخاص` : ''}</p>
         </div>
         <Button variant={assigned ? 'outline' : 'secondary'} size="sm" onClick={onChooseRoom}>
@@ -159,7 +167,7 @@ function RoomLineCard({ line, busy, canRemove, onChooseRoom, onUpdate, onRequest
         <Field label="الوصول"><input type="date" className="adm-input" value={ci} onChange={e => setCi(e.target.value)} style={{ width: 150 }} /></Field>
         <Field label="المغادرة"><input type="date" className="adm-input" value={co} min={ci} onChange={e => setCo(e.target.value)} style={{ width: 150 }} /></Field>
         <Field label="عدد الليالي"><input type="number" min={1} className="adm-input" value={nights} onChange={e => setNights(e.target.value)} style={{ width: 80 }} /></Field>
-        <Field label="السعر"><input type="number" min={0} className="adm-input" value={price} onChange={e => setPrice(e.target.value)} placeholder="0" style={{ width: 100 }} /></Field>
+        <Field label="السعر $"><input type="number" min={0} className="adm-input" value={price} onChange={e => setPrice(e.target.value)} placeholder="0" style={{ width: 100 }} /></Field>
         <Button
           variant="ghost" size="sm" icon={<FiCheck size={13} />}
           disabled={busy || (!datesChanged && !priceChanged && !typeChanged)}

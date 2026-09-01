@@ -3,14 +3,14 @@ import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import { useGuardedNavigate } from '../../hooks/useGuardedNavigate'
 import {
   FiChevronRight, FiMessageCircle, FiTrash2, FiUser, FiPhone, FiMail,
-  FiUsers, FiSliders, FiClock, FiMessageSquare, FiCalendar, FiHome, FiLogIn, FiLogOut, FiLock, FiUnlock, FiAlertCircle,
+  FiUsers, FiSliders, FiClock, FiMessageSquare, FiCalendar, FiHome, FiLogIn, FiLogOut, FiLock, FiUnlock,
 } from 'react-icons/fi'
 import {
   getBookingRooms, formatBookingNumber, buildCustomerWhatsAppUrl, computeBookingFinance,
   setRoomBlock, clearRoomBlock,
 } from '../../services'
 import { fmtDateFull, fmtDateTime, fmtDateShort, bookingRoomsInfo } from '../../utils/bookingHelpers'
-import { getRoomFocusBooking } from '../../utils/roomStatus'
+import { getRoomFocusBooking, getFutureLines, toStr } from '../../utils/roomStatus'
 import { STATUS, SOURCE_LABELS, CATEGORY_LABEL_AR } from '../../constants'
 import { Card, CardHeader, CardBody } from '../../components/Card'
 import Button from '../../components/Button'
@@ -56,7 +56,7 @@ export default function RoomPanel({ rooms, bookings, bookingActions }) {
   const focus = targeted
     ? { kind: 'current', booking: targeted, line: getBookingRooms(targeted).find(l => l.roomId === room.id) || null }
     : getRoomFocusBooking(room, bookings)
-  const { kind, booking, line } = focus
+  const { kind, booking } = focus
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -65,8 +65,8 @@ export default function RoomPanel({ rooms, bookings, bookingActions }) {
       </Button>
 
       {kind === 'current'
-        ? <OccupiedRoomPanel room={room} booking={booking} rooms={rooms} bookings={bookings} bookingActions={bookingActions} onBack={() => go('/admin/reservation')} />
-        : <VacantRoomPanel room={room} onCreated={() => navigate(`/admin/reservation/${room.id}`)} upcoming={kind === 'upcoming' ? { booking, line } : null} />}
+        ? <OccupiedRoomPanel room={room} booking={booking} rooms={rooms} bookings={bookings} bookingActions={bookingActions} onBack={() => go('/admin/reservation')} onBookNext={() => navigate(`/admin/reservation/${room.id}`)} />
+        : <VacantRoomPanel room={room} bookings={bookings} onCreated={() => navigate(`/admin/reservation/${room.id}`)} />}
     </div>
   )
 }
@@ -118,7 +118,29 @@ function RoomBlockControl({ room }) {
   )
 }
 
-function VacantRoomPanel({ room, onCreated, upcoming }) {
+// Plain reference list of a room's already-scheduled active reservations —
+// shown next to a "new booking" form so the operator can see everything on
+// the books and pick a genuinely free range themselves, rather than the
+// form trying to compute and enforce a single min/max window (which only
+// ever represents one gap and breaks the moment a room has two or more
+// future bookings lined up).
+function RoomUpcomingList({ lines }) {
+  if (!lines.length) return null
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 14 }}>
+      <p style={{ fontSize: 12.5, color: 'var(--muted)', fontWeight: 600 }}>حجوزات هذه الغرفة القادمة</p>
+      {lines.map(({ booking: lb, line: ll }, i) => (
+        <div key={lb.id + i} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12.5, background: 'var(--linen)', borderRadius: 6, padding: '6px 10px' }}>
+          <span>{lb.guestName}</span>
+          <span style={{ color: 'var(--muted)' }}>{fmtDateShort(ll.checkIn)} ← {fmtDateShort(ll.checkOut)}</span>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+function VacantRoomPanel({ room, bookings, onCreated }) {
+  const future = getFutureLines(room, bookings, toStr(new Date()))
   return (
     <>
       <div className="adm-section-header">
@@ -128,26 +150,22 @@ function VacantRoomPanel({ room, onCreated, upcoming }) {
         </div>
         <RoomBlockControl room={room} />
       </div>
-      {upcoming && (
-        <div className="adm-field-error" style={{ background: 'var(--adm-tone-warn-bg)', color: 'var(--adm-tone-warn-text)', marginBottom: 4 }}>
-          <FiAlertCircle size={13} />
-          هذه الغرفة شاغرة الآن، لكن لديها حجز قادم لـ{upcoming.booking.guestName} بدءاً من {fmtDateShort(upcoming.line.checkIn)} — تأكد أن تاريخ مغادرة الحجز الجديد لا يتجاوز هذا التاريخ.
-        </div>
-      )}
       <Card>
         <CardHeader icon={<FiHome size={15} color="var(--muted)" />}>بدء حجز جديد لهذه الغرفة</CardHeader>
         <CardBody>
-          <NewBookingForm room={room} onCreated={onCreated} maxCheckOut={upcoming?.line?.checkIn} />
+          <RoomUpcomingList lines={future} />
+          <NewBookingForm room={room} onCreated={onCreated} />
         </CardBody>
       </Card>
     </>
   )
 }
 
-function OccupiedRoomPanel({ room, booking: b, rooms, bookings, bookingActions, onBack }) {
+function OccupiedRoomPanel({ room, booking: b, rooms, bookings, bookingActions, onBack, onBookNext }) {
   const { updating, deleting, stageBusy, stageErr, changeStatus, deleteBooking, checkIn, checkOut } = bookingActions
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [confirmCheckOut, setConfirmCheckOut] = useState(null)
+  const [bookNextOpen, setBookNextOpen] = useState(false)
 
   const fin = computeBookingFinance(b)
   const roomLines = getBookingRooms(b)
@@ -155,6 +173,14 @@ function OccupiedRoomPanel({ room, booking: b, rooms, bookings, bookingActions, 
   const otherRoomNumbers = numbers.filter(n => n !== room.number)
   const nights = b.nights || Math.max(1, Math.ceil((new Date(b.checkOut?.toDate?.() || b.checkOut) - new Date(b.checkIn?.toDate?.() || b.checkIn)) / 86400000))
   const ref = b.bookingNumber != null ? formatBookingNumber(b.bookingNumber) : b.id.slice(0, 6).toUpperCase()
+
+  // Once this stay checks out, the room is free again — but with no vacant-
+  // room page to visit (it's still "occupied" today), there was previously
+  // no way to book that future gap at all. checkoutStr is a hard floor (this
+  // room is definitely occupied until then); whatever's already booked after
+  // it is just shown for reference, same as VacantRoomPanel.
+  const checkoutStr = toStr(b.checkOut)
+  const future = getFutureLines(room, bookings, checkoutStr)
 
   const handleDelete = async () => {
     const ok = await deleteBooking(b)
@@ -194,6 +220,9 @@ function OccupiedRoomPanel({ room, booking: b, rooms, bookings, bookingActions, 
             </select>
           </div>
           <RoomBlockControl room={room} />
+          <Button variant="outline" icon={<FiHome size={14} />} onClick={() => setBookNextOpen(true)}>
+            حجز جديد بعد هذه الإقامة
+          </Button>
           <a href={buildCustomerWhatsAppUrl(b, 'ar')} target="_blank" rel="noopener noreferrer" className="adm-btn adm-btn--secondary">
             <FiMessageCircle size={15} /> واتساب
           </a>
@@ -240,6 +269,13 @@ function OccupiedRoomPanel({ room, booking: b, rooms, bookings, bookingActions, 
           </Card>
         </div>
       </div>
+
+      {bookNextOpen && (
+        <Modal open wide title="حجز جديد لهذه الغرفة بعد هذه الإقامة" onClose={() => setBookNextOpen(false)}>
+          <RoomUpcomingList lines={future} />
+          <NewBookingForm room={room} onCreated={() => { setBookNextOpen(false); onBookNext() }} minCheckIn={checkoutStr} />
+        </Modal>
+      )}
 
       <ConfirmDialog
         open={confirmDelete}

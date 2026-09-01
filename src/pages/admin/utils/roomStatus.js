@@ -6,7 +6,7 @@ import { getBookingRooms, isRoomBlockedInRange } from '../services'
 
 const ACTIVE_STATUSES = ['pending', 'confirmed', 'checked-in']
 
-function toStr(d) {
+export function toStr(d) {
   const dt = d?.toDate ? d.toDate() : (d ? new Date(d) : null)
   return dt && !isNaN(dt.getTime()) ? dt.toISOString().split('T')[0] : ''
 }
@@ -62,6 +62,19 @@ export function getRoomFocusBooking(room, bookings, todayStr = toStr(new Date())
   if (upcoming) return { kind: 'upcoming', booking: upcoming.booking, line: upcoming.line }
 
   return { kind: 'none', booking: null, line: null }
+}
+
+// Every active line for this room not yet fully in the past, relative to a
+// given date — shown as a plain reference list next to a "new booking" form
+// so the operator can see everything already on the books for this room and
+// pick a genuinely free range themselves, instead of the form trying to
+// compute and enforce a single min/max window (which only ever works for
+// one gap and breaks the moment a room has two or more future bookings).
+export function getFutureLines(room, bookings, fromDateStr) {
+  const entries = activeLinesForRoom(room, bookings)
+  return entries
+    .filter(({ line }) => toStr(line.checkOut) > fromDateStr)
+    .sort((a, b) => toStr(a.line.checkIn).localeCompare(toStr(b.line.checkIn)))
 }
 
 // Active room-lines with no physical room assigned yet — website bookings

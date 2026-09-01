@@ -1,10 +1,12 @@
 import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { FiSearch } from 'react-icons/fi'
+import { FiSearch, FiPlusCircle } from 'react-icons/fi'
 import { bookingMatchesRoomSearch, fmtDateShort } from '../../utils/bookingHelpers'
 import { computeRoomStatus, getRoomFocusBooking } from '../../utils/roomStatus'
 import EmptyState from '../../components/EmptyState'
+import Button from '../../components/Button'
 import BackToReservationsButton from './BackToReservationsButton'
+import CreateReservationModal from './CreateReservationModal'
 
 const STATUS_LABEL = {
   vacant: 'شاغرة',
@@ -27,6 +29,7 @@ const STATUS_TONE = {
 export default function RoomsPage({ rooms, bookings }) {
   const navigate = useNavigate()
   const [search, setSearch] = useState('')
+  const [createOpen, setCreateOpen] = useState(false)
   const todayStr = new Date().toISOString().split('T')[0]
 
   const visibleRooms = useMemo(() => {
@@ -51,7 +54,19 @@ export default function RoomsPage({ rooms, bookings }) {
           <h2>الغرف</h2>
           <p>دليل كل غرف المنتجع مصنّفة حسب الطابق.</p>
         </div>
+        <Button variant="primary" icon={<FiPlusCircle size={15} />} onClick={() => setCreateOpen(true)}>
+          إنشاء حجز جديد
+        </Button>
       </div>
+
+      {createOpen && (
+        <CreateReservationModal
+          rooms={rooms}
+          bookings={bookings}
+          onClose={() => setCreateOpen(false)}
+          onCreated={() => setCreateOpen(false)}
+        />
+      )}
 
       <div style={{ position: 'relative', maxWidth: 380, marginBottom: 20 }}>
         <FiSearch size={14} style={{ position: 'absolute', insetInlineStart: 12, top: '50%', transform: 'translateY(-50%)', color: 'var(--muted)', pointerEvents: 'none' }} />

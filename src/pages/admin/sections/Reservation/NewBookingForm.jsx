@@ -7,18 +7,26 @@ import { Field } from '../../components/FormCard'
 import { useGuardWhile } from '../../hooks/useNavGuard'
 
 function todayStr() { return new Date().toISOString().split('T')[0] }
-function tomorrowStr() { return new Date(Date.now() + 86400000).toISOString().split('T')[0] }
+function addDays(dateStr, n) { return new Date(new Date(dateStr).getTime() + n * 86400000).toISOString().split('T')[0] }
 
 // The entire "new booking" flow for a room that's already been picked from
 // the grid — no room-type step needed, since the room IS the context. This
 // replaces the old decoupled new-booking form + persistent topbar CTA.
-export default function NewBookingForm({ room, onCreated, maxCheckOut }) {
+// `minCheckIn`, when given, is a hard floor (e.g. "this room's current stay
+// doesn't check out until X") — not a heuristic. There's no equivalent max:
+// the operator can pick any checkout, and a stay that actually overlaps
+// another booking on this room is rejected by createBooking's own conflict
+// check below, same as everywhere else in the app.
+export default function NewBookingForm({ room, onCreated, minCheckIn }) {
   const [guestName, setGuestName] = useState('')
   const [guestPhone, setGuestPhone] = useState('')
   const [guestEmail, setGuestEmail] = useState('')
   const [guests, setGuests] = useState(String(room.capacity || 1))
-  const [checkIn, setCheckIn] = useState(todayStr())
-  const [checkOut, setCheckOut] = useState(tomorrowStr())
+  const [checkIn, setCheckIn] = useState(() => (minCheckIn && minCheckIn > todayStr() ? minCheckIn : todayStr()))
+  const [checkOut, setCheckOut] = useState(() => {
+    const in0 = minCheckIn && minCheckIn > todayStr() ? minCheckIn : todayStr()
+    return addDays(in0, 1)
+  })
   const [price, setPrice] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
@@ -28,7 +36,7 @@ export default function NewBookingForm({ room, onCreated, maxCheckOut }) {
     e.preventDefault()
     if (!guestName.trim() || !guestPhone.trim()) { setError('أدخل اسم الضيف ورقم الهاتف'); return }
     if (!(new Date(checkIn) < new Date(checkOut))) { setError('تواريخ غير صحيحة'); return }
-    if (maxCheckOut && checkOut > maxCheckOut) { setError('تاريخ المغادرة يتجاوز موعد الحجز القادم على هذه الغرفة'); return }
+    if (minCheckIn && checkIn < minCheckIn) { setError('لا يمكن أن يبدأ الحجز قبل مغادرة الحجز الحالي على هذه الغرفة'); return }
     setBusy(true); setError('')
     try {
       await createBooking({
@@ -41,8 +49,10 @@ export default function NewBookingForm({ room, onCreated, maxCheckOut }) {
         status: 'confirmed',
         rooms: [{
           roomId: room.id,
+          roomNumber: room.number,
           roomType: room.type,
           roomCapacity: room.capacity,
+          roomNameAr: CATEGORY_LABEL_AR[room.type] || room.type,
           checkIn, checkOut,
           price: price === '' ? null : Number(price),
         }],
@@ -65,9 +75,9 @@ export default function NewBookingForm({ room, onCreated, maxCheckOut }) {
         <Field label="رقم الهاتف"><input className="adm-input" value={guestPhone} onChange={e => setGuestPhone(e.target.value)} required /></Field>
         <Field label="البريد الإلكتروني (اختياري)"><input type="email" className="adm-input" value={guestEmail} onChange={e => setGuestEmail(e.target.value)} /></Field>
         <Field label="عدد الأشخاص"><input type="number" min={1} className="adm-input" value={guests} onChange={e => setGuests(e.target.value)} /></Field>
-        <Field label="الوصول"><input type="date" className="adm-input" value={checkIn} onChange={e => setCheckIn(e.target.value)} /></Field>
-        <Field label="المغادرة"><input type="date" className="adm-input" value={checkOut} min={checkIn} max={maxCheckOut || undefined} onChange={e => setCheckOut(e.target.value)} /></Field>
-        <Field label="السعر (اختياري)"><input type="number" min={0} className="adm-input" value={price} onChange={e => setPrice(e.target.value)} placeholder="0" /></Field>
+        <Field label="الوصول"><input type="date" className="adm-input" value={checkIn} min={minCheckIn || undefined} onChange={e => setCheckIn(e.target.value)} /></Field>
+        <Field label="المغادرة"><input type="date" className="adm-input" value={checkOut} min={checkIn} onChange={e => setCheckOut(e.target.value)} /></Field>
+        <Field label="السعر (اختياري) $"><input type="number" min={0} className="adm-input" value={price} onChange={e => setPrice(e.target.value)} placeholder="0" /></Field>
       </div>
       {error && <div className="adm-field-error"><FiAlertCircle size={13} /> {error}</div>}
       <Button type="submit" variant="primary" icon={<FiPlusCircle size={15} />} disabled={busy}>

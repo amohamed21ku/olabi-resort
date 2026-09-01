@@ -16,6 +16,7 @@ const CAL_DAYS = 7
 export default function CalendarSection({ bookings, rooms }) {
   const navigate = useNavigate()
   const [anchor, setAnchor] = useState(() => new Date(new Date().toISOString().split('T')[0]))
+  const [view, setView] = useState('week') // 'week' | 'month'
   const gridRef = useRef(null)
 
   const toneColors = useMemo(readToneColors, [])
@@ -30,9 +31,28 @@ export default function CalendarSection({ bookings, rooms }) {
     return dt && !isNaN(dt.getTime()) ? toStr(dt) : ''
   }
 
-  const days = Array.from({ length: CAL_DAYS }, (_, i) => {
-    const d = new Date(anchor); d.setDate(d.getDate() + i); return d
-  })
+  // Week view: CAL_DAYS consecutive days from the anchor, as before. Month
+  // view: every day of the anchor's calendar month. Both build each day by
+  // cloning a Date and stepping it with setDate/getDate (local-time
+  // arithmetic) rather than the new Date(y, m, day) constructor — the
+  // constructor builds local midnight directly, which toISOString() (used
+  // by toStr below) can then roll back to the previous UTC day under any
+  // positive UTC offset, silently duplicating a date string and throwing
+  // off every range comparison against booking check-in/check-out strings.
+  // setDate/getDate instead preserve whatever local hour the anchor already
+  // has across every step, so the UTC conversion at the end is consistent.
+  const days = view === 'month'
+    ? (() => {
+        const daysInMonth = new Date(anchor.getFullYear(), anchor.getMonth() + 1, 0).getDate()
+        const first = new Date(anchor)
+        first.setDate(1)
+        return Array.from({ length: daysInMonth }, (_, i) => {
+          const d = new Date(first); d.setDate(d.getDate() + i); return d
+        })
+      })()
+    : Array.from({ length: CAL_DAYS }, (_, i) => {
+        const d = new Date(anchor); d.setDate(d.getDate() + i); return d
+      })
   const dayStrs = days.map(toStr)
 
   const sortedRooms = rooms.slice().sort((a, b) => (+a.number || 0) - (+b.number || 0))
@@ -53,8 +73,38 @@ export default function CalendarSection({ bookings, rooms }) {
     return ci && co && ds >= ci && ds < co
   })
 
-  const shift = n => setAnchor(a => { const d = new Date(a); d.setDate(d.getDate() + n); return d })
-  const rangeLabel = `${days[0].toLocaleDateString('ar-SY', { day: 'numeric', month: 'short' })} — ${days[CAL_DAYS - 1].toLocaleDateString('ar-SY', { day: 'numeric', month: 'short', year: 'numeric' })}`
+  // Contiguous runs of the same booking-line across `days`, as plain data
+  // (start index + length) rather than JSX — used by month view, which
+  // spans a booking down a room's COLUMN (rowSpan) instead of across a
+  // room's ROW (colSpan) the way week view does.
+  const computeSegments = (entries) => {
+    const segs = []
+    let i = 0
+    while (i < days.length) {
+      const entry = covering(entries, dayStrs[i])
+      if (entry) {
+        let len = 1
+        while (i + len < days.length
+          && covering(entries, dayStrs[i + len])?.line.lineId === entry.line.lineId
+          && covering(entries, dayStrs[i + len])?.booking.id === entry.booking.id) len++
+        segs.push({ startIdx: i, len, booking: entry.booking, line: entry.line })
+        i += len
+      } else {
+        i++
+      }
+    }
+    return segs
+  }
+
+  const shift = n => setAnchor(a => {
+    const d = new Date(a)
+    if (view === 'month') d.setMonth(d.getMonth() + n)
+    else d.setDate(d.getDate() + n * CAL_DAYS)
+    return d
+  })
+  const rangeLabel = view === 'month'
+    ? anchor.toLocaleDateString('ar-SY', { month: 'long', year: 'numeric' })
+    : `${days[0].toLocaleDateString('ar-SY', { day: 'numeric', month: 'short' })} — ${days[days.length - 1].toLocaleDateString('ar-SY', { day: 'numeric', month: 'short', year: 'numeric' })}`
 
   const exportPdf = () => {
     const html = gridRef.current?.outerHTML || ''
@@ -90,13 +140,13 @@ export default function CalendarSection({ bookings, rooms }) {
   const renderRow = (entries, roomId) => {
     const cells = []
     let i = 0
-    while (i < CAL_DAYS) {
+    while (i < days.length) {
       const ds = dayStrs[i]
       const entry = covering(entries, ds)
       if (entry) {
         const b = entry.booking
         let span = 1
-        while (i + span < CAL_DAYS
+        while (i + span < days.length
           && covering(entries, dayStrs[i + span])?.line.lineId === entry.line.lineId
           && covering(entries, dayStrs[i + span])?.booking.id === b.id) span++
         const c = statusColors[b.status] || statusColors.confirmed
@@ -120,16 +170,69 @@ export default function CalendarSection({ bookings, rooms }) {
     return cells
   }
 
+  // Month view, transposed: days as rows (so a whole month's worth fits one
+  // page without scrolling), rooms as columns. A multi-night booking spans
+  // rowSpan rows down its room's column instead of colSpan cells across a
+  // row. `skip[roomIdx]` tracks how many upcoming rows are still covered by
+  // an earlier row's rowSpan for that column, so this row skips emitting a
+  // <td> there entirely — the browser slots the remaining cells correctly.
+  const renderMonthBody = () => {
+    const segmentsByRoom = sortedRooms.map(room => computeSegments(roomEntries(room.id)))
+    const skip = new Array(sortedRooms.length).fill(0)
+    const rows = []
+    for (let dayIdx = 0; dayIdx < days.length; dayIdx++) {
+      const d = days[dayIdx]
+      const ds = dayStrs[dayIdx]
+      const isToday = ds === todayStr
+      const cells = []
+      for (let r = 0; r < sortedRooms.length; r++) {
+        if (skip[r] > 0) { skip[r]--; continue }
+        const seg = segmentsByRoom[r].find(s => s.startIdx === dayIdx)
+        if (seg) {
+          skip[r] = seg.len - 1
+          const b = seg.booking
+          const c = statusColors[b.status] || statusColors.confirmed
+          const s = STATUS[b.status] || STATUS.confirmed
+          cells.push(
+            <td key={sortedRooms[r].id} rowSpan={seg.len} onClick={() => navigate(`/admin/reservation/${sortedRooms[r].id}?bookingId=${b.id}`)}
+              style={{ border: '1px solid var(--border)', padding: 2, cursor: 'pointer', verticalAlign: 'middle', background: '#fff' }}>
+              <div title={`${b.guestName} · ${s.label}`}
+                style={{ background: c.bg, border: `1px solid ${c.border}`, borderTop: `3px solid ${c.text}`, borderRadius: 4, padding: '3px 4px', overflow: 'hidden' }}>
+                <div style={{ fontSize: 9, fontWeight: 700, color: c.text, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{b.guestName}</div>
+              </div>
+            </td>
+          )
+        } else {
+          cells.push(<td key={sortedRooms[r].id} style={{ border: '1px solid var(--border)', background: isToday ? 'var(--adm-tone-good-bg)' : '#fff' }} />)
+        }
+      }
+      rows.push(
+        <tr key={ds}>
+          <th scope="row" style={{ border: '1px solid var(--border)', padding: '3px 4px', textAlign: 'center', whiteSpace: 'nowrap', background: isToday ? 'var(--adm-tone-good-bg)' : 'var(--cream)', color: isToday ? 'var(--adm-tone-good-text)' : 'var(--ink)' }}>
+            <div style={{ fontSize: 8.5, fontWeight: 600, color: isToday ? 'var(--adm-tone-good-text)' : 'var(--muted)' }}>{d.toLocaleDateString('ar-SY', { weekday: 'short' })}</div>
+            <div style={{ fontSize: 11 }}>{d.getDate()}</div>
+          </th>
+          {cells}
+        </tr>
+      )
+    }
+    return rows
+  }
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       {/* Toolbar */}
       <div className="adm-card" style={{ padding: '12px 16px', display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+        <div style={{ display: 'flex', gap: 6 }}>
+          <Button variant={view === 'week' ? 'primary' : 'outline'} size="sm" onClick={() => setView('week')}>أسبوعي</Button>
+          <Button variant={view === 'month' ? 'primary' : 'outline'} size="sm" onClick={() => setView('month')}>شهري</Button>
+        </div>
         <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-          <Button variant="outline" size="sm" iconOnly title="الأسبوع السابق" aria-label="الأسبوع السابق"
-            icon={<FiChevronRight size={16} />} onClick={() => shift(-CAL_DAYS)} />
+          <Button variant="outline" size="sm" iconOnly title={view === 'month' ? 'الشهر السابق' : 'الأسبوع السابق'} aria-label={view === 'month' ? 'الشهر السابق' : 'الأسبوع السابق'}
+            icon={<FiChevronRight size={16} />} onClick={() => shift(-1)} />
           <Button variant="outline" size="sm" onClick={() => setAnchor(new Date(todayStr))}>اليوم</Button>
-          <Button variant="outline" size="sm" iconOnly title="الأسبوع التالي" aria-label="الأسبوع التالي"
-            icon={<FiChevronLeft size={16} />} onClick={() => shift(CAL_DAYS)} />
+          <Button variant="outline" size="sm" iconOnly title={view === 'month' ? 'الشهر التالي' : 'الأسبوع التالي'} aria-label={view === 'month' ? 'الشهر التالي' : 'الأسبوع التالي'}
+            icon={<FiChevronLeft size={16} />} onClick={() => shift(1)} />
         </div>
         <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--ink)' }}>{rangeLabel}</span>
         <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginInlineStart: 'auto', flexWrap: 'wrap' }}>
@@ -149,10 +252,37 @@ export default function CalendarSection({ bookings, rooms }) {
 
       {sortedRooms.length === 0 ? (
         <EmptyState icon={<FiGrid size={28} />} text="لا توجد غرف لعرضها." />
+      ) : view === 'month' ? (
+        // Transposed on purpose: days as rows, rooms as columns. A month has
+        // too many days to lay out as columns without horizontal scrolling,
+        // but as rows it comfortably fits one page/screen — which is the
+        // point, since this view exists to be printed as a single-page PDF.
+        <div className="adm-card">
+          <table ref={gridRef} style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed' }}>
+            <colgroup>
+              <col style={{ width: 46 }} />
+              {sortedRooms.map((r, i) => <col key={i} />)}
+            </colgroup>
+            <thead>
+              <tr>
+                <th style={{ border: '1px solid var(--border)', padding: '4px 2px', background: 'var(--cream)' }} />
+                {sortedRooms.map(room => (
+                  <th key={room.id} style={{ border: '1px solid var(--border)', padding: '3px 2px', textAlign: 'center', background: 'var(--cream)', color: 'var(--ink)' }}>
+                    <div style={{ fontSize: 10.5, fontWeight: 800 }}>{room.number}</div>
+                    <div style={{ fontSize: 7.5, color: 'var(--muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{CATEGORY_LABEL_AR[room.type] || room.type}</div>
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {renderMonthBody()}
+            </tbody>
+          </table>
+        </div>
       ) : (
         <div className="adm-card">
           <div className="adm-table-wrap">
-            <table ref={gridRef} style={{ width: '100%', minWidth: 720, borderCollapse: 'collapse', tableLayout: 'fixed' }}>
+            <table ref={gridRef} style={{ width: '100%', minWidth: 120 + days.length * 86, borderCollapse: 'collapse', tableLayout: 'fixed' }}>
               <colgroup>
                 <col style={{ width: 120 }} />
                 {days.map((d, i) => <col key={i} />)}

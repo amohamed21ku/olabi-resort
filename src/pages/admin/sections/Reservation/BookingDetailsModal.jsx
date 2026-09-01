@@ -183,11 +183,11 @@ function LineEditor({ bookingId, line }) {
         <Field label="عدد الليالي">
           <input type="number" min={1} className="adm-input" value={nights} onChange={e => setNights(e.target.value)} style={{ width: 80 }} />
         </Field>
-        <Field label="السعر لكل ليلة">
+        <Field label="السعر لكل ليلة $">
           <input type="number" min={0} className="adm-input" value={nightly} onChange={e => { setNightly(e.target.value); setDirty(true) }} placeholder="0" style={{ width: 110 }} />
         </Field>
         <span style={{ fontSize: 11.5, color: 'var(--muted)', paddingBottom: 12 }}>
-          {total != null ? `الإجمالي ${total}` : ''}
+          {total != null ? `الإجمالي $${total}` : ''}
         </span>
         <Button variant="ghost" size="sm" icon={<FiCheck size={13} />} disabled={busy || !dirty} onClick={save}>
           حفظ
