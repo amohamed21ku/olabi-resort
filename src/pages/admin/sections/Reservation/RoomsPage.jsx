@@ -1,12 +1,19 @@
 import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { FiSearch, FiPlusCircle } from 'react-icons/fi'
-import { bookingMatchesRoomSearch, fmtDateShort } from '../../utils/bookingHelpers'
+import { FiSearch, FiPlusCircle, FiSliders, FiX } from 'react-icons/fi'
+import { bookingMatchesRoomSearch, fmtDateShort, isRoomFreeForRange } from '../../utils/bookingHelpers'
 import { computeRoomStatus, getRoomFocusBooking } from '../../utils/roomStatus'
+import { CATEGORY_OPTIONS, CATEGORY_LABEL_AR } from '../../constants'
 import EmptyState from '../../components/EmptyState'
 import Button from '../../components/Button'
+import Modal from '../../components/Modal'
+import Picker from '../../components/Picker'
+import { Field } from '../../components/FormCard'
 import BackToReservationsButton from './BackToReservationsButton'
 import CreateReservationModal from './CreateReservationModal'
+
+function todayStr() { return new Date().toISOString().split('T')[0] }
+function tomorrowStr() { return new Date(Date.now() + 86400000).toISOString().split('T')[0] }
 
 const STATUS_LABEL = {
   vacant: 'شاغرة',
@@ -30,16 +37,27 @@ export default function RoomsPage({ rooms, bookings }) {
   const navigate = useNavigate()
   const [search, setSearch] = useState('')
   const [createOpen, setCreateOpen] = useState(false)
-  const todayStr = new Date().toISOString().split('T')[0]
+  const [customSearchOpen, setCustomSearchOpen] = useState(false)
+  const [customSearch, setCustomSearch] = useState(null) // { checkIn, checkOut, roomType } | null
+  const today = new Date().toISOString().split('T')[0]
 
   const visibleRooms = useMemo(() => {
-    if (!search) return rooms
-    return rooms.filter(room => {
-      if (String(room.number || '').includes(search)) return true
-      const { booking } = getRoomFocusBooking(room, bookings, todayStr)
-      return booking ? bookingMatchesRoomSearch(booking, search) : false
-    })
-  }, [rooms, bookings, search, todayStr])
+    let out = rooms
+    if (search) {
+      out = out.filter(room => {
+        if (String(room.number || '').includes(search)) return true
+        const { booking } = getRoomFocusBooking(room, bookings, today)
+        return booking ? bookingMatchesRoomSearch(booking, search) : false
+      })
+    }
+    if (customSearch) {
+      out = out.filter(room =>
+        (!customSearch.roomType || room.type === customSearch.roomType)
+        && isRoomFreeForRange(room, bookings, customSearch.checkIn, customSearch.checkOut)
+      )
+    }
+    return out
+  }, [rooms, bookings, search, customSearch, today])
 
   const floors = useMemo(() => {
     const set = new Set(visibleRooms.map(r => r.floor).filter(f => f != null))
@@ -54,9 +72,14 @@ export default function RoomsPage({ rooms, bookings }) {
           <h2>الغرف</h2>
           <p>دليل كل غرف المنتجع مصنّفة حسب الطابق.</p>
         </div>
-        <Button variant="primary" icon={<FiPlusCircle size={15} />} onClick={() => setCreateOpen(true)}>
-          إنشاء حجز جديد
-        </Button>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <Button variant="outline" icon={<FiSliders size={14} />} onClick={() => setCustomSearchOpen(true)}>
+            بحث مخصص
+          </Button>
+          <Button variant="primary" icon={<FiPlusCircle size={15} />} onClick={() => setCreateOpen(true)}>
+            إنشاء حجز جديد
+          </Button>
+        </div>
       </div>
 
       {createOpen && (
@@ -68,10 +91,29 @@ export default function RoomsPage({ rooms, bookings }) {
         />
       )}
 
+      {customSearchOpen && (
+        <CustomSearchModal
+          onClose={() => setCustomSearchOpen(false)}
+          onSearch={(v) => { setCustomSearch(v); setCustomSearchOpen(false) }}
+        />
+      )}
+
       <div style={{ position: 'relative', maxWidth: 380, marginBottom: 20 }}>
         <FiSearch size={14} style={{ position: 'absolute', insetInlineStart: 12, top: '50%', transform: 'translateY(-50%)', color: 'var(--muted)', pointerEvents: 'none' }} />
         <input className="adm-input adm-search" value={search} onChange={e => setSearch(e.target.value)} placeholder="بحث بالاسم، الهاتف، أو رقم الغرفة..." />
       </div>
+
+      {customSearch && (
+        <button type="button" onClick={() => setCustomSearch(null)} className="adm-notice-banner adm-notice-banner--info" style={{ marginBottom: 20 }}>
+          <FiSliders size={14} />
+          <span>
+            نتائج بحث مخصص: {customSearch.roomType ? CATEGORY_LABEL_AR[customSearch.roomType] || customSearch.roomType : 'كل الأنواع'}
+            {' · '}{fmtDateShort(customSearch.checkIn)} ← {fmtDateShort(customSearch.checkOut)}
+            {' · '}{visibleRooms.length} غرفة متاحة
+          </span>
+          <FiX size={16} />
+        </button>
+      )}
 
       {visibleRooms.length === 0 ? (
         <EmptyState icon={<FiSearch size={26} />} text="لا توجد غرف مطابقة" />
@@ -84,7 +126,7 @@ export default function RoomsPage({ rooms, bookings }) {
                 .filter(r => r.floor === floor)
                 .sort((a, b) => (+a.number || 0) - (+b.number || 0))
                 .map(room => {
-                  const { status, booking, line } = computeRoomStatus(room, bookings, todayStr)
+                  const { status, booking, line } = computeRoomStatus(room, bookings, today)
                   const tone = STATUS_TONE[status]
                   const firstName = booking?.guestName ? booking.guestName.split(' ')[0] : null
 
@@ -97,7 +139,7 @@ export default function RoomsPage({ rooms, bookings }) {
                   if (line && (status === 'occupied' || status === 'arriving-today')) {
                     dateNote = `حتى ${fmtDateShort(line.checkOut)}`
                   } else if (status === 'vacant') {
-                    const upcoming = getRoomFocusBooking(room, bookings, todayStr)
+                    const upcoming = getRoomFocusBooking(room, bookings, today)
                     if (upcoming.kind === 'upcoming') dateNote = `متاحة حتى ${fmtDateShort(upcoming.line.checkIn)}`
                   }
 
@@ -120,5 +162,40 @@ export default function RoomsPage({ rooms, bookings }) {
         </div>
       )}
     </div>
+  )
+}
+
+// Date range + optional room type, handed back up to filter the directory to
+// only rooms genuinely free for that window (isRoomFreeForRange) — leaving
+// the type blank means "any type," not "no rooms."
+function CustomSearchModal({ onClose, onSearch }) {
+  const [ci, setCi] = useState(todayStr())
+  const [co, setCo] = useState(tomorrowStr())
+  const [roomType, setRoomType] = useState('')
+
+  const typeOptions = [
+    { value: '', label: 'أي نوع (غير محدد)' },
+    ...CATEGORY_OPTIONS.map(o => ({ value: o.value, label: o.labelAr })),
+  ]
+
+  return (
+    <Modal open title="بحث مخصص عن غرف متاحة" onClose={onClose} footer={
+      <>
+        <Button variant="ghost" onClick={onClose}>إلغاء</Button>
+        <Button variant="primary" disabled={!(ci < co)} onClick={() => onSearch({ checkIn: ci, checkOut: co, roomType })}>
+          بحث
+        </Button>
+      </>
+    }>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+          <Field label="الوصول"><input type="date" className="adm-input" value={ci} onChange={e => setCi(e.target.value)} style={{ width: 160 }} /></Field>
+          <Field label="المغادرة"><input type="date" className="adm-input" value={co} min={ci} onChange={e => setCo(e.target.value)} style={{ width: 160 }} /></Field>
+        </div>
+        <Field label="نوع الغرفة">
+          <Picker options={typeOptions} value={roomType} onChange={setRoomType} />
+        </Field>
+      </div>
+    </Modal>
   )
 }

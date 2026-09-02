@@ -47,6 +47,20 @@ export function bookingMatchesRoomSearch(b, search) {
   )
 }
 
+// Is this room genuinely free for a date range, regardless of type/capacity —
+// used by the Rooms page's custom availability search, where the room type
+// is often left unspecified (unlike roomCandidatesForLine below, which is
+// always scoped to one line's fixed type+capacity).
+export function isRoomFreeForRange(room, bookings, checkIn, checkOut) {
+  if (room.active === false) return false
+  const cIn = new Date(checkIn), cOut = new Date(checkOut)
+  if (isRoomBlockedInRange(room, cIn, cOut)) return false
+  return !bookings.some(o => {
+    if (['cancelled', 'checked-out'].includes(o.status)) return false
+    return getBookingRooms(o).some(ol => ol.roomId === room.id && new Date(ol.checkIn) < cOut && new Date(ol.checkOut) > cIn)
+  })
+}
+
 // Candidate concrete rooms for a room-line: same (type, capacity), flagged if
 // blocked/occupied for the LINE's own window, and if it's the current room.
 export function roomCandidatesForLine(line, rooms, bookings, bookingId) {
