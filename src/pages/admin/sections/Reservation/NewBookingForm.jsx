@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { FiPlusCircle, FiAlertCircle } from 'react-icons/fi'
 import { createBooking } from '../../services'
 import { CATEGORY_LABEL_AR } from '../../constants'
+import { variantPrice } from '../../utils/bookingHelpers'
 import Button from '../../components/Button'
 import { Field } from '../../components/FormCard'
 import { useGuardWhile } from '../../hooks/useNavGuard'
@@ -17,7 +18,7 @@ function addDays(dateStr, n) { return new Date(new Date(dateStr).getTime() + n *
 // the operator can pick any checkout, and a stay that actually overlaps
 // another booking on this room is rejected by createBooking's own conflict
 // check below, same as everywhere else in the app.
-export default function NewBookingForm({ room, onCreated, minCheckIn }) {
+export default function NewBookingForm({ room, variants, onCreated, minCheckIn }) {
   const [guestName, setGuestName] = useState('')
   const [guestPhone, setGuestPhone] = useState('')
   const [guestEmail, setGuestEmail] = useState('')
@@ -27,7 +28,13 @@ export default function NewBookingForm({ room, onCreated, minCheckIn }) {
     const in0 = minCheckIn && minCheckIn > todayStr() ? minCheckIn : todayStr()
     return addDays(in0, 1)
   })
-  const [price, setPrice] = useState('')
+  // Defaults to the room category's fixed nightly price, when it has one —
+  // still a plain editable field, so a one-off custom price for this
+  // specific reservation is just a matter of overwriting it.
+  const [price, setPrice] = useState(() => {
+    const p = variantPrice(variants || [], room.type, room.capacity)
+    return p != null ? String(p) : ''
+  })
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   useGuardWhile(guestName.trim() !== '' || guestPhone.trim() !== '')

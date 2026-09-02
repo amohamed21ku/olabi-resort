@@ -238,6 +238,7 @@ textarea.adm-input { padding: 10px 14px; min-height: unset; line-height: 1.6; }
 
 /* ── Tables ──────────────────────────────────────────────────── */
 .adm-table-wrap { overflow-x: auto; }
+.adm-report-row:hover { background: var(--linen); }
 .adm-table { width: 100%; border-collapse: collapse; min-width: 640px; }
 .adm-table thead tr { background: var(--cream); border-bottom: 1px solid var(--sand); }
 .adm-table th { padding: 11px 14px; text-align: right; font-size: 11px; font-weight: 700; color: var(--muted); letter-spacing: .04em; text-transform: uppercase; white-space: nowrap; }

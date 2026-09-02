@@ -89,7 +89,7 @@ export default function UpcomingArrivalsPage({ bookings, bookingActions }) {
             <QueueRow
               key={b.id}
               title={b.guestName}
-              onTitleClick={() => navigate(`/admin/reservation/${getBookingRooms(b)[0]?.roomId}?bookingId=${b.id}`)}
+              onTitleClick={() => navigate(`/admin/reservation/${getBookingRooms(b)[0]?.roomId}?bookingId=${b.id}`, { state: { from: '/admin/reservation/upcoming' } })}
               subtitle={`${roomsLabel(b)} · ${b.guestPhone} · ${fmtDateShort(b.checkIn)} ← ${fmtDateShort(b.checkOut)}`}
               action={
                 <div style={{ display: 'flex', gap: 6 }}>

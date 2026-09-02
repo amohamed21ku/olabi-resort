@@ -33,7 +33,7 @@ const STATUS_TONE = {
 // fully expanded (no collapsing). Same status/tone logic every other
 // room-status surface in the admin uses, just laid out across the full page
 // now instead of squeezed into a narrow aside.
-export default function RoomsPage({ rooms, bookings }) {
+export default function RoomsPage({ rooms, bookings, variants }) {
   const navigate = useNavigate()
   const [search, setSearch] = useState('')
   const [createOpen, setCreateOpen] = useState(false)
@@ -86,6 +86,7 @@ export default function RoomsPage({ rooms, bookings }) {
         <CreateReservationModal
           rooms={rooms}
           bookings={bookings}
+          variants={variants}
           onClose={() => setCreateOpen(false)}
           onCreated={() => setCreateOpen(false)}
         />
@@ -164,7 +165,7 @@ export default function RoomsPage({ rooms, bookings }) {
                       key={room.id}
                       type="button"
                       className="adm-rooms-page__row"
-                      onClick={() => navigate(`/admin/reservation/${room.id}`)}
+                      onClick={() => navigate(`/admin/reservation/${room.id}`, { state: { from: '/admin/reservation/rooms' } })}
                     >
                       <span className="adm-rooms-page__row-number">{room.number}</span>
                       <span className={`adm-badge adm-badge--${tone} adm-rooms-page__row-status`}>{STATUS_LABEL[status]}</span>

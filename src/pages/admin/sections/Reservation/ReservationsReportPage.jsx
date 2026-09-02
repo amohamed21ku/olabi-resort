@@ -1,12 +1,14 @@
 import { useMemo, useRef, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { FiChevronRight, FiChevronLeft, FiPrinter, FiFileText } from 'react-icons/fi'
-import { formatBookingNumber } from '../../services'
+import { formatBookingNumber, getBookingRooms } from '../../services'
 import { roomsLabel } from '../../utils/bookingHelpers'
 import { readToneColors } from '../../utils/printColors'
 import { STATUS } from '../../constants'
 import Button from '../../components/Button'
 import EmptyState from '../../components/EmptyState'
 import BackToReservationsButton from './BackToReservationsButton'
+import BookingDetailsModal from './BookingDetailsModal'
 
 const toStr = (d) => d.toISOString().split('T')[0]
 const fmtCell = (d) => new Date(d).toLocaleDateString('ar-SY', { day: 'numeric', month: 'short', year: 'numeric' })
@@ -34,12 +36,27 @@ const PERIOD_TYPES = [
 // exact same zero-dependency print mechanism (a blank tab + self-contained
 // HTML + window.print()) that CalendarSection already proved out — the
 // browser's own "Save as PDF" does the actual file, no PDF library needed.
-export default function ReservationsReportPage({ bookings }) {
+export default function ReservationsReportPage({ bookings, bookingActions }) {
+  const navigate = useNavigate()
   const [periodType, setPeriodType] = useState('week')
   const [anchor, setAnchor] = useState(() => new Date(todayStr()))
   const [customFrom, setCustomFrom] = useState(todayStr())
   const [customTo, setCustomTo] = useState(toStr(addDays(new Date(todayStr()), 7)))
+  const [detailsBooking, setDetailsBooking] = useState(null)
   const tableRef = useRef(null)
+
+  // A row's own room (if it has one) is the richer destination — the room's
+  // full page, targeted at this specific booking via ?bookingId= the same
+  // way UpcomingArrivalsPage already does, which works just as well for a
+  // long-checked-out stay as it does for a current one (RoomPanel resolves
+  // the targeted booking directly, not "what's happening at this room
+  // today"). A booking with no room assigned at all falls back to the same
+  // details popup PendingApprovalSection/NeedsRoomSection already use.
+  const openRow = (b) => {
+    const roomId = getBookingRooms(b).find(l => l.roomId)?.roomId
+    if (roomId) navigate(`/admin/reservation/${roomId}?bookingId=${b.id}`, { state: { from: '/admin/reservation/report' } })
+    else setDetailsBooking(b)
+  }
 
   // Resolved to concrete color strings (not left as .adm-badge / var(...))
   // because this table's outerHTML gets cloned straight into the exported
@@ -192,7 +209,7 @@ export default function ReservationsReportPage({ bookings }) {
                   const ref = b.bookingNumber != null ? formatBookingNumber(b.bookingNumber) : b.id?.slice(0, 6).toUpperCase()
                   const nights = b.nights || Math.max(1, Math.ceil((new Date(co) - new Date(ci)) / 86400000))
                   return (
-                    <tr key={b.id}>
+                    <tr key={b.id} className="adm-report-row" onClick={() => openRow(b)} style={{ cursor: 'pointer' }}>
                       <td style={cellStyle}><code style={{ fontSize: 11 }}>#{ref}</code></td>
                       <td style={{ ...cellStyle, textAlign: 'right', fontWeight: 700 }}>{b.guestName}</td>
                       <td style={cellStyle}>{b.guestPhone}</td>
@@ -220,6 +237,14 @@ export default function ReservationsReportPage({ bookings }) {
             </table>
           </div>
         </div>
+      )}
+
+      {detailsBooking && (
+        <BookingDetailsModal
+          booking={detailsBooking}
+          bookingActions={bookingActions}
+          onClose={() => setDetailsBooking(null)}
+        />
       )}
     </div>
   )

@@ -30,7 +30,11 @@ export default function StageActionBar({ booking: b, fin, busy, error, onConfirm
     action = (
       <div style={{ display: 'flex', gap: 10, alignItems: 'flex-end', flexWrap: 'wrap' }}>
         <div className="adm-field">
-          <label className="form-lbl">وقت المغادرة</label>
+          {/* Not the booking's booked checkout date (shown further down in
+              the room/pricing section) — this is when departure is actually
+              being registered right now, defaulting to this instant. Named
+              accordingly so the two dates are never mistaken for each other. */}
+          <label className="form-lbl">وقت تسجيل المغادرة الآن</label>
           <input type="datetime-local" className="adm-input" value={departAt} onChange={e => setDepartAt(e.target.value)} style={{ width: 210 }} />
         </div>
         <Button variant="primary" icon={<FiLogOut size={16} />} disabled={busy} onClick={() => onRequestCheckOut(departAt)}>

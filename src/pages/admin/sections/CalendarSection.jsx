@@ -152,7 +152,7 @@ export default function CalendarSection({ bookings, rooms }) {
         const c = statusColors[b.status] || statusColors.confirmed
         const s = STATUS[b.status] || STATUS.confirmed
         cells.push(
-          <td key={ds} colSpan={span} onClick={() => navigate(`/admin/reservation/${roomId}?bookingId=${b.id}`)}
+          <td key={ds} colSpan={span} onClick={() => navigate(`/admin/reservation/${roomId}?bookingId=${b.id}`, { state: { from: '/admin/calendar' } })}
             style={{ border: '1px solid var(--border)', padding: 3, cursor: 'pointer', background: '#fff' }}>
             <div title={`${b.guestName} · ${s.label}`}
               style={{ background: c.bg, border: `1px solid ${c.border}`, borderRight: `3px solid ${c.text}`, borderRadius: 6, padding: '5px 8px', textAlign: 'right', overflow: 'hidden' }}>
@@ -194,7 +194,7 @@ export default function CalendarSection({ bookings, rooms }) {
           const c = statusColors[b.status] || statusColors.confirmed
           const s = STATUS[b.status] || STATUS.confirmed
           cells.push(
-            <td key={sortedRooms[r].id} rowSpan={seg.len} onClick={() => navigate(`/admin/reservation/${sortedRooms[r].id}?bookingId=${b.id}`)}
+            <td key={sortedRooms[r].id} rowSpan={seg.len} onClick={() => navigate(`/admin/reservation/${sortedRooms[r].id}?bookingId=${b.id}`, { state: { from: '/admin/calendar' } })}
               style={{ border: '1px solid var(--border)', padding: 2, cursor: 'pointer', verticalAlign: 'middle', background: '#fff' }}>
               <div title={`${b.guestName} · ${s.label}`}
                 style={{ background: c.bg, border: `1px solid ${c.border}`, borderTop: `3px solid ${c.text}`, borderRadius: 4, padding: '3px 4px', overflow: 'hidden' }}>

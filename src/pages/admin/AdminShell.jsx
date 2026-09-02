@@ -132,10 +132,10 @@ function AdminShellInner({ user }) {
               <Routes>
                 <Route index element={<Navigate to="reservation" replace />} />
                 <Route path="reservation" element={<ReservationSection rooms={rooms} bookings={bookings} bookingActions={bookingActions} />} />
-                <Route path="reservation/rooms" element={<ReservationRoomsPage rooms={rooms} bookings={bookings} />} />
+                <Route path="reservation/rooms" element={<ReservationRoomsPage rooms={rooms} bookings={bookings} variants={variants} />} />
                 <Route path="reservation/upcoming" element={<UpcomingArrivalsPage bookings={bookings} bookingActions={bookingActions} />} />
-                <Route path="reservation/report" element={<ReservationsReportPage bookings={bookings} />} />
-                <Route path="reservation/:roomId" element={<RoomPanel rooms={rooms} bookings={bookings} bookingActions={bookingActions} />} />
+                <Route path="reservation/report" element={<ReservationsReportPage bookings={bookings} bookingActions={bookingActions} />} />
+                <Route path="reservation/:roomId" element={<RoomPanel rooms={rooms} bookings={bookings} bookingActions={bookingActions} variants={variants} />} />
                 <Route path="calendar" element={<CalendarSection bookings={bookings} rooms={rooms} />} />
                 <Route path="stats" element={<StatsSection rooms={rooms} bookings={bookings} />} />
                 <Route path="settings" element={<SettingsSection hikeApps={hikeApps} />} />

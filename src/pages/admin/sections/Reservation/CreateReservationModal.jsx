@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { FiPlus, FiTrash2, FiAlertCircle, FiPlusCircle } from 'react-icons/fi'
 import { createBooking } from '../../services'
 import { CATEGORY_OPTIONS, CATEGORY_LABEL_AR } from '../../constants'
@@ -6,7 +6,7 @@ import Button from '../../components/Button'
 import Modal from '../../components/Modal'
 import Picker from '../../components/Picker'
 import { Field } from '../../components/FormCard'
-import { roomCandidatesForLine, fmtDateShort } from '../../utils/bookingHelpers'
+import { roomCandidatesForLine, fmtDateShort, variantPrice } from '../../utils/bookingHelpers'
 import { useGuardWhile } from '../../hooks/useNavGuard'
 
 function todayStr() { return new Date().toISOString().split('T')[0] }
@@ -19,7 +19,7 @@ function tomorrowStr() { return new Date(Date.now() + 86400000).toISOString().sp
 // a single createBooking call carrying the whole `rooms[]` array, instead of
 // creating one single-room booking per room the way the room-grid's own
 // "new booking" form does.
-export default function CreateReservationModal({ rooms, bookings, onClose, onCreated }) {
+export default function CreateReservationModal({ rooms, bookings, variants, onClose, onCreated }) {
   const [guestName, setGuestName] = useState('')
   const [guestPhone, setGuestPhone] = useState('')
   const [guestEmail, setGuestEmail] = useState('')
@@ -108,6 +108,7 @@ export default function CreateReservationModal({ rooms, bookings, onClose, onCre
         <AddRoomStep
           rooms={rooms}
           bookings={bookings}
+          variants={variants}
           existingLines={lines}
           onAdd={addLine}
           onClose={() => setAddOpen(false)}
@@ -120,7 +121,7 @@ export default function CreateReservationModal({ rooms, bookings, onClose, onCre
 // Step one of adding a room: type + dates. Mirrors AddRoomModal in
 // RoomsPanel.jsx (same two-box shape), adapted for a booking that doesn't
 // exist yet — there's no bookingId to exclude from conflict checks.
-function AddRoomStep({ rooms, bookings, existingLines, onAdd, onClose }) {
+function AddRoomStep({ rooms, bookings, variants, existingLines, onAdd, onClose }) {
   const [ci, setCi] = useState(todayStr())
   const [co, setCo] = useState(tomorrowStr())
   const [choosingType, setChoosingType] = useState(null)
@@ -147,7 +148,7 @@ function AddRoomStep({ rooms, bookings, existingLines, onAdd, onClose }) {
 
       {choosingType && (
         <ChooseAvailableRoomStep
-          rooms={rooms} bookings={bookings} existingLines={existingLines}
+          rooms={rooms} bookings={bookings} variants={variants} existingLines={existingLines}
           roomType={choosingType} ci={ci} co={co}
           onCancel={() => setChoosingType(null)}
           onConfirm={(room, price) => onAdd({
@@ -171,9 +172,21 @@ function AddRoomStep({ rooms, bookings, existingLines, onAdd, onClose }) {
 // (createBooking only checks new lines against existing bookings, not
 // against each other, so a room picked twice for overlapping dates within
 // one submission would otherwise slip through uncaught).
-function ChooseAvailableRoomStep({ rooms, bookings, existingLines, roomType, ci, co, onCancel, onConfirm }) {
+function ChooseAvailableRoomStep({ rooms, bookings, variants, existingLines, roomType, ci, co, onCancel, onConfirm }) {
   const [pick, setPick] = useState('')
   const [price, setPrice] = useState('')
+
+  // Defaults to the picked room's category price (candidates can span more
+  // than one capacity within the same type, so the lookup runs off the
+  // specific room chosen, not just `roomType`) — still freely editable
+  // before confirming, for a one-off custom price.
+  useEffect(() => {
+    if (!pick) return
+    const room = rooms.find(r => r.id === pick)
+    if (!room) return
+    const p = variantPrice(variants || [], room.type, room.capacity)
+    setPrice(p != null ? String(p) : '')
+  }, [pick, rooms, variants])
 
   const candidates = roomCandidatesForLine({ roomType, roomCapacity: null, roomId: null, checkIn: ci, checkOut: co }, rooms, bookings, null)
   const usedByThisBooking = new Set(

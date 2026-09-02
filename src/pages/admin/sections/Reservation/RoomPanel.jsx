@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
+import { useParams, useNavigate, useSearchParams, useLocation } from 'react-router-dom'
 import { useGuardedNavigate } from '../../hooks/useGuardedNavigate'
 import {
   FiChevronRight, FiMessageCircle, FiTrash2, FiUser, FiPhone, FiMail,
@@ -24,21 +24,38 @@ import StageActionBar from './StageActionBar'
 import RoomsPanel from './RoomsPanel'
 import NewBookingForm from './NewBookingForm'
 
+// Whichever page linked into a room — the rooms board, Upcoming Arrivals, the
+// reservations report, or the calendar — passes its own path as router state
+// so "back" returns there instead of always landing on the general
+// reservations dashboard, no matter which of those sent the operator here.
+// A direct/bookmarked visit carries no such state, so it falls back to the
+// rooms board (this page's most common entry point).
+const BACK_LABELS = {
+  '/admin/reservation/rooms': 'رجوع إلى لوحة الغرف',
+  '/admin/reservation/upcoming': 'رجوع إلى الوصول القادم',
+  '/admin/reservation/report': 'رجوع إلى تقرير الحجوزات',
+  '/admin/calendar': 'رجوع إلى التقويم',
+}
+const DEFAULT_BACK = '/admin/reservation/rooms'
+
 // Single entry point for "a room" — vacant or occupied. Everything a clerk
 // might need to do with this room lives on this one page.
-export default function RoomPanel({ rooms, bookings, bookingActions }) {
+export default function RoomPanel({ rooms, bookings, bookingActions, variants }) {
   const { roomId } = useParams()
   const [searchParams] = useSearchParams()
+  const location = useLocation()
   const navigate = useNavigate()
   const { go } = useGuardedNavigate()
   const room = rooms.find(r => r.id === roomId)
+  const backTo = location.state?.from || DEFAULT_BACK
+  const backLabel = BACK_LABELS[backTo] || BACK_LABELS[DEFAULT_BACK]
 
   if (!room) {
     return (
       <div className="adm-card" style={{ padding: 24 }}>
         <p style={{ fontSize: 14, color: 'var(--muted)' }}>هذه الغرفة غير موجودة.</p>
-        <Button variant="ghost" size="sm" icon={<FiChevronRight size={14} />} onClick={() => go('/admin/reservation')} style={{ marginTop: 12 }}>
-          رجوع إلى لوحة الغرف
+        <Button variant="ghost" size="sm" icon={<FiChevronRight size={14} />} onClick={() => go(backTo)} style={{ marginTop: 12 }}>
+          {backLabel}
         </Button>
       </div>
     )
@@ -60,13 +77,13 @@ export default function RoomPanel({ rooms, bookings, bookingActions }) {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-      <Button variant="ghost" size="sm" icon={<FiChevronRight size={14} />} onClick={() => go('/admin/reservation')}>
-        رجوع إلى لوحة الغرف
+      <Button variant="ghost" size="sm" icon={<FiChevronRight size={14} />} onClick={() => go(backTo)}>
+        {backLabel}
       </Button>
 
       {kind === 'current'
-        ? <OccupiedRoomPanel room={room} booking={booking} rooms={rooms} bookings={bookings} bookingActions={bookingActions} onBack={() => go('/admin/reservation')} onBookNext={() => navigate(`/admin/reservation/${room.id}`)} />
-        : <VacantRoomPanel room={room} bookings={bookings} onCreated={() => navigate(`/admin/reservation/${room.id}`)} />}
+        ? <OccupiedRoomPanel room={room} booking={booking} rooms={rooms} bookings={bookings} bookingActions={bookingActions} variants={variants} onBack={() => go(backTo)} onBookNext={() => navigate(`/admin/reservation/${room.id}`)} />
+        : <VacantRoomPanel room={room} bookings={bookings} variants={variants} onCreated={() => navigate(`/admin/reservation/${room.id}`)} />}
     </div>
   )
 }
@@ -139,7 +156,7 @@ function RoomUpcomingList({ lines }) {
   )
 }
 
-function VacantRoomPanel({ room, bookings, onCreated }) {
+function VacantRoomPanel({ room, bookings, variants, onCreated }) {
   const future = getFutureLines(room, bookings, toStr(new Date()))
   return (
     <>
@@ -154,14 +171,14 @@ function VacantRoomPanel({ room, bookings, onCreated }) {
         <CardHeader icon={<FiHome size={15} color="var(--muted)" />}>بدء حجز جديد لهذه الغرفة</CardHeader>
         <CardBody>
           <RoomUpcomingList lines={future} />
-          <NewBookingForm room={room} onCreated={onCreated} />
+          <NewBookingForm room={room} variants={variants} onCreated={onCreated} />
         </CardBody>
       </Card>
     </>
   )
 }
 
-function OccupiedRoomPanel({ room, booking: b, rooms, bookings, bookingActions, onBack, onBookNext }) {
+function OccupiedRoomPanel({ room, booking: b, rooms, bookings, bookingActions, variants, onBack, onBookNext }) {
   const { updating, deleting, stageBusy, stageErr, changeStatus, deleteBooking, checkIn, checkOut } = bookingActions
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [confirmCheckOut, setConfirmCheckOut] = useState(null)
@@ -171,6 +188,16 @@ function OccupiedRoomPanel({ room, booking: b, rooms, bookings, bookingActions, 
   const roomLines = getBookingRooms(b)
   const { numbers } = bookingRoomsInfo(b)
   const otherRoomNumbers = numbers.filter(n => n !== room.number)
+  // A guest who has departed and owes nothing further is done, stage-wise —
+  // going by the balance (not fin.paymentStatus, which only ever says "paid"
+  // once a price has actually been set) so this also covers a departed stay
+  // that was never priced at all, not just one paid off in full. Once here,
+  // the status dropdown no longer offers stepping back to pending/confirmed/
+  // checked-in — there's nothing left to "arrive" for.
+  const settled = b.status === 'checked-out' && fin.balance <= 0
+  const statusOptions = settled
+    ? [['checked-out', STATUS['checked-out']], ['cancelled', STATUS.cancelled]]
+    : Object.entries(STATUS)
   const nights = b.nights || Math.max(1, Math.ceil((new Date(b.checkOut?.toDate?.() || b.checkOut) - new Date(b.checkIn?.toDate?.() || b.checkIn)) / 86400000))
   const ref = b.bookingNumber != null ? formatBookingNumber(b.bookingNumber) : b.id.slice(0, 6).toUpperCase()
 
@@ -204,6 +231,7 @@ function OccupiedRoomPanel({ room, booking: b, rooms, bookings, bookingActions, 
             <code style={{ fontSize: 12, background: 'var(--linen)', color: 'var(--muted)', padding: '2px 9px', borderRadius: 5, fontWeight: 600 }}>#{ref}</code>
             <StatusBadge status={b.status} />
             <PaymentStatusBadge status={fin.paymentStatus} />
+            {settled && <span className="adm-badge adm-badge--good">غادر وسدّد الحساب بالكامل</span>}
           </div>
           {otherRoomNumbers.length > 0 && (
             <p style={{ fontSize: 12, color: 'var(--adm-tone-warn-text)', marginTop: 4 }}>
@@ -216,7 +244,7 @@ function OccupiedRoomPanel({ room, booking: b, rooms, bookings, bookingActions, 
             <label className="form-lbl" style={{ marginBottom: 0 }}>حالة الحجز</label>
             <select className="adm-input" value={b.status || 'confirmed'} disabled={updating}
               onChange={e => changeStatus(b.id, e.target.value)} style={{ fontWeight: 700, minHeight: 40, width: 140 }}>
-              {Object.entries(STATUS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
+              {statusOptions.map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
             </select>
           </div>
           <RoomBlockControl room={room} />
@@ -273,7 +301,7 @@ function OccupiedRoomPanel({ room, booking: b, rooms, bookings, bookingActions, 
       {bookNextOpen && (
         <Modal open wide title="حجز جديد لهذه الغرفة بعد هذه الإقامة" onClose={() => setBookNextOpen(false)}>
           <RoomUpcomingList lines={future} />
-          <NewBookingForm room={room} onCreated={() => { setBookNextOpen(false); onBookNext() }} minCheckIn={checkoutStr} />
+          <NewBookingForm room={room} variants={variants} onCreated={() => { setBookNextOpen(false); onBookNext() }} minCheckIn={checkoutStr} />
         </Modal>
       )}
 

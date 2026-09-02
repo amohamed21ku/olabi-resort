@@ -61,6 +61,14 @@ export function isRoomFreeForRange(room, bookings, checkIn, checkOut) {
   })
 }
 
+// A category's fixed nightly price, used to default a new reservation's
+// price field instead of always starting blank — still just a default, the
+// field stays editable for a custom one-off price.
+export function variantPrice(variants, roomType, roomCapacity) {
+  const match = variants.find(v => v.type === roomType && Number(v.capacity) === Number(roomCapacity))
+  return typeof match?.price === 'number' ? match.price : null
+}
+
 // Candidate concrete rooms for a room-line: same (type, capacity), flagged if
 // blocked/occupied for the LINE's own window, and if it's the current room.
 export function roomCandidatesForLine(line, rooms, bookings, bookingId) {
