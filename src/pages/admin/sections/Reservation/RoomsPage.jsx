@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { FiSearch, FiPlusCircle, FiSliders, FiX } from 'react-icons/fi'
+import { FiSearch, FiPlusCircle, FiSliders, FiX, FiEdit2 } from 'react-icons/fi'
 import { bookingMatchesRoomSearch, fmtDateShort, isRoomFreeForRange } from '../../utils/bookingHelpers'
 import { computeRoomStatus, getRoomFocusBooking } from '../../utils/roomStatus'
 import { CATEGORY_OPTIONS, CATEGORY_LABEL_AR } from '../../constants'
@@ -93,6 +93,7 @@ export default function RoomsPage({ rooms, bookings }) {
 
       {customSearchOpen && (
         <CustomSearchModal
+          initial={customSearch}
           onClose={() => setCustomSearchOpen(false)}
           onSearch={(v) => { setCustomSearch(v); setCustomSearchOpen(false) }}
         />
@@ -104,15 +105,30 @@ export default function RoomsPage({ rooms, bookings }) {
       </div>
 
       {customSearch && (
-        <button type="button" onClick={() => setCustomSearch(null)} className="adm-notice-banner adm-notice-banner--info" style={{ marginBottom: 20 }}>
-          <FiSliders size={14} />
-          <span>
-            نتائج بحث مخصص: {customSearch.roomType ? CATEGORY_LABEL_AR[customSearch.roomType] || customSearch.roomType : 'كل الأنواع'}
-            {' · '}{fmtDateShort(customSearch.checkIn)} ← {fmtDateShort(customSearch.checkOut)}
-            {' · '}{visibleRooms.length} غرفة متاحة
-          </span>
-          <FiX size={16} />
-        </button>
+        <div className="adm-notice-banner adm-notice-banner--info" style={{ marginBottom: 20, cursor: 'default' }}>
+          <button
+            type="button"
+            onClick={() => setCustomSearchOpen(true)}
+            title="تعديل البحث"
+            style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1, background: 'none', border: 'none', padding: 0, font: 'inherit', color: 'inherit', cursor: 'pointer', textAlign: 'inherit' }}
+          >
+            <FiSliders size={14} />
+            <span>
+              نتائج بحث مخصص: {customSearch.roomType ? CATEGORY_LABEL_AR[customSearch.roomType] || customSearch.roomType : 'كل الأنواع'}
+              {' · '}{fmtDateShort(customSearch.checkIn)} ← {fmtDateShort(customSearch.checkOut)}
+              {' · '}{visibleRooms.length} غرفة متاحة
+            </span>
+            <FiEdit2 size={13} />
+          </button>
+          <button
+            type="button"
+            onClick={() => setCustomSearch(null)}
+            title="مسح البحث"
+            style={{ background: 'none', border: 'none', padding: 4, color: 'inherit', cursor: 'pointer', display: 'flex' }}
+          >
+            <FiX size={16} />
+          </button>
+        </div>
       )}
 
       {visibleRooms.length === 0 ? (
@@ -167,11 +183,14 @@ export default function RoomsPage({ rooms, bookings }) {
 
 // Date range + optional room type, handed back up to filter the directory to
 // only rooms genuinely free for that window (isRoomFreeForRange) — leaving
-// the type blank means "any type," not "no rooms."
-function CustomSearchModal({ onClose, onSearch }) {
-  const [ci, setCi] = useState(todayStr())
-  const [co, setCo] = useState(tomorrowStr())
-  const [roomType, setRoomType] = useState('')
+// the type blank means "any type," not "no rooms." `initial`, when given
+// (editing an already-active search from its results banner), seeds the
+// fields instead of defaulting to today/tomorrow/any-type, so refining a
+// search doesn't mean starting it over from scratch.
+function CustomSearchModal({ initial, onClose, onSearch }) {
+  const [ci, setCi] = useState(initial?.checkIn || todayStr())
+  const [co, setCo] = useState(initial?.checkOut || tomorrowStr())
+  const [roomType, setRoomType] = useState(initial?.roomType ?? '')
 
   const typeOptions = [
     { value: '', label: 'أي نوع (غير محدد)' },
@@ -179,7 +198,7 @@ function CustomSearchModal({ onClose, onSearch }) {
   ]
 
   return (
-    <Modal open title="بحث مخصص عن غرف متاحة" onClose={onClose} footer={
+    <Modal open title={initial ? 'تعديل البحث المخصص' : 'بحث مخصص عن غرف متاحة'} onClose={onClose} footer={
       <>
         <Button variant="ghost" onClick={onClose}>إلغاء</Button>
         <Button variant="primary" disabled={!(ci < co)} onClick={() => onSearch({ checkIn: ci, checkOut: co, roomType })}>
