@@ -9,10 +9,12 @@ import { readToneColors } from '../utils/printColors'
 
 const CAL_DAYS = 7
 
-// Ported from the old CalendarTab — a room x day "tape chart". Rooms are
-// rows, days are columns, and each booking is a bar spanning its nights,
-// colored by status. Week navigation and the PDF export popup are kept
-// exactly as before; only the surrounding chrome now uses Button/.adm-card.
+// A day x room "tape chart": days run down the rows, rooms across the
+// columns, and each booking is a bar spanning its nights down its room's
+// column, colored by status. Both the week and month views share that one
+// layout — a month's worth of days could never sit as columns without
+// horizontal scrolling, and matching the week to it keeps a single grid to
+// read and a single table to print.
 export default function CalendarSection({ bookings, rooms }) {
   const navigate = useNavigate()
   const [anchor, setAnchor] = useState(() => new Date(new Date().toISOString().split('T')[0]))
@@ -54,6 +56,9 @@ export default function CalendarSection({ bookings, rooms }) {
         const d = new Date(anchor); d.setDate(d.getDate() + i); return d
       })
   const dayStrs = days.map(toStr)
+  // A month of rows has to stay dense enough to print on one page; a week
+  // of seven rows can afford full-size type and taller cells.
+  const compact = view === 'month'
 
   const sortedRooms = rooms.slice().sort((a, b) => (+a.number || 0) - (+b.number || 0))
 
@@ -74,9 +79,8 @@ export default function CalendarSection({ bookings, rooms }) {
   })
 
   // Contiguous runs of the same booking-line across `days`, as plain data
-  // (start index + length) rather than JSX — used by month view, which
-  // spans a booking down a room's COLUMN (rowSpan) instead of across a
-  // room's ROW (colSpan) the way week view does.
+  // (start index + length) rather than JSX — what lets a booking span
+  // rowSpan rows down its room's column.
   const computeSegments = (entries) => {
     const segs = []
     let i = 0
@@ -137,46 +141,13 @@ export default function CalendarSection({ bookings, rooms }) {
     setTimeout(() => w.print(), 350)
   }
 
-  const renderRow = (entries, roomId) => {
-    const cells = []
-    let i = 0
-    while (i < days.length) {
-      const ds = dayStrs[i]
-      const entry = covering(entries, ds)
-      if (entry) {
-        const b = entry.booking
-        let span = 1
-        while (i + span < days.length
-          && covering(entries, dayStrs[i + span])?.line.lineId === entry.line.lineId
-          && covering(entries, dayStrs[i + span])?.booking.id === b.id) span++
-        const c = statusColors[b.status] || statusColors.confirmed
-        const s = STATUS[b.status] || STATUS.confirmed
-        cells.push(
-          <td key={ds} colSpan={span} onClick={() => navigate(`/admin/reservation/${roomId}?bookingId=${b.id}`, { state: { from: '/admin/calendar' } })}
-            style={{ border: '1px solid var(--border)', padding: 3, cursor: 'pointer', background: '#fff' }}>
-            <div title={`${b.guestName} · ${s.label}`}
-              style={{ background: c.bg, border: `1px solid ${c.border}`, borderRight: `3px solid ${c.text}`, borderRadius: 6, padding: '5px 8px', textAlign: 'right', overflow: 'hidden' }}>
-              <span style={{ display: 'block', fontSize: 11.5, fontWeight: 700, color: c.text, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{b.guestName}</span>
-              <span style={{ fontSize: 10, color: c.text, opacity: 0.8 }}>{s.label}</span>
-            </div>
-          </td>
-        )
-        i += span
-      } else {
-        cells.push(<td key={ds} style={{ border: '1px solid var(--border)', background: ds === todayStr ? 'var(--adm-tone-good-bg)' : '#fff' }} />)
-        i++
-      }
-    }
-    return cells
-  }
-
-  // Month view, transposed: days as rows (so a whole month's worth fits one
-  // page without scrolling), rooms as columns. A multi-night booking spans
-  // rowSpan rows down its room's column instead of colSpan cells across a
-  // row. `skip[roomIdx]` tracks how many upcoming rows are still covered by
-  // an earlier row's rowSpan for that column, so this row skips emitting a
-  // <td> there entirely — the browser slots the remaining cells correctly.
-  const renderMonthBody = () => {
+  // Both views lay days out as rows and rooms as columns. A booking spans
+  // rowSpan rows down its room's column; `skip[roomIdx]` tracks how many
+  // upcoming rows are still covered by an earlier row's rowSpan for that
+  // column, so this row skips emitting a <td> there entirely and the browser
+  // slots the remaining cells correctly. The week view just gets roomier
+  // typography than the month view, having only seven rows to fill.
+  const renderBody = () => {
     const segmentsByRoom = sortedRooms.map(room => computeSegments(roomEntries(room.id)))
     const skip = new Array(sortedRooms.length).fill(0)
     const rows = []
@@ -197,8 +168,9 @@ export default function CalendarSection({ bookings, rooms }) {
             <td key={sortedRooms[r].id} rowSpan={seg.len} onClick={() => navigate(`/admin/reservation/${sortedRooms[r].id}?bookingId=${b.id}`, { state: { from: '/admin/calendar' } })}
               style={{ border: '1px solid var(--border)', padding: 2, cursor: 'pointer', verticalAlign: 'middle', background: '#fff' }}>
               <div title={`${b.guestName} · ${s.label}`}
-                style={{ background: c.bg, border: `1px solid ${c.border}`, borderTop: `3px solid ${c.text}`, borderRadius: 4, padding: '3px 4px', overflow: 'hidden' }}>
-                <div style={{ fontSize: 9, fontWeight: 700, color: c.text, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{b.guestName}</div>
+                style={{ background: c.bg, border: `1px solid ${c.border}`, borderTop: `3px solid ${c.text}`, borderRadius: 4, padding: compact ? '3px 4px' : '6px 8px', overflow: 'hidden' }}>
+                <div style={{ fontSize: compact ? 9 : 12.5, fontWeight: 700, color: c.text, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{b.guestName}</div>
+                {!compact && <div style={{ fontSize: 10, color: c.text, opacity: 0.8 }}>{s.label}</div>}
               </div>
             </td>
           )
@@ -207,10 +179,11 @@ export default function CalendarSection({ bookings, rooms }) {
         }
       }
       rows.push(
-        <tr key={ds}>
+        <tr key={ds} style={compact ? undefined : { height: 54 }}>
           <th scope="row" style={{ border: '1px solid var(--border)', padding: '3px 4px', textAlign: 'center', whiteSpace: 'nowrap', background: isToday ? 'var(--adm-tone-good-bg)' : 'var(--cream)', color: isToday ? 'var(--adm-tone-good-text)' : 'var(--ink)' }}>
-            <div style={{ fontSize: 8.5, fontWeight: 600, color: isToday ? 'var(--adm-tone-good-text)' : 'var(--muted)' }}>{d.toLocaleDateString('ar-SY', { weekday: 'short' })}</div>
-            <div style={{ fontSize: 11 }}>{d.getDate()}</div>
+            <div style={{ fontSize: compact ? 8.5 : 11, fontWeight: 600, color: isToday ? 'var(--adm-tone-good-text)' : 'var(--muted)' }}>{d.toLocaleDateString('ar-SY', { weekday: 'short' })}</div>
+            <div style={{ fontSize: compact ? 11 : 15, fontWeight: 800 }}>{d.getDate()}</div>
+            {!compact && <div style={{ fontSize: 9.5, color: 'var(--muted)' }}>{d.toLocaleDateString('ar-SY', { month: 'short' })}</div>}
           </th>
           {cells}
         </tr>
@@ -252,66 +225,33 @@ export default function CalendarSection({ bookings, rooms }) {
 
       {sortedRooms.length === 0 ? (
         <EmptyState icon={<FiGrid size={28} />} text="لا توجد غرف لعرضها." />
-      ) : view === 'month' ? (
-        // Transposed on purpose: days as rows, rooms as columns. A month has
-        // too many days to lay out as columns without horizontal scrolling,
-        // but as rows it comfortably fits one page/screen — which is the
-        // point, since this view exists to be printed as a single-page PDF.
-        <div className="adm-card">
-          <table ref={gridRef} style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed' }}>
-            <colgroup>
-              <col style={{ width: 46 }} />
-              {sortedRooms.map((r, i) => <col key={i} />)}
-            </colgroup>
-            <thead>
-              <tr>
-                <th style={{ border: '1px solid var(--border)', padding: '4px 2px', background: 'var(--cream)' }} />
-                {sortedRooms.map(room => (
-                  <th key={room.id} style={{ border: '1px solid var(--border)', padding: '3px 2px', textAlign: 'center', background: 'var(--cream)', color: 'var(--ink)' }}>
-                    <div style={{ fontSize: 10.5, fontWeight: 800 }}>{room.number}</div>
-                    <div style={{ fontSize: 7.5, color: 'var(--muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{CATEGORY_LABEL_AR[room.type] || room.type}</div>
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {renderMonthBody()}
-            </tbody>
-          </table>
-        </div>
       ) : (
+        // Days run down the rows and rooms across the columns in both views:
+        // a month has far too many days to sit as columns without horizontal
+        // scrolling, and keeping the week identical means one layout to learn
+        // (and one table to print) rather than two mirrored ones.
         <div className="adm-card">
           <div className="adm-table-wrap">
-            <table ref={gridRef} style={{ width: '100%', minWidth: 120 + days.length * 86, borderCollapse: 'collapse', tableLayout: 'fixed' }}>
+            <table ref={gridRef} style={{ width: '100%', minWidth: compact ? undefined : 90 + sortedRooms.length * 104, borderCollapse: 'collapse', tableLayout: 'fixed' }}>
               <colgroup>
-                <col style={{ width: 120 }} />
-                {days.map((d, i) => <col key={i} />)}
+                <col style={{ width: compact ? 46 : 76 }} />
+                {sortedRooms.map((r, i) => <col key={i} />)}
               </colgroup>
               <thead>
                 <tr>
-                  <th style={{ border: '1px solid var(--border)', padding: '6px 4px', textAlign: 'right', position: 'sticky', right: 0, background: 'var(--cream)', zIndex: 2, whiteSpace: 'nowrap' }}>الغرفة</th>
-                  {days.map(d => {
-                    const isToday = toStr(d) === todayStr
-                    return (
-                      <th key={toStr(d)} style={{ border: '1px solid var(--border)', padding: '6px 4px', textAlign: 'center', whiteSpace: 'nowrap', background: isToday ? 'var(--adm-tone-good-bg)' : 'var(--cream)', color: isToday ? 'var(--adm-tone-good-text)' : 'var(--muted)' }}>
-                        <div style={{ fontSize: 10.5, fontWeight: 600 }}>{d.toLocaleDateString('ar-SY', { weekday: 'short' })}</div>
-                        <div style={{ fontSize: 13, fontWeight: 800, color: isToday ? 'var(--adm-tone-good-text)' : 'var(--ink)' }}>{d.getDate()}</div>
-                        <div style={{ fontSize: 9.5, color: 'var(--muted)' }}>{d.toLocaleDateString('ar-SY', { month: 'short' })}</div>
-                      </th>
-                    )
-                  })}
+                  <th style={{ border: '1px solid var(--border)', padding: '4px 2px', background: 'var(--cream)' }} />
+                  {sortedRooms.map(room => (
+                    <th key={room.id} style={{ border: '1px solid var(--border)', padding: compact ? '3px 2px' : '6px 4px', textAlign: 'center', background: 'var(--cream)', color: 'var(--ink)' }}>
+                      <div style={{ fontSize: compact ? 10.5 : 13, fontWeight: 800 }}>{room.number}</div>
+                      <div style={{ fontSize: compact ? 7.5 : 10, color: 'var(--muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {CATEGORY_LABEL_AR[room.type] || room.type}{compact ? '' : ` · ${room.capacity}`}
+                      </div>
+                    </th>
+                  ))}
                 </tr>
               </thead>
               <tbody>
-                {sortedRooms.map(room => (
-                  <tr key={room.id}>
-                    <td style={{ border: '1px solid var(--border)', padding: '8px 10px', textAlign: 'right', background: '#fff', whiteSpace: 'nowrap', position: 'sticky', right: 0, zIndex: 1 }}>
-                      <div style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--ink)' }}>غرفة {room.number}</div>
-                      <div style={{ fontSize: 10.5, color: 'var(--muted)' }}>{CATEGORY_LABEL_AR[room.type] || room.type} · {room.capacity}</div>
-                    </td>
-                    {renderRow(roomEntries(room.id), room.id)}
-                  </tr>
-                ))}
+                {renderBody()}
               </tbody>
             </table>
           </div>
