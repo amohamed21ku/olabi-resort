@@ -1,4 +1,4 @@
-import { FiHome, FiGrid, FiSettings, FiStar, FiLayers, FiCompass, FiBarChart2, FiLogIn, FiFileText } from 'react-icons/fi'
+import { FiHome, FiGrid, FiSettings, FiStar, FiLayers, FiCompass, FiBarChart2, FiLogIn, FiFileText, FiUsers } from 'react-icons/fi'
 
 // Four top-level sections, each a real route. No persistent "new booking"
 // CTA — a booking always starts from a specific room in the Reservation grid.
@@ -15,6 +15,7 @@ export const NAV_ITEMS = [
     ],
   },
   { id: 'calendar', label: 'التقويم',     Icon: FiGrid,      path: '/admin/calendar' },
+  { id: 'customers', label: 'العملاء',   Icon: FiUsers,     path: '/admin/customers' },
   { id: 'stats',    label: 'الإحصائيات', Icon: FiBarChart2, path: '/admin/stats' },
   { id: 'settings', label: 'الإعدادات',   Icon: FiSettings,  path: '/admin/settings' },
 ]

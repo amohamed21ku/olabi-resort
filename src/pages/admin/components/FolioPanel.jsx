@@ -11,8 +11,9 @@ import {
 } from '../constants'
 import {
   computeBookingFinance, addBookingCharge, removeBookingCharge,
-  addBookingPayment, removeBookingPayment,
+  addBookingPayment, removeBookingPayment, updateBookingDiscount,
 } from '../services'
+import DiscountPicker from './DiscountPicker'
 import { useGuardWhile } from '../hooks/useNavGuard'
 
 // Shared "Guest Bill" (فاتورة الضيف) panel — shows the room ledger and the
@@ -109,9 +110,35 @@ export default function FolioPanel({ booking }) {
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 8, flexWrap: 'wrap' }}>
             <span style={{ fontSize: 12, color: 'var(--muted)' }}>قيمة الغرف</span>
             <span style={{ fontSize: 15, fontWeight: 800, color: booking.totalPrice != null ? 'var(--ink)' : 'var(--muted)' }}>
-              {booking.totalPrice != null ? fin.roomTotal : 'غير محدد'}
+              {booking.totalPrice == null ? 'غير محدد'
+                : fin.discountAmount > 0
+                  ? <span style={{ display: 'inline-flex', alignItems: 'baseline', gap: 6 }}><span style={{ fontSize: 12, fontWeight: 600, color: 'var(--muted)', textDecoration: 'line-through' }}>{fin.roomGross}</span><span>{fin.roomTotal}</span></span>
+                  : fin.roomTotal}
             </span>
           </div>
+
+          {/* Discount off the room price only — saved on click, and the room
+              value, balances and payment status above all follow it. Hidden
+              until the room has a price, since there's nothing to discount. */}
+          {booking.totalPrice != null && (
+            <div style={{ marginBottom: 10 }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 6 }}>
+                <span style={{ fontSize: 12, color: 'var(--muted)' }}>الخصم</span>
+                {fin.discountAmount > 0 && (
+                  <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--adm-tone-good-text)' }}>خصم {fin.discountPercent}% (−{fin.discountAmount})</span>
+                )}
+              </div>
+              <DiscountPicker
+                value={booking.discountPercent}
+                disabled={busy}
+                onChange={(pct) => run(() => updateBookingDiscount(booking.id, pct))}
+              />
+              {/* The other errors here surface inside their own modals; this one has none. */}
+              {error && !chargeModalOpen && !paymentModal && !removeTarget && (
+                <div className="adm-field-error" style={{ marginTop: 6 }}><FiAlertCircle size={13} /> {error}</div>
+              )}
+            </div>
+          )}
 
           <div className="adm-ledger-stats">
             <span style={{ color: 'var(--adm-tone-good-text)' }}>مدفوع: <strong>{fin.roomPaid}</strong></span>

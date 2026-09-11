@@ -18,6 +18,7 @@ import UpcomingArrivalsPage from './sections/Reservation/UpcomingArrivalsPage'
 import ReservationsReportPage from './sections/Reservation/ReservationsReportPage'
 import RoomPanel from './sections/Reservation/RoomPanel'
 import CalendarSection from './sections/CalendarSection'
+import CustomersSection from './sections/CustomersSection'
 import StatsSection from './sections/StatsSection'
 import SettingsSection from './sections/SettingsSection'
 import CategoriesPage from './sections/settings/CategoriesPage'
@@ -137,6 +138,7 @@ function AdminShellInner({ user }) {
                 <Route path="reservation/report" element={<ReservationsReportPage bookings={bookings} bookingActions={bookingActions} />} />
                 <Route path="reservation/:roomId" element={<RoomPanel rooms={rooms} bookings={bookings} bookingActions={bookingActions} variants={variants} />} />
                 <Route path="calendar" element={<CalendarSection bookings={bookings} rooms={rooms} />} />
+                <Route path="customers" element={<CustomersSection bookings={bookings} bookingActions={bookingActions} />} />
                 <Route path="stats" element={<StatsSection rooms={rooms} bookings={bookings} />} />
                 <Route path="settings" element={<SettingsSection hikeApps={hikeApps} />} />
                 <Route path="settings/categories" element={<CategoriesPage variants={variants} rooms={rooms} />} />

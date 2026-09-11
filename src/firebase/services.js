@@ -307,8 +307,37 @@ export async function countAvailableUnitsForVariant(roomType, roomCapacity, chec
 //              extra nights when a stay is extended). Payments with no
 //              `ledger` field are treated as room payments (legacy/deposit).
 //   • extras — pays down the `charges` (the restaurant bill, etc.).
+// ─── Discounts ─────────────────────────────────────────────
+// A per-booking percentage off the ROOM price only (extra charges stay full
+// price). Kept as its own `discountPercent` field rather than baked into
+// `totalPrice`, since totalPrice is recomputed from the room-lines on every
+// room edit and would silently drop a baked-in discount.
+export const DISCOUNT_OPTIONS = [0, 10, 25, 50]
+
+export function discountAmountOf(booking) {
+  const gross = Number(booking?.totalPrice) || 0
+  const pct = Number(booking?.discountPercent) || 0
+  return Math.round(gross * pct / 100)
+}
+
+// The room price after discount, or null when no price has been set yet.
+export function netRoomTotal(booking) {
+  if (booking?.totalPrice == null) return null
+  return (Number(booking.totalPrice) || 0) - discountAmountOf(booking)
+}
+
+export async function updateBookingDiscount(bookingId, percent) {
+  if (!bookingId) throw new Error('INVALID_BOOKING_DATA')
+  const pct = Number(percent) || 0
+  if (!DISCOUNT_OPTIONS.includes(pct)) throw new Error('INVALID_DISCOUNT')
+  await updateDoc(doc(db, 'bookings', bookingId), { discountPercent: pct, updatedAt: Timestamp.now() })
+}
+
 export function computeBookingFinance(booking) {
-  const roomTotal = Number(booking?.totalPrice) || 0
+  const roomGross       = Number(booking?.totalPrice) || 0
+  const discountPercent = Number(booking?.discountPercent) || 0
+  const discountAmount  = discountAmountOf(booking)
+  const roomTotal       = roomGross - discountAmount
   const charges   = Array.isArray(booking?.charges)  ? booking.charges  : []
   const payments  = Array.isArray(booking?.payments) ? booking.payments : []
   const chargesTotal = charges.reduce((s, c) => s + (Number(c?.amount) || 0), 0)
@@ -331,6 +360,7 @@ export function computeBookingFinance(booking) {
   else if (paidTotal > 0) paymentStatus = 'partial'
 
   return {
+    roomGross, discountPercent, discountAmount,
     roomTotal, chargesTotal, grandTotal,
     roomPaid, extrasPaid, paidTotal,
     roomBalance, extrasBalance, balance,
@@ -545,6 +575,46 @@ export async function assignRoomLine(bookingId, lineId, roomId) {
   })
 }
 
+// Move a room-line to a new room and/or new dates in one step — what the
+// calendar's drag-and-drop does. Unlike assignRoomLine, a room of a different
+// type/capacity is allowed: the line simply takes on the new room's type.
+// The price is left as it was (staff can re-price afterwards). The target
+// must be free across the new window, excluding this very line, so sliding a
+// stay a day or two within its own current dates works.
+export async function moveBookingRoomLine(bookingId, lineId, { roomId, checkIn, checkOut }) {
+  if (!bookingId || !lineId || !roomId) throw new Error('INVALID_MOVE_DATA')
+  const ci = toDateStr(checkIn), co = toDateStr(checkOut)
+  if (!(new Date(ci) < new Date(co))) throw new Error('INVALID_DATES')
+  const all = await fetchAllBookings()
+  return mutateBookingRooms(bookingId, async (rooms, booking, tx) => {
+    const idx = rooms.findIndex(r => r.lineId === lineId)
+    if (idx < 0) throw new Error('LINE_NOT_FOUND')
+    const line = rooms[idx]
+    const roomSnap = await tx.get(doc(db, 'rooms', roomId))
+    if (!roomSnap.exists()) throw new Error('ROOM_NOT_FOUND')
+    const room = roomSnap.data()
+    if (isRoomBlockedInRange(room, new Date(ci), new Date(co))) throw new RoomUnavailableError()
+    if (roomLineConflict(all, roomId, ci, co, bookingId, lineId)) throw new RoomUnavailableError()
+    const roomChanged = roomId !== line.roomId
+    let roomFields = {}
+    if (roomChanged) {
+      const variantSnap = await tx.get(doc(db, 'variants', `${room.type}-${room.capacity}`))
+      const variant = variantSnap.exists() ? variantSnap.data() : null
+      roomFields = {
+        roomId,
+        roomNumber:   room.number ?? null,
+        roomType:     room.type ?? line.roomType,
+        roomCapacity: room.capacity != null ? Number(room.capacity) : line.roomCapacity,
+        roomNameAr:   variant?.nameAr ?? null,
+        roomNameEn:   variant?.nameEn ?? null,
+      }
+    }
+    const copy = rooms.slice()
+    copy[idx] = { ...line, ...roomFields, checkIn: ci, checkOut: co, nights: nightsBetween(ci, co) }
+    return copy
+  })
+}
+
 // Free the concrete room from a line, keeping its variant so it can be re-assigned.
 export async function unassignRoomLine(bookingId, lineId) {
   return mutateBookingRooms(bookingId, (rooms) => {
@@ -694,8 +764,9 @@ export function buildWhatsAppUrl(booking, language = 'ar') {
   const nights = Math.ceil(
     (new Date(booking.checkOut) - new Date(booking.checkIn)) / (1000 * 60 * 60 * 24)
   )
-  const priceStr = booking.totalPrice != null ? `${booking.totalPrice}` : 'سيُحدد لاحقاً'
-  const priceStrEn = booking.totalPrice != null ? `${booking.totalPrice}` : 'To be confirmed'
+  const netPrice = netRoomTotal(booking)
+  const priceStr = netPrice != null ? `${netPrice}` : 'سيُحدد لاحقاً'
+  const priceStrEn = netPrice != null ? `${netPrice}` : 'To be confirmed'
 
   const bookingRef = booking.bookingNumber != null
     ? `#${formatBookingNumber(booking.bookingNumber)}`
@@ -902,8 +973,10 @@ export function buildCustomerConfirmMessage(booking, language = 'ar') {
     ((booking.checkOut?.toDate ? booking.checkOut.toDate() : new Date(booking.checkOut))
    - (booking.checkIn?.toDate  ? booking.checkIn.toDate()  : new Date(booking.checkIn))) / 86400000
   ))
-  const priceStrAr = booking.totalPrice != null ? `${booking.totalPrice}` : 'سيُحدد لاحقاً'
-  const priceStrEn = booking.totalPrice != null ? `${booking.totalPrice}` : 'To be confirmed'
+  const net = netRoomTotal(booking)
+  const pct = Number(booking.discountPercent) || 0
+  const priceStrAr = net != null ? `${net}${pct ? ` (بعد خصم ${pct}%)` : ''}` : 'سيُحدد لاحقاً'
+  const priceStrEn = net != null ? `${net}${pct ? ` (after ${pct}% discount)` : ''}` : 'To be confirmed'
   const ref = booking.bookingNumber != null
     ? `#${formatBookingNumber(booking.bookingNumber)}`
     : (booking.id || booking.bookingId || '')

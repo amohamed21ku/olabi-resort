@@ -1,7 +1,7 @@
 import {
   FiLayers, FiUsers, FiHome, FiClock, FiCreditCard, FiTrendingDown,
 } from 'react-icons/fi'
-import { computeBookingFinance } from '../services'
+import { computeBookingFinance, netRoomTotal } from '../services'
 import { bookingRoomsInfo } from '../utils/bookingHelpers'
 import { monthlyRevenue, statusBreakdown, revenueByCategory } from '../utils/statsHelpers'
 import StatCard from '../components/StatCard'
@@ -17,7 +17,7 @@ export default function StatsSection({ rooms, bookings }) {
   const occupied   = bookings.filter(b => ['confirmed', 'checked-in'].includes(b.status)).length
   const pending    = bookings.filter(b => b.status === 'pending').length
   const unassigned = bookings.filter(b => bookingRoomsInfo(b).anyUnassigned && !['cancelled', 'checked-out'].includes(b.status)).length
-  const revenue    = bookings.filter(b => b.status !== 'cancelled').reduce((s, b) => s + (b.totalPrice || 0), 0)
+  const revenue    = bookings.filter(b => b.status !== 'cancelled').reduce((s, b) => s + (netRoomTotal(b) || 0), 0)
   const outstanding = bookings
     .filter(b => b.status !== 'cancelled')
     .reduce((s, b) => s + Math.max(0, computeBookingFinance(b).balance), 0)

@@ -6,6 +6,7 @@ import Button from '../../components/Button'
 import Modal from '../../components/Modal'
 import Picker from '../../components/Picker'
 import { Field } from '../../components/FormCard'
+import DiscountPicker from '../../components/DiscountPicker'
 import { roomCandidatesForLine, fmtDateShort, variantPrice } from '../../utils/bookingHelpers'
 import { useGuardWhile } from '../../hooks/useNavGuard'
 
@@ -26,9 +27,14 @@ export default function CreateReservationModal({ rooms, bookings, variants, onCl
   const [guests, setGuests] = useState('1')
   const [lines, setLines] = useState([]) // [{ _key, roomId, roomNumber, roomType, roomCapacity, roomNameAr, checkIn, checkOut, price }]
   const [addOpen, setAddOpen] = useState(false)
+  const [discount, setDiscount] = useState(0)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   useGuardWhile(guestName.trim() !== '' || guestPhone.trim() !== '' || lines.length > 0)
+  // One discount for the whole reservation, off the sum of its room prices.
+  const pricedLines = lines.filter(l => l.price != null)
+  const roomsTotal = pricedLines.reduce((s, l) => s + l.price, 0)
+  const discountAmount = Math.round(roomsTotal * discount / 100)
 
   const addLine = (line) => { setLines(ls => [...ls, { ...line, _key: `${Date.now()}-${ls.length}` }]); setAddOpen(false) }
   const removeLine = (key) => setLines(ls => ls.filter(l => l._key !== key))
@@ -45,6 +51,7 @@ export default function CreateReservationModal({ rooms, bookings, variants, onCl
         guests: Number(guests) || 1,
         source: 'walk-in',
         status: 'confirmed',
+        discountPercent: discount,
         rooms: lines.map(l => ({
           roomId: l.roomId, roomNumber: l.roomNumber, roomType: l.roomType, roomCapacity: l.roomCapacity,
           roomNameAr: l.roomNameAr, checkIn: l.checkIn, checkOut: l.checkOut, price: l.price,
@@ -99,6 +106,17 @@ export default function CreateReservationModal({ rooms, bookings, variants, onCl
               </div>
             )}
           </div>
+
+          <Field label="الخصم (على أسعار الغرف)">
+            <DiscountPicker value={discount} onChange={setDiscount} />
+            {pricedLines.length > 0 && (
+              <span style={{ fontSize: 12, fontWeight: 600, color: discount ? 'var(--adm-tone-good-text)' : 'var(--muted)' }}>
+                {discount
+                  ? `إجمالي الغرف بعد الخصم: $${roomsTotal - discountAmount} (بدلاً من $${roomsTotal})`
+                  : `إجمالي الغرف: $${roomsTotal}`}
+              </span>
+            )}
+          </Field>
 
           {error && <div className="adm-field-error"><FiAlertCircle size={13} /> {error}</div>}
         </div>

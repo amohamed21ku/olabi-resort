@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useParams, useSearchParams, Link } from 'react-router-dom'
 import { useLanguage } from '../App'
 import { t } from '../translations'
-import { getBookingById, buildWhatsAppUrl, formatBookingNumber, getBookingRooms } from '../firebase/services'
+import { getBookingById, buildWhatsAppUrl, formatBookingNumber, getBookingRooms, netRoomTotal } from '../firebase/services'
 import Seo from '../components/Seo'
 import { FiCheck, FiHome, FiMessageCircle, FiChevronDown, FiChevronUp, FiX } from 'react-icons/fi'
 
@@ -295,7 +295,9 @@ export default function ConfirmationPage() {
                 { label: tr('booking_checkOut'), value: formatDate(booking.checkOut) },
                 { label: tr('booking_nights'),   value: booking.nights },
                 { label: tr('booking_guests'),   value: booking.guests },
-                { label: tr('booking_total'),    value: booking.totalPrice != null ? `${booking.totalPrice}` : (isRTL ? 'عند الطلب' : 'On Request') },
+                { label: tr('booking_total'),    value: booking.totalPrice != null
+                  ? `${netRoomTotal(booking)}${Number(booking.discountPercent) > 0 ? (isRTL ? ` (بعد خصم ${booking.discountPercent}%)` : ` (after ${booking.discountPercent}% discount)`) : ''}`
+                  : (isRTL ? 'عند الطلب' : 'On Request') },
               ]})().map(({ label, value }) => (
                 <div key={label} style={{
                   display: 'flex',

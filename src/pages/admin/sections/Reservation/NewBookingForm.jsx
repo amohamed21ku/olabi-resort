@@ -5,6 +5,7 @@ import { CATEGORY_LABEL_AR } from '../../constants'
 import { variantPrice } from '../../utils/bookingHelpers'
 import Button from '../../components/Button'
 import { Field } from '../../components/FormCard'
+import DiscountPicker from '../../components/DiscountPicker'
 import { useGuardWhile } from '../../hooks/useNavGuard'
 
 function todayStr() { return new Date().toISOString().split('T')[0] }
@@ -35,9 +36,12 @@ export default function NewBookingForm({ room, variants, onCreated, minCheckIn }
     const p = variantPrice(variants || [], room.type, room.capacity)
     return p != null ? String(p) : ''
   })
+  const [discount, setDiscount] = useState(0)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   useGuardWhile(guestName.trim() !== '' || guestPhone.trim() !== '')
+  const priceNum = price === '' ? null : Number(price)
+  const discounted = priceNum != null && discount ? priceNum - Math.round(priceNum * discount / 100) : null
 
   const submit = async (e) => {
     e.preventDefault()
@@ -54,6 +58,7 @@ export default function NewBookingForm({ room, variants, onCreated, minCheckIn }
         checkIn, checkOut,
         source: 'walk-in',
         status: 'confirmed',
+        discountPercent: discount,
         rooms: [{
           roomId: room.id,
           roomNumber: room.number,
@@ -85,6 +90,14 @@ export default function NewBookingForm({ room, variants, onCreated, minCheckIn }
         <Field label="الوصول"><input type="date" className="adm-input" value={checkIn} min={minCheckIn || undefined} onChange={e => setCheckIn(e.target.value)} /></Field>
         <Field label="المغادرة"><input type="date" className="adm-input" value={checkOut} min={checkIn} onChange={e => setCheckOut(e.target.value)} /></Field>
         <Field label="السعر (اختياري) $"><input type="number" min={0} className="adm-input" value={price} onChange={e => setPrice(e.target.value)} placeholder="0" /></Field>
+        <Field label="الخصم">
+          <DiscountPicker value={discount} onChange={setDiscount} />
+          {discounted != null && (
+            <span style={{ fontSize: 12, color: 'var(--adm-tone-good-text)', fontWeight: 600 }}>
+              السعر بعد الخصم: ${discounted} (بدلاً من ${priceNum})
+            </span>
+          )}
+        </Field>
       </div>
       {error && <div className="adm-field-error"><FiAlertCircle size={13} /> {error}</div>}
       <Button type="submit" variant="primary" icon={<FiPlusCircle size={15} />} disabled={busy}>

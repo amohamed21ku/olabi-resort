@@ -1,6 +1,6 @@
 import { useState } from 'react'
-import { FiCheck, FiAlertCircle, FiUser, FiHome } from 'react-icons/fi'
-import { formatBookingNumber, computeBookingFinance, updateBookingGuestInfo, updateBookingRoomLine, getBookingRooms } from '../../services'
+import { FiCheck, FiAlertCircle, FiHome } from 'react-icons/fi'
+import { formatBookingNumber, computeBookingFinance, updateBookingRoomLine, getBookingRooms } from '../../services'
 import { CATEGORY_LABEL_AR, CATEGORY_OPTIONS } from '../../constants'
 import Modal from '../../components/Modal'
 import { Card, CardHeader, CardBody } from '../../components/Card'
@@ -9,6 +9,7 @@ import { Field } from '../../components/FormCard'
 import DeleteBookingButton from '../../components/DeleteBookingButton'
 import { StatusBadge, PaymentStatusBadge } from '../../components/StatusBadge'
 import ConfirmBookingModal from './ConfirmBookingModal'
+import GuestInfoCard from './GuestInfoCard'
 
 // The one place a booking gets managed end-to-end from a compact popup —
 // used by the two lists that have no room of their own to link out to
@@ -62,54 +63,6 @@ export default function BookingDetailsModal({ booking: b, bookingActions, onClos
         />
       )}
     </>
-  )
-}
-
-function GuestInfoCard({ booking: b }) {
-  const [guestName, setGuestName]   = useState(b.guestName || '')
-  const [guestPhone, setGuestPhone] = useState(b.guestPhone || '')
-  const [guestEmail, setGuestEmail] = useState(b.guestEmail || '')
-  const [guests, setGuests]         = useState(String(b.guests || 1))
-  const [notes, setNotes]           = useState(b.notes || '')
-  const [dirty, setDirty]           = useState(false)
-  const [busy, setBusy]             = useState(false)
-  const [err, setErr]               = useState('')
-
-  const set = (setter) => (v) => { setter(v); setDirty(true) }
-
-  const save = async () => {
-    setBusy(true); setErr('')
-    try {
-      await updateBookingGuestInfo(b.id, { guestName, guestPhone, guestEmail, guests, notes })
-      setDirty(false)
-    } catch {
-      setErr('فشل حفظ معلومات الضيف')
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  return (
-    <Card>
-      <CardHeader icon={<FiUser size={14} color="var(--muted)" />}>معلومات الضيف</CardHeader>
-      <CardBody style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-          <Field label="الاسم"><input className="adm-input" value={guestName} onChange={e => set(setGuestName)(e.target.value)} /></Field>
-          <Field label="الهاتف"><input className="adm-input" value={guestPhone} onChange={e => set(setGuestPhone)(e.target.value)} /></Field>
-          <Field label="البريد الإلكتروني"><input className="adm-input" value={guestEmail} onChange={e => set(setGuestEmail)(e.target.value)} /></Field>
-          <Field label="عدد الأشخاص"><input type="number" min={1} className="adm-input" value={guests} onChange={e => set(setGuests)(e.target.value)} /></Field>
-        </div>
-        <Field label="ملاحظات">
-          <textarea className="adm-input" rows={2} value={notes} onChange={e => set(setNotes)(e.target.value)} style={{ resize: 'vertical' }} />
-        </Field>
-        {err && <div className="adm-field-error"><FiAlertCircle size={13} /> {err}</div>}
-        <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-          <Button variant="primary" size="sm" icon={<FiCheck size={13} />} disabled={!dirty || busy} onClick={save}>
-            {busy ? 'جارٍ الحفظ...' : 'حفظ معلومات الضيف'}
-          </Button>
-        </div>
-      </CardBody>
-    </Card>
   )
 }
 

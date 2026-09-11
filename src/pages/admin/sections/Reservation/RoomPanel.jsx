@@ -3,7 +3,7 @@ import { useParams, useNavigate, useSearchParams, useLocation } from 'react-rout
 import { useGuardedNavigate } from '../../hooks/useGuardedNavigate'
 import {
   FiChevronRight, FiMessageCircle, FiTrash2, FiUser, FiPhone, FiMail,
-  FiUsers, FiSliders, FiClock, FiMessageSquare, FiCalendar, FiHome, FiLogIn, FiLogOut, FiLock, FiUnlock,
+  FiUsers, FiSliders, FiClock, FiMessageSquare, FiCalendar, FiHome, FiLogIn, FiLogOut, FiLock, FiUnlock, FiEdit2,
 } from 'react-icons/fi'
 import {
   getBookingRooms, formatBookingNumber, buildCustomerWhatsAppUrl, computeBookingFinance,
@@ -23,6 +23,7 @@ import FolioPanel from '../../components/FolioPanel'
 import StageActionBar from './StageActionBar'
 import RoomsPanel from './RoomsPanel'
 import NewBookingForm from './NewBookingForm'
+import GuestInfoCard from './GuestInfoCard'
 
 // Whichever page linked into a room — the rooms board, Upcoming Arrivals, the
 // reservations report, or the calendar — passes its own path as router state
@@ -35,6 +36,7 @@ const BACK_LABELS = {
   '/admin/reservation/upcoming': 'رجوع إلى الوصول القادم',
   '/admin/reservation/report': 'رجوع إلى تقرير الحجوزات',
   '/admin/calendar': 'رجوع إلى التقويم',
+  '/admin/customers': 'رجوع إلى العملاء',
 }
 const DEFAULT_BACK = '/admin/reservation/rooms'
 
@@ -183,6 +185,7 @@ function OccupiedRoomPanel({ room, booking: b, rooms, bookings, bookingActions, 
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [confirmCheckOut, setConfirmCheckOut] = useState(null)
   const [bookNextOpen, setBookNextOpen] = useState(false)
+  const [editGuestOpen, setEditGuestOpen] = useState(false)
 
   const fin = computeBookingFinance(b)
   const roomLines = getBookingRooms(b)
@@ -273,8 +276,14 @@ function OccupiedRoomPanel({ room, booking: b, rooms, bookings, bookingActions, 
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           <Card>
-            <CardHeader icon={<FiUser size={14} color="var(--muted)" />}>معلومات الضيف</CardHeader>
+            <CardHeader
+              icon={<FiUser size={14} color="var(--muted)" />}
+              action={<Button variant="ghost" size="sm" icon={<FiEdit2 size={13} />} onClick={() => setEditGuestOpen(true)}>تعديل</Button>}
+            >
+              معلومات الضيف
+            </CardHeader>
             <CardBody style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <InfoItem icon={<FiUser size={13} />} label="الاسم" value={b.guestName} />
               <InfoItem icon={<FiPhone size={13} />} label="الهاتف" value={b.guestPhone} />
               {b.guestEmail && <InfoItem icon={<FiMail size={13} />} label="البريد" value={b.guestEmail} />}
               <InfoItem icon={<FiUsers size={13} />} label="الأشخاص" value={`${b.guests} ضيف`} />
@@ -297,6 +306,12 @@ function OccupiedRoomPanel({ room, booking: b, rooms, bookings, bookingActions, 
           </Card>
         </div>
       </div>
+
+      {editGuestOpen && (
+        <Modal open wide title="تعديل معلومات الضيف" onClose={() => setEditGuestOpen(false)}>
+          <GuestInfoCard booking={b} onSaved={() => setEditGuestOpen(false)} />
+        </Modal>
+      )}
 
       {bookNextOpen && (
         <Modal open wide title="حجز جديد لهذه الغرفة بعد هذه الإقامة" onClose={() => setBookNextOpen(false)}>

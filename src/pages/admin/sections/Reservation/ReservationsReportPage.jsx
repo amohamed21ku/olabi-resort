@@ -1,7 +1,7 @@
 import { useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { FiChevronRight, FiChevronLeft, FiPrinter, FiFileText } from 'react-icons/fi'
-import { formatBookingNumber, getBookingRooms } from '../../services'
+import { formatBookingNumber, getBookingRooms, netRoomTotal } from '../../services'
 import { roomsLabel } from '../../utils/bookingHelpers'
 import { readToneColors } from '../../utils/printColors'
 import { STATUS } from '../../constants'
@@ -229,7 +229,12 @@ export default function ReservationsReportPage({ bookings, bookingActions }) {
                           {st.label}
                         </span>
                       </td>
-                      <td style={cellStyle}>{b.totalPrice != null ? b.totalPrice : 'عند الطلب'}</td>
+                      <td style={cellStyle}>
+                        {b.totalPrice != null ? netRoomTotal(b) : 'عند الطلب'}
+                        {b.totalPrice != null && Number(b.discountPercent) > 0 && (
+                          <span style={badgeStyle(toneColors.good)}>خصم {b.discountPercent}%</span>
+                        )}
+                      </td>
                     </tr>
                   )
                 })}

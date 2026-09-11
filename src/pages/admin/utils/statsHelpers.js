@@ -1,7 +1,7 @@
 // Pure aggregation helpers for the Statistics page's trend charts. No React,
 // no Firestore access — just array-in, chart-data-out, operating on the same
 // `bookings` array already loaded by useAdminData().
-import { getBookingRooms } from '../services'
+import { getBookingRooms, netRoomTotal } from '../services'
 import { STATUS, CATEGORY_LABEL_AR } from '../constants'
 
 const AR_MONTHS = ['كانون الثاني', 'شباط', 'آذار', 'نيسان', 'أيار', 'حزيران', 'تموز', 'آب', 'أيلول', 'تشرين الأول', 'تشرين الثاني', 'كانون الأول']
@@ -24,7 +24,7 @@ export function monthlyRevenue(bookings) {
     const key = `${date.getFullYear()}-${date.getMonth()}`
     const label = `${AR_MONTHS[date.getMonth()]} ${date.getFullYear()}`
     const entry = buckets.get(key) || { label, value: 0, sortKey: date.getFullYear() * 12 + date.getMonth() }
-    entry.value += Number(b.totalPrice) || 0
+    entry.value += netRoomTotal(b) || 0 // after any discount
     buckets.set(key, entry)
   }
   return [...buckets.values()].sort((a, b) => a.sortKey - b.sortKey).map(({ label, value }) => ({ label, value }))
@@ -47,10 +47,13 @@ export function revenueByCategory(bookings) {
   const totals = new Map() // roomType -> { value, count }
   for (const b of bookings) {
     if (b.status === 'cancelled') continue
+    // The booking's discount is a % off its whole room total, so it takes the
+    // same % off each line's share.
+    const keep = 1 - (Number(b.discountPercent) || 0) / 100
     for (const line of getBookingRooms(b)) {
       if (!line.roomType) continue
       const entry = totals.get(line.roomType) || { value: 0, count: 0 }
-      entry.value += Number(line.price) || 0
+      entry.value += Math.round((Number(line.price) || 0) * keep)
       entry.count += 1
       totals.set(line.roomType, entry)
     }

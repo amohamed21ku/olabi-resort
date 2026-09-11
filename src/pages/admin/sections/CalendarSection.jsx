@@ -1,10 +1,10 @@
 import { useState, useRef, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { FiChevronRight, FiChevronLeft, FiPrinter, FiGrid } from 'react-icons/fi'
+import { FiChevronRight, FiChevronLeft, FiPrinter, FiGrid, FiMove, FiX } from 'react-icons/fi'
 import Button from '../components/Button'
 import EmptyState from '../components/EmptyState'
 import { STATUS, CATEGORY_LABEL_AR } from '../constants'
-import { getBookingRooms } from '../services'
+import { getBookingRooms, moveBookingRoomLine, roomLineConflict, isRoomBlockedInRange } from '../services'
 import { readToneColors } from '../utils/printColors'
 
 const CAL_DAYS = 7
@@ -20,6 +20,13 @@ export default function CalendarSection({ bookings, rooms }) {
   const [anchor, setAnchor] = useState(() => new Date(new Date().toISOString().split('T')[0]))
   const [view, setView] = useState('week') // 'week' | 'month'
   const gridRef = useRef(null)
+  const tbodyRef = useRef(null)
+  // Drag-and-drop: the bar being dragged + the day row it was grabbed at,
+  // a live preview of where a drop would land, and the result of the last move.
+  const dragRef = useRef(null)
+  const [hint, setHint] = useState(null) // { roomIdx, row, plan } while dragging
+  const [moveBusy, setMoveBusy] = useState(false)
+  const [moveMsg, setMoveMsg] = useState(null) // { ok, text }
 
   const toneColors = useMemo(readToneColors, [])
   const statusColors = useMemo(() => Object.fromEntries(
@@ -141,6 +148,88 @@ export default function CalendarSection({ bookings, rooms }) {
     setTimeout(() => w.print(), 350)
   }
 
+  // ── Drag-and-drop ─────────────────────────────────────────────────────
+  // The day row under the pointer, found from the <tbody> rows' own boxes —
+  // exact even over a rowSpan bar, whose single <td> covers several rows.
+  const rowAtY = (y) => {
+    const rows = tbodyRef.current?.rows
+    if (!rows?.length) return 0
+    for (let i = 0; i < rows.length; i++) {
+      if (y < rows[i].getBoundingClientRect().bottom) return i
+    }
+    return rows.length - 1
+  }
+  // YYYY-MM-DD shifted by whole days, in UTC so no timezone can roll it.
+  const shiftDay = (str, n) => {
+    const d = new Date(str)
+    d.setUTCDate(d.getUTCDate() + n)
+    return d.toISOString().split('T')[0]
+  }
+  const fmtDay = (str) => new Date(str).toLocaleDateString('ar-SY', { day: 'numeric', month: 'short' })
+
+  // Where a drop at (roomIdx, row) would put the dragged line. Dates move by
+  // how many rows the pointer travelled from where the bar was grabbed, not to
+  // an absolute date — so nights are kept, and a bar clipped by the visible
+  // week/month still shifts from its real check-in, not its visible edge.
+  const planMove = (drag, roomIdx, row) => {
+    const room = sortedRooms[roomIdx]
+    const delta = row - drag.grabRow
+    const ci = shiftDay(dayStr(drag.line.checkIn), delta)
+    const co = shiftDay(dayStr(drag.line.checkOut), delta)
+    const noop = delta === 0 && room.id === drag.line.roomId
+    const blocked = isRoomBlockedInRange(room, new Date(ci), new Date(co))
+    const conflict = !noop && (blocked || roomLineConflict(bookings, room.id, ci, co, drag.booking.id, drag.line.lineId))
+    return { room, ci, co, noop, conflict, blocked }
+  }
+
+  const onBarDragStart = (e, booking, line) => {
+    dragRef.current = { booking, line, grabRow: rowAtY(e.clientY) }
+    e.dataTransfer.effectAllowed = 'move'
+    e.dataTransfer.setData('text/plain', booking.id) // required for Firefox to start the drag
+    setMoveMsg(null)
+  }
+  const onBarDragEnd = () => { dragRef.current = null; setHint(null) }
+
+  const targetOf = (e) => {
+    const td = e.target.closest?.('td[data-room-idx]')
+    return td ? { roomIdx: Number(td.dataset.roomIdx), row: rowAtY(e.clientY) } : null
+  }
+  const onGridDragOver = (e) => {
+    const drag = dragRef.current
+    const t = drag && targetOf(e)
+    if (!t) return
+    e.preventDefault()
+    e.dataTransfer.dropEffect = 'move'
+    if (hint && hint.roomIdx === t.roomIdx && hint.row === t.row) return
+    setHint({ ...t, plan: planMove(drag, t.roomIdx, t.row) })
+  }
+  const onGridDrop = async (e) => {
+    const drag = dragRef.current
+    const t = drag && targetOf(e)
+    dragRef.current = null
+    setHint(null)
+    if (!t) return
+    e.preventDefault()
+    const plan = planMove(drag, t.roomIdx, t.row)
+    if (plan.noop) return
+    const what = `«${drag.booking.guestName}» إلى غرفة ${plan.room.number} · ${fmtDay(plan.ci)} ← ${fmtDay(plan.co)}`
+    if (plan.conflict) {
+      setMoveMsg({ ok: false, text: `تعذّر نقل ${what} — الغرفة ${plan.blocked ? 'محظورة' : 'محجوزة'} في هذه الفترة.` })
+      return
+    }
+    setMoveBusy(true)
+    try {
+      await moveBookingRoomLine(drag.booking.id, drag.line.lineId, { roomId: plan.room.id, checkIn: plan.ci, checkOut: plan.co })
+      setMoveMsg({ ok: true, text: `تم نقل ${what}.` })
+    } catch (err) {
+      setMoveMsg({ ok: false, text: err?.code === 'ROOM_UNAVAILABLE'
+        ? `تعذّر نقل ${what} — الغرفة محجوزة أو محظورة في هذه الفترة.`
+        : `تعذّر نقل الحجز: ${err?.message || ''}` })
+    } finally {
+      setMoveBusy(false)
+    }
+  }
+
   // Both views lay days out as rows and rooms as columns. A booking spans
   // rowSpan rows down its room's column; `skip[roomIdx]` tracks how many
   // upcoming rows are still covered by an earlier row's rowSpan for that
@@ -164,9 +253,17 @@ export default function CalendarSection({ bookings, rooms }) {
           const b = seg.booking
           const c = statusColors[b.status] || statusColors.confirmed
           const s = STATUS[b.status] || STATUS.confirmed
+          // Checked-out stays are history — they can still be opened, not moved.
+          const movable = b.status !== 'checked-out'
+          const line = seg.line
           cells.push(
-            <td key={sortedRooms[r].id} rowSpan={seg.len} onClick={() => navigate(`/admin/reservation/${sortedRooms[r].id}?bookingId=${b.id}`, { state: { from: '/admin/calendar' } })}
-              style={{ border: '1px solid var(--border)', padding: 2, cursor: 'pointer', verticalAlign: 'middle', background: '#fff' }}>
+            <td key={sortedRooms[r].id} rowSpan={seg.len} data-room-idx={r}
+              draggable={movable && !moveBusy}
+              onDragStart={movable ? (e) => onBarDragStart(e, b, line) : undefined}
+              onDragEnd={movable ? onBarDragEnd : undefined}
+              onClick={() => navigate(`/admin/reservation/${sortedRooms[r].id}?bookingId=${b.id}`, { state: { from: '/admin/calendar' } })}
+              title={movable ? 'اسحب لنقل الحجز إلى تاريخ أو غرفة أخرى' : undefined}
+              style={{ border: '1px solid var(--border)', padding: 2, cursor: movable ? 'grab' : 'pointer', verticalAlign: 'middle', background: '#fff' }}>
               <div title={`${b.guestName} · ${s.label}`}
                 style={{ background: c.bg, border: `1px solid ${c.border}`, borderTop: `3px solid ${c.text}`, borderRadius: 4, padding: compact ? '3px 4px' : '6px 8px', overflow: 'hidden' }}>
                 <div style={{ fontSize: compact ? 9 : 12.5, fontWeight: 700, color: c.text, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{b.guestName}</div>
@@ -175,7 +272,19 @@ export default function CalendarSection({ bookings, rooms }) {
             </td>
           )
         } else {
-          cells.push(<td key={sortedRooms[r].id} style={{ border: '1px solid var(--border)', background: isToday ? 'var(--adm-tone-good-bg)' : '#fff' }} />)
+          // While dragging, tint the empty cells a drop here would land on —
+          // green if free, red if the new window clashes with something.
+          const landing = hint && r === hint.roomIdx && !hint.plan.noop && ds >= hint.plan.ci && ds < hint.plan.co
+          const tone = landing ? (hint.plan.conflict ? 'bad' : 'good') : null
+          cells.push(
+            <td key={sortedRooms[r].id} data-room-idx={r}
+              style={{
+                border: '1px solid var(--border)',
+                background: tone ? `var(--adm-tone-${tone}-bg)` : isToday ? 'var(--adm-tone-good-bg)' : '#fff',
+                outline: tone ? `2px dashed var(--adm-tone-${tone}-border)` : undefined,
+                outlineOffset: -3,
+              }} />
+          )
         }
       }
       rows.push(
@@ -223,6 +332,32 @@ export default function CalendarSection({ bookings, rooms }) {
         </div>
       </div>
 
+      {/* Always-present, fixed-height status line: a live preview of the drop
+          while dragging, the outcome of the last move after one, and a hint
+          otherwise. It must never appear/disappear or wrap mid-drag — that
+          would shift the grid under the pointer and land the drop on the
+          wrong day, since the drop row is read from live row positions. */}
+      {sortedRooms.length > 0 && (() => {
+        const p = hint?.plan
+        const tone = hint ? (p.noop ? 'info' : p.conflict ? 'bad' : 'good') : moveMsg ? (moveMsg.ok ? 'good' : 'bad') : 'muted'
+        const text = hint
+          ? (p.noop
+            ? 'أفلِت في مكان آخر لنقل الحجز'
+            : `نقل «${dragRef.current?.booking.guestName ?? ''}» إلى غرفة ${p.room.number} · ${fmtDay(p.ci)} ← ${fmtDay(p.co)}${p.conflict ? ` — الغرفة ${p.blocked ? 'محظورة' : 'محجوزة'} في هذه الفترة` : ''}`)
+          : moveMsg ? moveMsg.text : 'اسحب أي حجز وأفلته على تاريخ أو غرفة أخرى لنقله.'
+        return (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, height: 42, boxSizing: 'border-box', padding: '0 14px', borderRadius: 10, fontSize: 13, fontWeight: 600, border: `1.5px solid var(--adm-tone-${tone}-border)`, background: `var(--adm-tone-${tone}-bg)`, color: `var(--adm-tone-${tone}-text)` }}>
+            <FiMove size={14} style={{ flexShrink: 0 }} />
+            <span style={{ flex: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{moveBusy ? 'جارٍ نقل الحجز...' : text}</span>
+            {!hint && moveMsg && !moveBusy && (
+              <button type="button" onClick={() => setMoveMsg(null)} title="إغلاق" style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', display: 'flex', padding: 2 }}>
+                <FiX size={15} />
+              </button>
+            )}
+          </div>
+        )
+      })()}
+
       {sortedRooms.length === 0 ? (
         <EmptyState icon={<FiGrid size={28} />} text="لا توجد غرف لعرضها." />
       ) : (
@@ -230,7 +365,7 @@ export default function CalendarSection({ bookings, rooms }) {
         // a month has far too many days to sit as columns without horizontal
         // scrolling, and keeping the week identical means one layout to learn
         // (and one table to print) rather than two mirrored ones.
-        <div className="adm-card">
+        <div className="adm-card" style={moveBusy ? { opacity: 0.6, pointerEvents: 'none' } : undefined}>
           <div className="adm-table-wrap">
             <table ref={gridRef} style={{ width: '100%', minWidth: compact ? undefined : 90 + sortedRooms.length * 104, borderCollapse: 'collapse', tableLayout: 'fixed' }}>
               <colgroup>
@@ -250,7 +385,7 @@ export default function CalendarSection({ bookings, rooms }) {
                   ))}
                 </tr>
               </thead>
-              <tbody>
+              <tbody ref={tbodyRef} onDragOver={onGridDragOver} onDrop={onGridDrop}>
                 {renderBody()}
               </tbody>
             </table>
