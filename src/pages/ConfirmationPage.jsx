@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { useParams, useSearchParams, Link } from 'react-router-dom'
+import { useParams, useSearchParams, useLocation, Link } from 'react-router-dom'
 import { useLanguage } from '../App'
 import { t } from '../translations'
 import { getBookingById, buildWhatsAppUrl, formatBookingNumber, getBookingRooms, netRoomTotal } from '../firebase/services'
@@ -17,6 +17,10 @@ const STATUS_LABEL = {
 export default function ConfirmationPage() {
   const { bookingId }   = useParams()
   const [searchParams, setSearchParams] = useSearchParams()
+  const location        = useLocation()
+  // Guest details come from BookingPage via router state — the public can't
+  // read them back from Firestore. Absent when this page is opened directly.
+  const [guest] = useState(() => location.state?.guest || null)
   const { language, isRTL, withLang } = useLanguage()
   const tr = (key) => t(language, key)
 
@@ -33,10 +37,10 @@ export default function ConfirmationPage() {
 
   useEffect(() => {
     getBookingById(bookingId)
-      .then(b => setBooking(b))
+      .then(b => setBooking(b && { ...b, ...guest }))
       .catch(() => {})
       .finally(() => setLoading(false))
-  }, [bookingId])
+  }, [bookingId, guest])
 
   // Open WhatsApp with the notification message the moment the booking loads
   // (only if ?wa=1 was set by the booking flow) — no artificial delay, so
@@ -51,14 +55,14 @@ export default function ConfirmationPage() {
   useEffect(() => {
     if (!shouldAutoOpen || !booking || redirectedRef.current) return
     redirectedRef.current = true
-    setSearchParams({}, { replace: true })
+    setSearchParams({}, { replace: true, state: guest ? { guest } : undefined })
 
     const waUrl = buildWhatsAppUrl({ ...booking, bookingId }, language)
     const waTab = window.open(waUrl, '_blank', 'noopener,noreferrer')
     if (!waTab || waTab.closed || typeof waTab.closed === 'undefined') {
       setAutoOpenFailed(true)
     }
-  }, [booking, shouldAutoOpen, bookingId, language, setSearchParams])
+  }, [booking, shouldAutoOpen, bookingId, language, setSearchParams, guest])
 
   const formatDate = (d) => {
     try {

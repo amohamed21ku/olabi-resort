@@ -1,6 +1,6 @@
 import {
   collection, doc, addDoc, getDocs, getDoc, setDoc, updateDoc, deleteDoc,
-  query, where, orderBy, Timestamp, runTransaction,
+  query, where, orderBy, Timestamp, runTransaction, writeBatch, deleteField,
 } from 'firebase/firestore'
 import { db } from './config'
 
@@ -64,6 +64,58 @@ export async function getNextBookingNumber() {
     if (typeof n === 'number' && n > max) max = n
   })
   return max + 1
+}
+
+// ─── Guest personal details ───────────────────────────────
+// `bookings` has to stay publicly readable — the booking page computes
+// availability from every booking's room-lines — so a guest's personal details
+// live in a parallel admin-only doc, bookingGuests/{bookingId} (firestore.rules).
+// useAdminData merges the two back together, so admin screens keep reading
+// b.guestName etc. straight off the booking.
+export const GUEST_FIELDS = ['guestName', 'guestPhone', 'guestEmail', 'guestRegion', 'guestIdNumber', 'notes']
+
+export function splitGuestFields(data) {
+  const guest = {}, rest = {}
+  for (const [k, v] of Object.entries(data || {})) {
+    if (GUEST_FIELDS.includes(k)) guest[k] = v
+    else rest[k] = v
+  }
+  return { guest, rest }
+}
+
+// True when a booking doc still carries guest details on the public doc —
+// bookings created before the split.
+export function hasPublicGuestFields(booking) {
+  return GUEST_FIELDS.some(k => booking && k in booking)
+}
+
+// Write `patch` into bookingGuests/{id}, first moving over any guest fields
+// still on the public booking doc (and deleting them there). Values already in
+// bookingGuests win over that stale legacy copy. `bookingPatch` is applied to
+// the booking doc in the same transaction.
+export async function moveBookingGuestFields(bookingId, patch = {}, bookingPatch = {}) {
+  if (!bookingId) throw new Error('INVALID_BOOKING_DATA')
+  const bookingRef = doc(db, 'bookings', bookingId)
+  const guestRef   = doc(db, 'bookingGuests', bookingId)
+  await runTransaction(db, async (tx) => {
+    const snap      = await tx.get(bookingRef)
+    const guestSnap = await tx.get(guestRef)
+    if (!snap.exists()) throw new Error('BOOKING_NOT_FOUND')
+    const { guest: legacy } = splitGuestFields(snap.data())
+    const cleared = Object.fromEntries(Object.keys(legacy).map(k => [k, deleteField()]))
+    if (!Object.keys(legacy).length && !Object.keys(patch).length && !Object.keys(bookingPatch).length) return
+    tx.set(guestRef, { ...legacy, ...(guestSnap.exists() ? guestSnap.data() : {}), ...patch })
+    if (Object.keys(cleared).length || Object.keys(bookingPatch).length) {
+      tx.update(bookingRef, { ...bookingPatch, ...cleared })
+    }
+  })
+}
+
+export async function deleteBookingWithGuest(bookingId) {
+  const batch = writeBatch(db)
+  batch.delete(doc(db, 'bookings', bookingId))
+  batch.delete(doc(db, 'bookingGuests', bookingId))
+  await batch.commit()
 }
 
 // ─── Multi-room model ─────────────────────────────────────
@@ -231,9 +283,13 @@ export async function createBooking(bookingData) {
   const agg = recomputeBookingAggregates(rooms)
   const bookingRef = doc(collection(db, 'bookings'))
   const bookingNumber = await getNextBookingNumber()
-  const { rooms: _drop, roomId: _r, roomNumber: _n, roomType: _t, roomCapacity: _c, ...rest } = bookingData
+  const { rooms: _drop, roomId: _r, roomNumber: _n, roomType: _t, roomCapacity: _c, ...fields } = bookingData
+  const { guest, rest } = splitGuestFields(fields)
 
+  // Both docs in one write — the rules only let a visitor create the
+  // bookingGuests doc alongside its brand-new booking.
   await runTransaction(db, async (tx) => {
+    tx.set(doc(db, 'bookingGuests', bookingRef.id), guest)
     tx.set(bookingRef, {
       ...rest,
       rooms,
@@ -442,17 +498,20 @@ export async function getBookingById(bookingId) {
 // Guest-contact-level fields — separate from the room-line editing in
 // mutateBookingRooms/updateBookingRoomLine, since these don't touch rooms[]
 // or the derived checkIn/checkOut/nights/totalPrice aggregates at all.
+// The personal fields go to bookingGuests/{id}; only `guests` (a count, needed
+// by the public doc) stays on the booking.
 export async function updateBookingGuestInfo(bookingId, { guestName, guestPhone, guestEmail, guestRegion, guestIdNumber, guests, notes }) {
   if (!bookingId) throw new Error('INVALID_BOOKING_DATA')
+  const guest = {}
+  if (guestName != null)  guest.guestName  = guestName.trim()
+  if (guestPhone != null) guest.guestPhone = guestPhone.trim()
+  if (guestEmail != null) guest.guestEmail = guestEmail.trim()
+  if (guestRegion != null)   guest.guestRegion   = guestRegion.trim()
+  if (guestIdNumber != null) guest.guestIdNumber = guestIdNumber.trim()
+  if (notes != null)      guest.notes      = notes.trim()
   const data = { updatedAt: Timestamp.now() }
-  if (guestName != null)  data.guestName  = guestName.trim()
-  if (guestPhone != null) data.guestPhone = guestPhone.trim()
-  if (guestEmail != null) data.guestEmail = guestEmail.trim()
-  if (guestRegion != null)   data.guestRegion   = guestRegion.trim()
-  if (guestIdNumber != null) data.guestIdNumber = guestIdNumber.trim()
   if (guests != null)     data.guests     = Number(guests) || 1
-  if (notes != null)      data.notes      = notes.trim()
-  await updateDoc(doc(db, 'bookings', bookingId), data)
+  await moveBookingGuestFields(bookingId, guest, data)
 }
 
 export async function getBookingsForRoom(roomId) {
@@ -789,8 +848,8 @@ export function buildWhatsAppUrl(booking, language = 'ar') {
       `عدد الليالي: ${nights}\n` +
       `الضيوف: ${booking.guests}\n\n` +
       `*معلومات الضيف*\n` +
-      `الاسم: ${booking.guestName}\n` +
-      `الهاتف: ${booking.guestPhone}\n` +
+      `الاسم: ${booking.guestName || '—'}\n` +
+      `الهاتف: ${booking.guestPhone || '—'}\n` +
       `${booking.guestRegion ? `البلد/المحافظة: ${booking.guestRegion}\n` : ''}` +
       `${booking.guestIdNumber ? `رقم الهوية: ${booking.guestIdNumber}\n` : ''}` +
       `البريد: ${booking.guestEmail || 'لم يُذكر'}\n\n` +
@@ -807,8 +866,8 @@ export function buildWhatsAppUrl(booking, language = 'ar') {
       `Nights: ${nights}\n` +
       `Guests: ${booking.guests}\n\n` +
       `*Guest Info*\n` +
-      `Name: ${booking.guestName}\n` +
-      `Phone: ${booking.guestPhone}\n` +
+      `Name: ${booking.guestName || '—'}\n` +
+      `Phone: ${booking.guestPhone || '—'}\n` +
       `${booking.guestRegion ? `Country/Governorate: ${booking.guestRegion}\n` : ''}` +
       `${booking.guestIdNumber ? `ID Number: ${booking.guestIdNumber}\n` : ''}` +
       `Email: ${booking.guestEmail || 'Not provided'}\n\n` +

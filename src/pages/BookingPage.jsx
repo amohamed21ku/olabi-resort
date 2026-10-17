@@ -137,17 +137,22 @@ export default function BookingPage() {
         roomNameEn, roomNameAr,
         checkIn, checkOut, price: variant.price ? variant.price * nights : null,
       }))
-      const { id } = await createBooking({
-        rooms: roomLines,
-        checkIn, checkOut, nights, guests,
+      const guest = {
         guestName:  form.guestName.trim(),
         guestPhone: form.guestPhone.trim(),
         guestRegion:   form.guestRegion.trim(),
         guestIdNumber: form.guestIdNumber.trim(),
         guestEmail: form.guestEmail.trim(),
         notes:      form.notes.trim(),
+      }
+      const { id } = await createBooking({
+        rooms: roomLines,
+        checkIn, checkOut, nights, guests,
+        ...guest,
       })
-      navigate(withLang(`/confirmation/${id}?wa=1`))
+      // The guest's details are admin-only in Firestore, so the confirmation
+      // page gets them (for the greeting + WhatsApp message) via router state.
+      navigate(withLang(`/confirmation/${id}?wa=1`), { state: { guest } })
     } catch (err) {
       console.error('createBooking failed:', err?.code, err?.message, err)
       if (err?.code === 'ROOM_UNAVAILABLE' || err?.message === 'ROOM_UNAVAILABLE') {

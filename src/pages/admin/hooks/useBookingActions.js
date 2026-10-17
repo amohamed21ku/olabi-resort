@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import {
-  doc, updateDoc, deleteDoc, db,
-  checkInBooking, checkOutBooking, computeBookingFinance,
+  doc, updateDoc, db,
+  checkInBooking, deleteBookingWithGuest, checkOutBooking, computeBookingFinance,
 } from '../services'
 
 // Shared booking-action handlers (status change, delete, check-in/out, and
@@ -45,7 +45,7 @@ export function useBookingActions() {
   // Caller is responsible for confirming with the user first (ConfirmDialog).
   const deleteBooking = async (b) => {
     setDeleting(true)
-    try { await deleteDoc(doc(db, 'bookings', b.id)); return true }
+    try { await deleteBookingWithGuest(b.id); return true }
     catch { setStageErr('فشل الحذف'); return false }
     finally { setDeleting(false) }
   }
