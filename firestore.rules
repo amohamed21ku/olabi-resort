@@ -16,17 +16,25 @@ service cloud.firestore {
       ];
     }
 
+    // Guest personal details — kept in bookingGuests, never on a public booking.
+    function hasGuestFields() {
+      return request.resource.data.keys().hasAny(
+        ['guestName', 'guestPhone', 'guestEmail', 'guestRegion', 'guestIdNumber', 'notes']);
+    }
+
     // Room inventory + customer-facing listings — public read, admin write.
     match /rooms/{id}    { allow read: if true; allow write: if isAdmin(); }
     match /variants/{id} { allow read: if true; allow write: if isAdmin(); }
 
     // Bookings — public read, because the booking page computes availability
     // from every booking's room-lines. So guest personal details never go
-    // here; they live in bookingGuests/{id} below. Only admins may change or
-    // delete a booking.
+    // here — any write that would leave them on the doc is refused; they live
+    // in bookingGuests/{id} below. Only admins may change or delete a booking.
     match /bookings/{id} {
-      allow read, create: if true;
-      allow update, delete: if isAdmin();
+      allow read: if true;
+      allow create: if !hasGuestFields();
+      allow update: if isAdmin() && !hasGuestFields();
+      allow delete: if isAdmin();
     }
 
     // Guest personal details for bookings/{id} (name, phone, email, region,
