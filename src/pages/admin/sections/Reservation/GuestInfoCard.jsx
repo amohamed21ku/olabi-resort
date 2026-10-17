@@ -13,6 +13,8 @@ export default function GuestInfoCard({ booking: b, onSaved }) {
   const [guestName, setGuestName]   = useState(b.guestName || '')
   const [guestPhone, setGuestPhone] = useState(b.guestPhone || '')
   const [guestEmail, setGuestEmail] = useState(b.guestEmail || '')
+  const [guestRegion, setGuestRegion]     = useState(b.guestRegion || '')
+  const [guestIdNumber, setGuestIdNumber] = useState(b.guestIdNumber || '')
   const [guests, setGuests]         = useState(String(b.guests || 1))
   const [notes, setNotes]           = useState(b.notes || '')
   const [dirty, setDirty]           = useState(false)
@@ -25,7 +27,7 @@ export default function GuestInfoCard({ booking: b, onSaved }) {
     if (!guestName.trim()) { setErr('اسم الضيف لا يمكن أن يكون فارغاً'); return }
     setBusy(true); setErr('')
     try {
-      await updateBookingGuestInfo(b.id, { guestName, guestPhone, guestEmail, guests, notes })
+      await updateBookingGuestInfo(b.id, { guestName, guestPhone, guestEmail, guestRegion, guestIdNumber, guests, notes })
       setDirty(false)
       onSaved?.()
     } catch {
@@ -42,6 +44,8 @@ export default function GuestInfoCard({ booking: b, onSaved }) {
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
           <Field label="الاسم"><input className="adm-input" value={guestName} onChange={e => set(setGuestName)(e.target.value)} /></Field>
           <Field label="الهاتف"><input className="adm-input" value={guestPhone} onChange={e => set(setGuestPhone)(e.target.value)} /></Field>
+          <Field label="البلد / المحافظة"><input className="adm-input" value={guestRegion} onChange={e => set(setGuestRegion)(e.target.value)} /></Field>
+          <Field label="رقم الهوية"><input className="adm-input" value={guestIdNumber} onChange={e => set(setGuestIdNumber)(e.target.value)} /></Field>
           <Field label="البريد الإلكتروني"><input className="adm-input" value={guestEmail} onChange={e => set(setGuestEmail)(e.target.value)} /></Field>
           <Field label="عدد الأشخاص"><input type="number" min={1} className="adm-input" value={guests} onChange={e => set(setGuests)(e.target.value)} /></Field>
         </div>

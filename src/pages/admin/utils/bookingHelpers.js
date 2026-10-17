@@ -39,7 +39,7 @@ export function occupiedRoomIdSet(bookings) {
 export function bookingMatchesRoomSearch(b, search) {
   if (!search) return true
   const q = search.toLowerCase()
-  if (b.guestName?.toLowerCase().includes(q) || b.guestPhone?.includes(search)) return true
+  if (b.guestName?.toLowerCase().includes(q) || b.guestPhone?.includes(search) || b.guestIdNumber?.includes(search)) return true
   return getBookingRooms(b).some(l =>
     String(l.roomNumber || '').includes(search)
     || (l.roomNameAr || '').includes(search)

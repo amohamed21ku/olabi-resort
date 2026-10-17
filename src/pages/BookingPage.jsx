@@ -34,7 +34,7 @@ export default function BookingPage() {
   const [checkOut, setCheckOut]   = useState(searchParams.get('checkOut') || tomorrow)
   const [submitting, setSubmit]   = useState(false)
   const [error, setError]         = useState('')
-  const [form, setForm]           = useState({ guestName: '', guestPhone: '', guestEmail: '', notes: '' })
+  const [form, setForm]           = useState({ guestName: '', guestPhone: '', guestRegion: '', guestIdNumber: '', guestEmail: '', notes: '' })
   const [available,    setAvailable] = useState(null)  // number of free units (null = unknown)
   const [checkingAvail, setChecking] = useState(false)
   const [qty,          setQty]       = useState(1)     // how many rooms of this category
@@ -122,6 +122,8 @@ export default function BookingPage() {
     if (submitting) return
     if (!form.guestName.trim())  { setError(tr('required_field') + ' — ' + tr('booking_name'));  return }
     if (!form.guestPhone.trim()) { setError(tr('required_field') + ' — ' + tr('booking_phone')); return }
+    if (!form.guestRegion.trim())   { setError(tr('required_field') + ' — ' + tr('booking_region'));   return }
+    if (!form.guestIdNumber.trim()) { setError(tr('required_field') + ' — ' + tr('booking_idNumber')); return }
     if (isFull) { setError(unavailableMsg); return }
     setError('')
     setSubmit(true)
@@ -140,6 +142,8 @@ export default function BookingPage() {
         checkIn, checkOut, nights, guests,
         guestName:  form.guestName.trim(),
         guestPhone: form.guestPhone.trim(),
+        guestRegion:   form.guestRegion.trim(),
+        guestIdNumber: form.guestIdNumber.trim(),
         guestEmail: form.guestEmail.trim(),
         notes:      form.notes.trim(),
       })
@@ -281,6 +285,8 @@ export default function BookingPage() {
               {[
                 { key: 'guestName',  label: tr('booking_name'),  placeholder: tr('booking_namePlaceholder'),  required: true },
                 { key: 'guestPhone', label: tr('booking_phone'), placeholder: tr('booking_phonePlaceholder'), required: true, type: 'tel' },
+                { key: 'guestRegion',   label: tr('booking_region'),   placeholder: tr('booking_regionPlaceholder'),   required: true },
+                { key: 'guestIdNumber', label: tr('booking_idNumber'), placeholder: tr('booking_idNumberPlaceholder'), required: true },
                 { key: 'guestEmail', label: tr('booking_email'), placeholder: tr('booking_emailPlaceholder'), required: false, type: 'email' },
               ].map(({ key, label, placeholder, required, type = 'text' }) => (
                 <div className="form-group" key={key}>

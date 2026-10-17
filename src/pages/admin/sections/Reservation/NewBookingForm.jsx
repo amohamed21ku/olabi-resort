@@ -23,6 +23,8 @@ export default function NewBookingForm({ room, variants, onCreated, minCheckIn }
   const [guestName, setGuestName] = useState('')
   const [guestPhone, setGuestPhone] = useState('')
   const [guestEmail, setGuestEmail] = useState('')
+  const [guestRegion, setGuestRegion] = useState('')
+  const [guestIdNumber, setGuestIdNumber] = useState('')
   const [guests, setGuests] = useState(String(room.capacity || 1))
   const [checkIn, setCheckIn] = useState(() => (minCheckIn && minCheckIn > todayStr() ? minCheckIn : todayStr()))
   const [checkOut, setCheckOut] = useState(() => {
@@ -54,6 +56,8 @@ export default function NewBookingForm({ room, variants, onCreated, minCheckIn }
         guestName: guestName.trim(),
         guestPhone: guestPhone.trim(),
         guestEmail: guestEmail.trim(),
+        guestRegion: guestRegion.trim(),
+        guestIdNumber: guestIdNumber.trim(),
         guests: Number(guests) || 1,
         checkIn, checkOut,
         source: 'walk-in',
@@ -85,6 +89,8 @@ export default function NewBookingForm({ room, variants, onCreated, minCheckIn }
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12 }}>
         <Field label="اسم الضيف"><input className="adm-input" value={guestName} onChange={e => setGuestName(e.target.value)} required /></Field>
         <Field label="رقم الهاتف"><input className="adm-input" value={guestPhone} onChange={e => setGuestPhone(e.target.value)} required /></Field>
+        <Field label="البلد / المحافظة"><input className="adm-input" value={guestRegion} onChange={e => setGuestRegion(e.target.value)} /></Field>
+        <Field label="رقم الهوية"><input className="adm-input" value={guestIdNumber} onChange={e => setGuestIdNumber(e.target.value)} /></Field>
         <Field label="البريد الإلكتروني (اختياري)"><input type="email" className="adm-input" value={guestEmail} onChange={e => setGuestEmail(e.target.value)} /></Field>
         <Field label="عدد الأشخاص"><input type="number" min={1} className="adm-input" value={guests} onChange={e => setGuests(e.target.value)} /></Field>
         <Field label="الوصول"><input type="date" className="adm-input" value={checkIn} min={minCheckIn || undefined} onChange={e => setCheckIn(e.target.value)} /></Field>

@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useParams, useNavigate, useSearchParams, useLocation } from 'react-router-dom'
 import { useGuardedNavigate } from '../../hooks/useGuardedNavigate'
 import {
-  FiChevronRight, FiMessageCircle, FiTrash2, FiUser, FiPhone, FiMail,
+  FiChevronRight, FiMessageCircle, FiTrash2, FiUser, FiPhone, FiMail, FiMapPin, FiCreditCard,
   FiUsers, FiSliders, FiClock, FiMessageSquare, FiCalendar, FiHome, FiLogIn, FiLogOut, FiLock, FiUnlock, FiEdit2,
 } from 'react-icons/fi'
 import {
@@ -285,6 +285,8 @@ function OccupiedRoomPanel({ room, booking: b, rooms, bookings, bookingActions, 
             <CardBody style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               <InfoItem icon={<FiUser size={13} />} label="الاسم" value={b.guestName} />
               <InfoItem icon={<FiPhone size={13} />} label="الهاتف" value={b.guestPhone} />
+              {b.guestRegion && <InfoItem icon={<FiMapPin size={13} />} label="البلد / المحافظة" value={b.guestRegion} />}
+              {b.guestIdNumber && <InfoItem icon={<FiCreditCard size={13} />} label="رقم الهوية" value={b.guestIdNumber} />}
               {b.guestEmail && <InfoItem icon={<FiMail size={13} />} label="البريد" value={b.guestEmail} />}
               <InfoItem icon={<FiUsers size={13} />} label="الأشخاص" value={`${b.guests} ضيف`} />
               {b.source && <InfoItem icon={<FiSliders size={13} />} label="المصدر" value={SOURCE_LABELS[b.source] || b.source} />}

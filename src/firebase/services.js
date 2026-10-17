@@ -442,12 +442,14 @@ export async function getBookingById(bookingId) {
 // Guest-contact-level fields — separate from the room-line editing in
 // mutateBookingRooms/updateBookingRoomLine, since these don't touch rooms[]
 // or the derived checkIn/checkOut/nights/totalPrice aggregates at all.
-export async function updateBookingGuestInfo(bookingId, { guestName, guestPhone, guestEmail, guests, notes }) {
+export async function updateBookingGuestInfo(bookingId, { guestName, guestPhone, guestEmail, guestRegion, guestIdNumber, guests, notes }) {
   if (!bookingId) throw new Error('INVALID_BOOKING_DATA')
   const data = { updatedAt: Timestamp.now() }
   if (guestName != null)  data.guestName  = guestName.trim()
   if (guestPhone != null) data.guestPhone = guestPhone.trim()
   if (guestEmail != null) data.guestEmail = guestEmail.trim()
+  if (guestRegion != null)   data.guestRegion   = guestRegion.trim()
+  if (guestIdNumber != null) data.guestIdNumber = guestIdNumber.trim()
   if (guests != null)     data.guests     = Number(guests) || 1
   if (notes != null)      data.notes      = notes.trim()
   await updateDoc(doc(db, 'bookings', bookingId), data)
@@ -789,6 +791,8 @@ export function buildWhatsAppUrl(booking, language = 'ar') {
       `*معلومات الضيف*\n` +
       `الاسم: ${booking.guestName}\n` +
       `الهاتف: ${booking.guestPhone}\n` +
+      `${booking.guestRegion ? `البلد/المحافظة: ${booking.guestRegion}\n` : ''}` +
+      `${booking.guestIdNumber ? `رقم الهوية: ${booking.guestIdNumber}\n` : ''}` +
       `البريد: ${booking.guestEmail || 'لم يُذكر'}\n\n` +
       `الإجمالي: ${priceStr}\n\n` +
       `${booking.notes ? `ملاحظات: ${booking.notes}\n\n` : ''}` +
@@ -805,6 +809,8 @@ export function buildWhatsAppUrl(booking, language = 'ar') {
       `*Guest Info*\n` +
       `Name: ${booking.guestName}\n` +
       `Phone: ${booking.guestPhone}\n` +
+      `${booking.guestRegion ? `Country/Governorate: ${booking.guestRegion}\n` : ''}` +
+      `${booking.guestIdNumber ? `ID Number: ${booking.guestIdNumber}\n` : ''}` +
       `Email: ${booking.guestEmail || 'Not provided'}\n\n` +
       `Total: ${priceStrEn}\n\n` +
       `${booking.notes ? `Notes: ${booking.notes}\n\n` : ''}` +

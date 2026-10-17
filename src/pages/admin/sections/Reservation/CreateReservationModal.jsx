@@ -24,6 +24,8 @@ export default function CreateReservationModal({ rooms, bookings, variants, onCl
   const [guestName, setGuestName] = useState('')
   const [guestPhone, setGuestPhone] = useState('')
   const [guestEmail, setGuestEmail] = useState('')
+  const [guestRegion, setGuestRegion] = useState('')
+  const [guestIdNumber, setGuestIdNumber] = useState('')
   const [guests, setGuests] = useState('1')
   const [lines, setLines] = useState([]) // [{ _key, roomId, roomNumber, roomType, roomCapacity, roomNameAr, checkIn, checkOut, price }]
   const [addOpen, setAddOpen] = useState(false)
@@ -48,6 +50,8 @@ export default function CreateReservationModal({ rooms, bookings, variants, onCl
         guestName: guestName.trim(),
         guestPhone: guestPhone.trim(),
         guestEmail: guestEmail.trim(),
+        guestRegion: guestRegion.trim(),
+        guestIdNumber: guestIdNumber.trim(),
         guests: Number(guests) || 1,
         source: 'walk-in',
         status: 'confirmed',
@@ -79,6 +83,8 @@ export default function CreateReservationModal({ rooms, bookings, variants, onCl
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12 }}>
             <Field label="اسم الضيف"><input className="adm-input" value={guestName} onChange={e => setGuestName(e.target.value)} required /></Field>
             <Field label="رقم الهاتف"><input className="adm-input" value={guestPhone} onChange={e => setGuestPhone(e.target.value)} required /></Field>
+            <Field label="البلد / المحافظة"><input className="adm-input" value={guestRegion} onChange={e => setGuestRegion(e.target.value)} /></Field>
+            <Field label="رقم الهوية"><input className="adm-input" value={guestIdNumber} onChange={e => setGuestIdNumber(e.target.value)} /></Field>
             <Field label="البريد الإلكتروني (اختياري)"><input type="email" className="adm-input" value={guestEmail} onChange={e => setGuestEmail(e.target.value)} /></Field>
             <Field label="عدد الأشخاص"><input type="number" min={1} className="adm-input" value={guests} onChange={e => setGuests(e.target.value)} /></Field>
           </div>
